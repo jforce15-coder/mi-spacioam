@@ -1,0 +1,453 @@
+/* ============================================================
+   Spacio AM — Owner Dashboard · LIVE Google Sheets loader
+   Reads the published sheet directly from the browser (gviz CSV).
+   Canonical key = property_id (UUID) from SETUP / DATABASE.
+   Tabs: SETUP · Resumenconsolidado · DATABASE · insumos & gastos
+   ============================================================ */
+(function () {
+  "use strict";
+
+  const SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
+  const GTQ_RATE = 7.46;            // USD → GTQ (alineado al Reporte Financiero oficial)
+  const DEMO_PASS = "spacioam";     // contraseña demo única (auth real vive en EPI)
+  const ADMIN_EMAIL = "spacioam@gmail.com";
+  const ADMIN_PASS = "Valencia2026!";
+
+  const MONTHS_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const ES_MONTH = { enero: 0, febrero: 1, marzo: 2, abril: 3, mayo: 4, junio: 5, julio: 6, agosto: 7, septiembre: 8, setiembre: 8, octubre: 9, noviembre: 10, diciembre: 11 };
+  const EN_MONTH = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
+
+  // ---------- low-level ----------
+  function csvURL(sheet) {
+    return "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheet);
+  }
+  function parseCSV(text) {
+    const rows = []; let row = [], cur = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+      else {
+        if (c === '"') q = true;
+        else if (c === ",") { row.push(cur); cur = ""; }
+        else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
+        else if (c === "\r") { }
+        else cur += c;
+      }
+    }
+    if (cur.length || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+  function objectify(rows) {
+    if (!rows.length) return { items: [], head: [] };
+    const head = rows[0].map(h => h.trim());
+    const out = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      if (r.every(c => !c || !c.trim())) continue;
+      const o = {};
+      head.forEach((h, j) => { o[h] = r[j] != null ? r[j].trim() : ""; });
+      out.push(o);
+    }
+    return { items: out, head };
+  }
+  function num(v) {
+    if (v == null) return 0;
+    const s = String(v).replace(/[^0-9.\-]/g, "");
+    const n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  function pctNum(v) {
+    if (!v) return 0;
+    const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
+    return isNaN(n) ? 0 : n / 100;
+  }
+  function norm(s) { return String(s || "").toLowerCase().replace(/\s+/g, "").replace(/[–—]/g, "-").replace(/[^a-z0-9\-]/g, ""); }
+  function daysIn(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+  function parseMesES(s) { // "julio de 2025"
+    const m = String(s || "").toLowerCase().trim().match(/([a-záéíóú]+)\s+de\s+(\d{4})/);
+    if (!m) return null;
+    const mi = ES_MONTH[m[1]]; if (mi == null) return null;
+    return { y: parseInt(m[2], 10), m: mi };
+  }
+  function parseMesEN(s) { // "Apr 2026" / "May 2024"
+    const m = String(s || "").trim().match(/([A-Za-z]{3})[a-z]*\s+(\d{4})/);
+    if (!m) return null;
+    const mi = EN_MONTH[m[1].toLowerCase()]; if (mi == null) return null;
+    return { y: parseInt(m[2], 10), m: mi };
+  }
+  function parseDayMon(s) { // "1 May" / "30 Apr" → {day, mon}
+    const m = String(s || "").trim().match(/(\d{1,2})\s+([A-Za-z]{3})/);
+    if (!m) return null;
+    return { day: parseInt(m[1], 10), mon: EN_MONTH[m[2].toLowerCase()] };
+  }
+
+  // location / zona from name
+  function locate(name) {
+    const n = name.toLowerCase();
+    if (n.includes("antigua")) return "Antigua Guatemala";
+    if (n.includes("likin")) return "Iztapa, Escuintla";
+    if (n.includes("monterrico")) return "Monterrico, Santa Rosa";
+    const z = name.match(/z\s*(\d+)/i);
+    if (z) return "Zona " + z[1] + ", Ciudad de Guatemala";
+    return "Guatemala";
+  }
+  // parse "Z4 - EdificioA4 - 304" → { zona, edificio, apto }
+  function parseName(name) {
+    const parts = String(name || "").split(/\s*-\s*/).map(s => s.trim()).filter(Boolean);
+    if (parts.length >= 3) return { zona: parts[0], edificio: parts[1], apto: parts.slice(2).join(" - ") };
+    if (parts.length === 2) return { zona: parts[0], edificio: parts[1], apto: "" };
+    return { zona: parts[0] || name, edificio: "", apto: "" };
+  }
+  const yesFlag = (v) => !!v && /^(si|sí|yes|true|x|1)$/i.test(String(v).trim());
+
+  function zeroMonth(y, m) {
+    return {
+      y, m, label: { es: MONTHS_ES[m], en: MONTHS_EN[m] }, present: false,
+      ingresoBruto: 0, ingresoNeto: 0, fee: 0, insumos: 0, reparaciones: 0, gastos: 0,
+      otrosDescuentos: 0, otrosIngresos: 0, otrosIngresos2: 0, ivaTotal: 0, ivaSocios: 0, hostFee: 0, cleaningFee: 0,
+      retencion: 0, deposito: 0,
+      nochesReservadas: 0, estadias: 0, huespedes: 0, adr: 0, leadTime: 0, estadiaProm: 0,
+      ocupacionTotal: 0, ocupacionAjustada: 0, available: daysIn(y, m), totalDays: daysIn(y, m),
+      nochesBloqueadas: 0, costoOportunidad: 0,
+    };
+  }
+
+  // ---------- build model ----------
+  function build(setup, resumen, db, exp, tc) {
+    // month axis from Resumen (ascending)
+    const mkSet = {};
+    resumen.items.forEach(r => { const d = parseMesES(r["Mes"]); if (d) mkSet[d.y + "-" + d.m] = d; });
+    const monthKeys = Object.values(mkSet).sort((a, b) => (a.y - b.y) || (a.m - b.m));
+    const mkIndex = {}; monthKeys.forEach((k, i) => mkIndex[k.y + "-" + k.m] = i);
+
+    // TC tab → exchange rate per property per month (GTQ per USD)
+    const tcByProp = {};   // normName -> { "y-m": rate }
+    const tcByMonth = {};  // "y-m" -> [rates] (fallback average)
+    (tc.items || []).forEach(r => {
+      const nm = norm(r["Property_name"]); const d = parseMesES(r["Mes"]); const v = num(r["Valor"]);
+      if (!nm || !d || !v) return;
+      (tcByProp[nm] = tcByProp[nm] || {})[d.y + "-" + d.m] = v;
+      (tcByMonth[d.y + "-" + d.m] = tcByMonth[d.y + "-" + d.m] || []).push(v);
+    });
+    function rateFor(nm, y, m) {
+      const p = tcByProp[nm]; if (p && p[y + "-" + m]) return p[y + "-" + m];
+      const arr = tcByMonth[y + "-" + m]; if (arr && arr.length) return arr.reduce((a, b) => a + b, 0) / arr.length;
+      return GTQ_RATE;
+    }
+
+    // properties from SETUP — CONSOLIDATED by normalized name (dup listings → one property)
+    const propByName = {};     // normName -> property
+    const propById = {};       // any property_id -> same property object (for DATABASE lookup)
+    const idxByCodeName = {};  // "code|normName" -> property (for Resumen)
+    const idxByName = {};      // normName -> property (for expenses)
+    const ownerNames = {};     // code -> ordered list of normNames
+    const codeInfo = {};       // code -> { email, pass, secondary }
+
+    setup.items.forEach(r => {
+      const pid = (r["property_id"] || "").trim();
+      const name = (r["property_name"] || "").trim();
+      const code = (r["Usuario ID"] || "").trim();
+      if (!pid || !name || !code) return;
+      const nm = norm(name);
+      // owner-level credentials (first non-empty per code wins)
+      const ci = codeInfo[code] = codeInfo[code] || { email: "", pass: "", secondary: "" };
+      if (!ci.email && r["User email"]) ci.email = r["User email"].trim();
+      if (!ci.pass && r["Password"]) ci.pass = r["Password"].trim();
+      if (!ci.secondary && r["secondary user email"]) ci.secondary = r["secondary user email"].trim();
+      let p = propByName[nm];
+      if (!p) {
+        const parts = parseName(name);
+        p = propByName[nm] = {
+          id: nm, pids: [], code, name, location: locate(name),
+          zona: parts.zona, edificio: parts.edificio, apto: parts.apto,
+          feePct: num(r["SPACIOAMFEE"]),
+          flagIva: yesFlag(r["iva"]), flagRetencion: yesFlag(r["RETENCION"]), flagOtroIngreso: yesFlag(r["OTRO INGRESO"]),
+          moneda: (r["Moneda"] || "USD").trim().toUpperCase(),
+          cuenta: (r["Numero de cuenta"] || r["Número de cuenta"] || r["Cuenta"] || r["No. de cuenta"] || "").trim(),
+          listings: [], listing: "",
+          months: monthKeys.map(k => zeroMonth(k.y, k.m)),
+          reservations: [], expenses: [],
+          setupRows: [],
+        };
+        idxByCodeName[code + "|" + nm] = p;
+        idxByName[nm] = p;
+        (ownerNames[code] = ownerNames[code] || []).push(nm);
+      }
+      // accumulate listings + pids from every duplicate row (consolidated)
+      p.pids.push(pid);
+      propById[pid] = p;
+      const link = (r["Listing link"] || "").trim();
+      if (link && p.listings.indexOf(link) === -1) p.listings.push(link);
+      if (!p.listing && link) p.listing = link;
+      // capture flags if any duplicate row sets them
+      if (yesFlag(r["iva"])) p.flagIva = true;
+      if (yesFlag(r["RETENCION"])) p.flagRetencion = true;
+      if (yesFlag(r["OTRO INGRESO"])) p.flagOtroIngreso = true;
+      p.setupRows.push({ property_id: pid, property_name: name, usuario: code, iva: r["iva"] || "", fee: r["SPACIOAMFEE"] || "", retencion: r["RETENCION"] || "", otroIngreso: r["OTRO INGRESO"] || "", email: r["User email"] || "", listing: link });
+    });
+
+    // Resumenconsolidado → monthly figures (match by code + normName; ACCUMULATE for dup listings)
+    resumen.items.forEach(r => {
+      const code = (r["Usuario ID"] || "").trim();
+      const name = (r["Property_name"] || "").trim();
+      const d = parseMesES(r["Mes"]);
+      if (!code || !name || !d) return;
+      const p = idxByCodeName[code + "|" + norm(name)];
+      if (!p) return;
+      const idx = mkIndex[d.y + "-" + d.m];
+      if (idx == null) return;
+      const bruto = num(r["Ingreso Bruto"]);
+      const neto = num(r["Ingreso Neto"]);
+      const fee = num(r["Fee Spacio"]);
+      const insumos = num(r["Insumos & Gastos"]);
+      const reparaciones = num(r["Reparaciones"]);
+      const otrosIng2 = num(r["Otros ingresos 2"]);
+      const noches = num(r["Noches"]);
+      const occAdj = pctNum(r["Ocupación Ajustada"] || r["Ocupación"]);
+      const occTot = pctNum(r["Ocupación"]);
+      const adr = num(r["Precio Prom"]);
+      const days = daysIn(d.y, d.m);
+      const avail = occAdj > 0 ? noches / occAdj : days;
+      const total = occTot > 0 ? noches / occTot : days;
+      const cur = p.months[idx];
+      const had = cur.present;
+      const acc = {
+        y: d.y, m: d.m, label: { es: MONTHS_ES[d.m], en: MONTHS_EN[d.m] }, present: true,
+        ingresoBruto: cur.ingresoBruto + bruto, ingresoNeto: cur.ingresoNeto + neto, fee: cur.fee + fee,
+        insumos: cur.insumos + insumos, reparaciones: cur.reparaciones + reparaciones, gastos: cur.gastos + insumos + reparaciones,
+        otrosIngresos: cur.otrosIngresos + otrosIng2, otrosIngresos2: cur.otrosIngresos2 + otrosIng2,
+        ivaTotal: cur.ivaTotal + num(r["IVA Total"]), ivaSocios: cur.ivaSocios + num(r["IVA Socios"]),
+        hostFee: cur.hostFee + num(r["Host Service Fee"]), cleaningFee: cur.cleaningFee + num(r["Cleaning Fee"]),
+        nochesReservadas: cur.nochesReservadas + noches, estadias: cur.estadias + num(r["Estadías"]), huespedes: 0,
+        available: cur.available === days && !had ? avail : (had ? cur.available + avail : avail),
+        totalDays: cur.totalDays === days && !had ? total : (had ? cur.totalDays + total : total),
+        leadTime: had ? (cur.leadTime + num(r["Lead Time Prom"])) / 2 : num(r["Lead Time Prom"]),
+        estadiaProm: num(r["Estadía Prom"]),
+        nochesBloqueadas: cur.nochesBloqueadas + num(r["Estadía propietario"]),
+        costoOportunidad: cur.costoOportunidad + num(r["Costo de oportunidad"]),
+        _adrW: (cur._adrW || 0) + adr * noches,
+        netoSheet2: (cur.netoSheet2 || 0) + num(r["Ingreso Neto 2"]),
+      };
+      acc.adr = acc.nochesReservadas ? acc._adrW / acc.nochesReservadas : adr;
+      acc.ocupacionAjustada = acc.available ? acc.nochesReservadas / acc.available : 0;
+      acc.ocupacionTotal = acc.totalDays ? acc.nochesReservadas / acc.totalDays : 0;
+      acc.otrosDescuentos = Math.max(0, acc.ingresoBruto - acc.ingresoNeto - acc.fee - acc.insumos - acc.reparaciones);
+      // retención (5% sobre base sin IVA) + depósito = neto − retención (solo si la propiedad tiene retención)
+      if (p.flagRetencion) {
+        acc.retencion = (acc.ingresoNeto / 1.12) * 0.05;
+        acc.deposito = acc.netoSheet2 > 0 ? acc.netoSheet2 : (acc.ingresoNeto - acc.retencion);
+      } else {
+        acc.retencion = 0; acc.deposito = acc.netoSheet2 > 0 ? acc.netoSheet2 : acc.ingresoNeto;
+      }
+      p.months[idx] = acc;
+    });
+
+    // DATABASE → reservations (match by property_id)
+    db.items.forEach(r => {
+      const pid = (r["property_id"] || "").trim();
+      const p = propById[pid];
+      if (!p) return;
+      const d = parseMesEN(r["Mes_año"]);
+      const ingresoBruto = num(r["ingreso_bruto"]);
+      const feePlataforma = num(r["Fee_plataforma_socio"]);
+      p.reservations.push({
+        y: d ? d.y : null, m: d ? d.m : null,
+        checkin: r["checkin_date"] || "", checkout: r["checkout_date"] || "",
+        fechas: (r["Fechas resum"] || "").trim(),
+        nights: num(r["nights"]), platform: (r["platform"] || "").trim() || "—",
+        guest: ((r["guest_first_name"] || "") + " " + (r["guest_last_name"] || "")).trim() || "—",
+        guests: num(r["guest_count"]), status: (r["status"] || "").trim(),
+        ingresoBruto, feePlataforma, ingresos: ingresoBruto + feePlataforma,
+        cleaningFee: num(r["cleaning_fee"]), iva: num(r["pass_through_taxes"]),
+        leadTime: num(r["lead_time"]), rating: num(r["review_rating"]),
+        _sort: (function () { const dd = parseDayMon(r["Fechas resum"]); return dd ? (dd.mon * 100 + dd.day) : 0; })(),
+      });
+    });
+
+    // huéspedes per month from reservations
+    Object.values(propById).forEach(p => {
+      const g = {};
+      p.reservations.forEach(rv => { if (rv.m != null) g[rv.y + "-" + rv.m] = (g[rv.y + "-" + rv.m] || 0) + (rv.guests || 0); });
+      p.months.forEach(mo => { const v = g[mo.y + "-" + mo.m]; if (v) mo.huespedes = v; else if (mo.present) mo.huespedes = Math.round(mo.estadias * 2.2); });
+    });
+
+    // insumos & gastos → expenses (only owner-billable categories)
+    const BILLABLE = { "insumos & gastos": "insumos", "reparaciones o inversión": "reparaciones", "reparaciones o inversion": "reparaciones" };
+    const nameKey = exp.head[2] || "property";
+    exp.items.forEach(r => {
+      const pname = (r[nameKey] || "").trim();
+      if (!pname) return;
+      const p = idxByName[norm(pname)];
+      if (!p) return;
+      const catRaw = (r["categoria"] || "").trim();
+      const catKey = BILLABLE[catRaw.toLowerCase()];
+      if (!catKey) return; // skip Gasto Spacio AM / Otro ingreso / Otro / blank
+      const ed = parseExpDate(r["Fecha de pedido"], num(r["Mes"]));
+      // insumos & gastos line items are recorded in GTQ → convert to USD with TC (property+month)
+      const valorGTQ = num(r["valor"]);
+      const rate = rateFor(norm(pname), ed.y, ed.m);
+      p.expenses.push({
+        y: ed.y, m: ed.m, day: ed.day,
+        catKey, category: catRaw, desc: (r["Comentario"] || catRaw).trim() || catRaw,
+        amount: rate ? valorGTQ / rate : valorGTQ, amountGTQ: valorGTQ, tc: rate,
+      });
+    });
+    Object.values(propById).forEach(p => p.expenses.sort((a, b) => (b.y - a.y) || (b.m - a.m) || (b.day - a.day)));
+
+    // accounts: keyed by login email, merging any Usuario IDs that share that email.
+    const hasData = (nm) => propByName[nm] && (propByName[nm].months.some(m => m.present) || propByName[nm].reservations.length);
+    const byEmail = {};
+    Object.keys(ownerNames).sort().forEach(code => {
+      const info = codeInfo[code] || {};
+      const props = ownerNames[code].filter(hasData);
+      if (!props.length) return;
+      const email = (info.email || "").trim();
+      const key = (email || code).toLowerCase();
+      const acc = byEmail[key] || (byEmail[key] = {
+        primaryCode: code, codes: [], props: [],
+        email: email, pass: (info.pass || DEMO_PASS), secondaryEmail: (info.secondary || ""),
+      });
+      acc.codes.push(code);
+      acc.props = acc.props.concat(props);
+      if (!acc.email && email) acc.email = email;
+      if (!acc.secondaryEmail && info.secondary) acc.secondaryEmail = info.secondary;
+    });
+    function prettyName(email, code) {
+      if (email && email.includes("@")) { const lp = email.split("@")[0]; return lp.charAt(0).toUpperCase() + lp.slice(1); }
+      return code.replace(/_/g, " ");
+    }
+    const owners = Object.values(byEmail).map(a => ({
+      code: a.primaryCode, codes: a.codes,
+      name: prettyName(a.email, a.primaryCode),
+      email: a.email, pass: a.pass, secondaryEmail: a.secondaryEmail,
+      props: [...new Set(a.props)],
+    }));
+
+    // admin account — sees every property; can filter by zona/edificio/propiedad
+    const allProps = Object.keys(propByName).filter(hasData);
+    const admin = {
+      code: "__admin__", codes: ["__admin__"], name: "Spacio AM", isAdmin: true,
+      email: ADMIN_EMAIL, pass: ADMIN_PASS, secondaryEmail: "", props: allProps,
+    };
+
+    // effective credentials apply any locally-saved profile edits (demo persistence)
+    function eff(o) {
+      const pr = SpacioProfile.get(o.code);
+      return {
+        email: pr.email != null ? pr.email : o.email,
+        secondaryEmail: pr.secondaryEmail != null ? pr.secondaryEmail : o.secondaryEmail,
+        pass: pr.pass != null ? pr.pass : o.pass,
+      };
+    }
+
+    const byId = propByName; // id === normalized name
+
+    return {
+      live: true, rate: GTQ_RATE, monthKeys, MONTHS_ES, MONTHS_EN,
+      properties: byId, propertyList: Object.values(propByName), owners, admin,
+      effCreds: eff,
+      auth(login, pass) {
+        const L = String(login || "").trim().toLowerCase();
+        if (L === ADMIN_EMAIL.toLowerCase() && pass === ADMIN_PASS) return Object.assign({}, admin);
+        for (const o of owners) {
+          const e = eff(o);
+          const email = (e.email || "").toLowerCase();
+          const sec = (e.secondaryEmail || "").toLowerCase();
+          if ((L && (L === email || (sec && L === sec))) && pass === e.pass) {
+            return Object.assign({}, o, e);
+          }
+        }
+        return null;
+      },
+      ownerProps(owner) {
+        if (owner && owner.isAdmin) return (owner.props || allProps).map(id => byId[id]).filter(Boolean);
+        return owner.props.map(id => byId[id]).filter(Boolean);
+      },
+      // deposito rows to write into Resumenconsolidado "Ingreso Neto 2"
+      depositoItems() {
+        const LONG = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+        const items = [];
+        Object.values(byId).forEach(p => {
+          if (!p.flagRetencion) return;
+          p.months.forEach(mo => {
+            if (!mo.present) return;
+            items.push({ usuario: p.code, property_name: p.name, mes: LONG[mo.m] + " de " + mo.y, value: Math.round(mo.deposito * 100) / 100 });
+          });
+        });
+        return items;
+      },
+    };
+  }
+
+  // ---------- local profile store (demo persistence; real write-back lives in backend) ----------
+  const SpacioProfile = {
+    key(code) { return "sa-profile-" + code; },
+    get(code) { try { return JSON.parse(localStorage.getItem(this.key(code))) || {}; } catch (e) { return {}; } },
+    set(code, patch) { const next = Object.assign({}, this.get(code), patch); localStorage.setItem(this.key(code), JSON.stringify(next)); return next; },
+    reset(code) { localStorage.removeItem(this.key(code)); },
+  };
+  window.SpacioProfile = SpacioProfile;
+
+  // ---------- local SETUP overrides (admin edits; real write-back needs backend) ----------
+  const SpacioSetup = {
+    KEY: "sa-setup-overrides",
+    all() { try { return JSON.parse(localStorage.getItem(this.KEY)) || { edits: {}, added: [] }; } catch (e) { return { edits: {}, added: [] }; } },
+    saveEdit(id, row) { const a = this.all(); a.edits[id] = row; localStorage.setItem(this.KEY, JSON.stringify(a)); },
+    addRow(row) { const a = this.all(); a.added.push(row); localStorage.setItem(this.KEY, JSON.stringify(a)); return a; },
+    reset() { localStorage.removeItem(this.KEY); },
+  };
+  window.SpacioSetup = SpacioSetup;
+
+  // ---------- write-back client (Apps Script web app) ----------
+  // Configure URL + token in Setup → "Conexión de escritura". When set,
+  // edits are POSTed to the Apps Script that writes directly to the sheet.
+  const SpacioWrite = {
+    urlKey: "sa-writeapi-url", tokenKey: "sa-writeapi-token",
+    url() { return localStorage.getItem(this.urlKey) || ""; },
+    token() { return localStorage.getItem(this.tokenKey) || ""; },
+    setConfig(url, token) { localStorage.setItem(this.urlKey, (url || "").trim()); localStorage.setItem(this.tokenKey, (token || "").trim()); },
+    enabled() { return !!this.url(); },
+    async post(action, payload) {
+      if (!this.url()) return { ok: false, offline: true };
+      try {
+        // text/plain → "simple request", evita preflight CORS contra Apps Script
+        const res = await fetch(this.url(), {
+          method: "POST", redirect: "follow",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(Object.assign({ action: action, token: this.token() }, payload || {})),
+        });
+        return await res.json();
+      } catch (e) { return { ok: false, error: String(e) }; }
+    },
+    ping() { return this.post("ping", {}); },
+  };
+  window.SpacioWrite = SpacioWrite;
+
+  // expense date: prefer a real date in "Fecha de pedido"; else month number heuristic
+  function parseExpDate(fecha, mesNum) {
+    const s = String(fecha || "").trim();
+    const d = new Date(s);
+    if (!isNaN(d) && /\d{4}/.test(s)) return { y: d.getFullYear(), m: d.getMonth(), day: d.getDate() };
+    const dm = parseDayMon(s); // "15 Apr"
+    const mn = mesNum && mesNum >= 1 && mesNum <= 12 ? mesNum - 1 : (dm ? dm.mon : 0);
+    const y = mn >= 6 ? 2025 : 2026; // report window jul'25–abr'26
+    const day = dm ? dm.day : 1;
+    return { y, m: mn, day };
+  }
+
+  async function load() {
+    const fetchTab = async (name) => objectify(parseCSV(await (await fetch(csvURL(name))).text()));
+    const [setup, resumen, dbT, expT, tcT] = await Promise.all([
+      fetchTab("SETUP"), fetchTab("Resumenconsolidado"), fetchTab("DATABASE"), fetchTab("insumos & gastos"), fetchTab("TC"),
+    ]);
+    const data = build(setup, resumen, dbT, expT, tcT);
+    window.SpacioData = data;
+    window.__sheets = { setup: setup.items.length, resumen: resumen.items.length, db: dbT.items.length, exp: expT.items.length, tc: tcT.items.length, accounts: data.owners.length };
+    return data;
+  }
+
+  window.SpacioLoad = load;
+  window.SPACIO_RATE = GTQ_RATE;
+})();

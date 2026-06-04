@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Spacio AM · Portal de propietarios</title>
+<link rel="stylesheet" href="spacio-tokens.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="image-slot.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--alabaster); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--sans); }
+  ::selection { background: var(--peach-12); }
+  @keyframes sa-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  @keyframes sa-spin { to { transform: rotate(360deg); } }
+  .sa-spin { animation: sa-spin .7s linear infinite; }
+  @keyframes sa-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: no-preference) {
+    .sa-section { animation: sa-rise .5s var(--ease) both; }
+  }
+
+  /* ---------- Top bar ---------- */
+  .sa-topbar { position: sticky; top: 0; z-index: 40; background: rgba(250,250,250,0.78);
+    backdrop-filter: blur(20px) saturate(120%); -webkit-backdrop-filter: blur(20px) saturate(120%);
+    border-bottom: 1px solid var(--ink-08); }
+  .sa-topbar-inner { max-width: 1240px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 14px; }
+  .sa-brand { display: flex; align-items: center; gap: 7px; text-decoration: none; flex-shrink: 0; }
+  .sa-brand-logo { height: 38px; width: auto; display: block; }
+
+  /* ---------- Tabs ---------- */
+  .sa-tabs-bar { background: var(--alabaster); border-bottom: 1px solid var(--ink-08); }
+  .sa-tabs-inner { max-width: 1240px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; overflow-x: auto; }
+  .sa-tab { display: inline-flex; align-items: center; gap: 9px; border: none; background: transparent; cursor: pointer;
+    padding: 20px 20px; font-family: var(--sans); font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--earth); border-bottom: 2px solid transparent; transition: color .18s var(--ease), border-color .18s var(--ease); white-space: nowrap; }
+  .sa-tab:hover { color: var(--ink); }
+  .sa-tab.active { color: var(--ink); border-bottom-color: var(--peach); }
+  .sa-tab svg { width: 19px; height: 19px; }
+
+  /* ---------- Reporte financiero · pass-through ---------- */
+  .sa-rf-passthrough { margin-top: 18px; padding-top: 4px; border-top: 2px dashed var(--warm-grey); }
+  .sa-rf-notif { display: flex; gap: 11px; align-items: flex-start; background: var(--peach-12); border-radius: 14px;
+    padding: 14px 16px; margin: 16px 0 8px; }
+  .sa-rf-notif p { font-family: var(--sans); font-size: 12px; line-height: 1.6; letter-spacing: 0.02em; color: var(--ink); margin: 0; text-wrap: pretty; }
+  .sa-rf-pt-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;
+    border: none; background: transparent; cursor: pointer; padding: 12px 2px 8px; }
+  .sa-rf-pt-toggle:hover span { color: var(--ink); }
+  .sa-topbar-controls { display: flex; align-items: center; gap: 10px; margin-left: 8px; flex-wrap: wrap; }
+  .sa-topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .sa-avatar { width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--ink-08); background: var(--beige-soft);
+    color: var(--ink); font-family: var(--sans); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: box-shadow .18s var(--ease); }
+  .sa-avatar:hover { box-shadow: var(--shadow-sm); }
+  .sa-menu { position: absolute; top: calc(100% + 10px); right: 0; min-width: 230px; background: var(--alabaster);
+    border: 1px solid var(--ink-08); border-radius: 16px; box-shadow: var(--shadow-md); overflow: hidden; z-index: 60; }
+  .sa-menu-item { display: flex; align-items: center; gap: 10px; width: 100%; border: none; background: transparent;
+    cursor: pointer; padding: 14px; font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.06em; color: var(--ink);
+    transition: background .14s var(--ease); }
+  .sa-menu-item:hover { background: var(--beige-soft); }
+
+  /* ---------- Page ---------- */
+  .sa-wrap { max-width: 1240px; margin: 0 auto; padding: 26px 20px 120px; }
+  .sa-pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+  .sa-period-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 8px 14px;
+    background: var(--beige-soft); border-radius: 999px; font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; color: var(--earth); }
+  .sa-period-chip span { text-transform: uppercase; letter-spacing: 0.16em; font-size: 10px; font-weight: 500; }
+  .sa-period-chip strong { color: var(--ink); font-weight: 600; letter-spacing: 0.02em; font-size: 12px; }
+  .sa-acc-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 900px) { .sa-acc-grid { grid-template-columns: 1.4fr 1fr; align-items: start; } }
+
+  /* ---------- Liquidation block ---------- */
+  .sa-liq-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 14px; }
+  @media (min-width: 720px) {
+    .sa-liq-grid { grid-template-columns: repeat(3, 1fr); }
+    .sa-liq-grid[data-cols="1"] { grid-template-columns: 1fr; }
+    .sa-liq-grid[data-cols="2"] { grid-template-columns: repeat(2, 1fr); }
+  }
+  .sa-liq-invoice { display: grid; grid-template-columns: 1fr; gap: 20px; background: var(--beige-soft); border-radius: 22px; padding: 24px 26px; }
+  @media (min-width: 760px) { .sa-liq-invoice { grid-template-columns: 220px 1fr; gap: 32px; align-items: center; } }
+  .sa-liq-invoice-amt { display: flex; flex-direction: column; }
+  .sa-liq-invoice-body { display: flex; flex-direction: column; gap: 11px; }
+  .sa-liq-line { display: flex; align-items: flex-start; gap: 10px; font-family: var(--sans); font-size: 13px; letter-spacing: 0.02em; line-height: 1.5; color: var(--ink); }
+  .sa-liq-line svg { flex-shrink: 0; margin-top: 1px; }
+  .sa-liq-line strong { font-weight: 600; }
+  .sa-liq-note { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--warm-grey);
+    font-family: var(--sans); font-size: 12px; line-height: 1.55; letter-spacing: 0.02em; color: var(--earth); text-wrap: pretty; }
+  .sa-dep-table td { font-size: 12.5px; }
+
+  /* ---------- Admin ---------- */
+  .sa-admin-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; padding: 14px 16px;
+    background: var(--beige-soft); border-radius: 16px; }
+  .sa-admin-badge { display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; background: var(--ink); color: var(--alabaster);
+    border-radius: 999px; font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; }
+  /* ---------- Setup editor ---------- */
+  .sa-setup-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .sa-setup-scroll { overflow-x: auto; border: 1px solid var(--ink-08); border-radius: 18px; }
+  .sa-setup-table { width: 100%; min-width: 920px; border-collapse: collapse; }
+  .sa-setup-table th { position: sticky; top: 0; background: var(--beige-soft); font-family: var(--sans); font-size: 9.5px; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--earth); text-align: left; padding: 13px 12px; white-space: nowrap; }
+  .sa-setup-table td { padding: 9px 12px; border-top: 1px solid var(--ink-08); font-family: var(--sans); font-size: 12.5px; color: var(--ink); vertical-align: middle; }
+  .sa-setup-table tr:hover td { background: var(--beige-30); }
+  .sa-setup-input { width: 100%; box-sizing: border-box; font-family: var(--sans); font-size: 12.5px; color: var(--ink);
+    padding: 8px 10px; background: var(--alabaster); border: 1px solid var(--warm-grey); border-radius: 9px; outline: none; }
+  .sa-setup-input:focus { border-color: var(--ink); }
+  .sa-chip-btn { display: inline-flex; align-items: center; gap: 7px; border: none; cursor: pointer; border-radius: 11px; padding: 11px 16px;
+    font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; }
+  .sa-chip-btn-dark { background: var(--ink); color: var(--alabaster); }
+  .sa-chip-btn-ghost { background: transparent; color: var(--earth); border: 1px solid var(--ink-08); }
+  .sa-section { margin-top: 46px; }
+
+  /* ---------- Top grid: hero + KPIs ---------- */
+  .sa-top { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .sa-hero { display: flex; flex-direction: column; background: var(--alabaster); border: 1px solid var(--ink-08);
+    border-radius: 24px; overflow: hidden; box-shadow: var(--shadow-sm); }
+  .sa-hero-media { position: relative; width: 100%; min-height: 230px; background: var(--beige-soft); }
+  .sa-hero-media image-slot { position: absolute; inset: 0; }
+  .sa-hero-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .72s var(--ease); }
+  .sa-hero-photo { position: absolute; inset: 0; display: block; overflow: hidden; }
+  .sa-hero-photo:hover .sa-hero-img { transform: scale(1.04); }
+  .sa-hero-listing { display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; text-decoration: none;
+    background: rgba(250,250,250,0.92); color: var(--ink); border-radius: 999px; padding: 8px 14px;
+    font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+    transition: background .18s var(--ease); }
+  .sa-hero-listing:hover { background: var(--alabaster); }
+  .sa-hero-all { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; background: var(--beige-soft); }
+  .sa-hero-overlay { position: absolute; left: 0; right: 0; bottom: 0; padding: 22px 24px;
+    background: linear-gradient(to top, rgba(40,40,40,0.62), rgba(40,40,40,0.12) 55%, transparent); }
+  .sa-hero-context { padding: 22px 24px 24px; }
+  .sa-listing-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; text-decoration: none;
+    font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; color: var(--earth); transition: color .18s var(--ease); }
+  .sa-listing-link:hover { color: var(--peach); }
+
+  .sa-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  /* ---------- Financial ---------- */
+  .sa-fin-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .sa-highlights { display: flex; flex-direction: column; gap: 18px; padding: 4px; }
+  .sa-highlight { display: flex; gap: 14px; align-items: flex-start; }
+  .sa-highlight-ic { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: var(--peach-12);
+    display: flex; align-items: center; justify-content: center; }
+
+  /* ---------- Occupancy ---------- */
+  .sa-occ-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .sa-occ-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+  /* ---------- Distribution ---------- */
+  .sa-dist-grid { display: grid; grid-template-columns: 1fr; gap: 28px; align-items: center; }
+  .sa-dist-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 0;
+    border-bottom: 1px solid var(--ink-08); }
+  .sa-dist-row:last-child { border-bottom: none; }
+
+  /* ---------- Evolution ---------- */
+  .sa-evo-scroll { overflow-x: auto; }
+  .sa-evo-row { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr; gap: 12px; align-items: center;
+    padding: 16px 22px; min-width: 540px; }
+  .sa-evo-head { background: var(--beige-soft); }
+  .sa-evo-head span { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--earth); }
+
+  /* ---------- Expenses ---------- */
+  .sa-exp-grouphead { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px 12px; }
+  .sa-exp-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--beige-soft); display: flex; align-items: center; justify-content: center; }
+  .sa-exp-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 11px 22px;
+    border-top: 1px solid var(--ink-08); }
+  .sa-exp-date { font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--earth); white-space: nowrap; }
+  .sa-exp-desc { font-family: var(--sans); font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
+  .sa-exp-amt { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink); text-align: right; white-space: nowrap; }
+  .sa-viewall { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border: none;
+    border-top: 1px solid var(--warm-grey); background: transparent; cursor: pointer; padding: 15px;
+    font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--earth); }
+  .sa-viewall:hover { color: var(--ink); }
+
+  /* ---------- Operations ---------- */
+  .sa-ops-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+  .sa-ops-ic { width: 40px; height: 40px; border-radius: 12px; background: var(--beige-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sa-ops-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  .sa-res-head { background: var(--beige-soft); }
+  .sa-res-head span { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--earth); }
+  .sa-res-row { display: grid; grid-template-columns: 1.5fr 1fr 0.5fr 0.8fr; gap: 10px; align-items: center; padding: 13px 24px; }
+
+  /* ---------- Opportunity ---------- */
+  .sa-opp-card { position: relative; overflow: hidden; background: var(--beige-soft); border-radius: 28px; padding: 36px; box-shadow: var(--shadow-sm); }
+  .sa-opp-brush { position: absolute; bottom: -30%; right: -15%; width: 80%; opacity: 0.6; pointer-events: none; transform: rotate(6deg); }
+  .sa-opp-inner { position: relative; z-index: 2; display: grid; grid-template-columns: 1fr; gap: 28px; }
+  .sa-opp-figs { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-content: start; }
+  .sa-opp-fig { background: var(--alabaster); border: 1px solid var(--ink-08); border-radius: 18px; padding: 20px; }
+
+  /* ---------- Reporte Financiero ---------- */
+  .sa-rf-grid-wrap { display: grid; grid-template-columns: 1fr; gap: 18px; padding: 16px 22px 24px; }
+  .sa-rf-table { min-width: 0; }
+  .sa-rf-row { display: grid; grid-template-columns: 1fr 46px 84px 92px; gap: 8px; align-items: center; padding: 7px 0; }
+  .sa-rf-colhead { border-bottom: 1.5px solid var(--ink); padding-bottom: 9px; margin-bottom: 2px; }
+  .sa-rf-colhead .sa-rf-lbl, .sa-rf-colhead .sa-rf-n, .sa-rf-colhead .sa-rf-v { font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--earth); }
+  .sa-rf-lbl { font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sa-rf-n { font-family: var(--sans); font-size: 12px; color: var(--earth); text-align: center; font-variant-numeric: tabular-nums; }
+  .sa-rf-v { font-family: var(--sans); font-size: 12px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+  .sa-rf-block { border-bottom: 1px solid var(--warm-grey); padding: 6px 0 8px; }
+  .sa-rf-block:last-child { border-bottom: none; }
+  .sa-rf-row.sa-rf-total { background: var(--beige-soft); margin: 5px -10px 0; padding: 9px 10px; border-radius: 9px; }
+  .sa-rf-row.sa-rf-total .sa-rf-lbl, .sa-rf-row.sa-rf-total .sa-rf-v, .sa-rf-row.sa-rf-total .sa-rf-n { font-weight: 600; }
+  .sa-rf-row.sa-rf-strong { background: var(--ink); margin: 5px -10px 0; padding: 11px 10px; border-radius: 9px; }
+  .sa-rf-row.sa-rf-strong .sa-rf-lbl, .sa-rf-row.sa-rf-strong .sa-rf-v, .sa-rf-row.sa-rf-strong .sa-rf-n { color: var(--alabaster); font-weight: 600; }
+  .sa-rf-row.sa-rf-line .sa-rf-lbl { color: var(--earth); }
+  .sa-rf-side { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .sa-rf-sidecard { background: var(--beige-soft); border-radius: 16px; padding: 18px 14px; text-align: center; }
+  .sa-rf-sidecard-soft { background: var(--alabaster); border: 1px solid var(--ink-08); }
+  .sa-rf-side-lbl { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--earth); line-height: 1.3; }
+  .sa-rf-side-val { font-family: var(--sans); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); margin-top: 8px; }
+  .sa-rf-side-sub { font-family: var(--sans); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--earth); margin-top: 3px; }
+  @media (min-width: 920px) {
+    .sa-rf-grid-wrap { grid-template-columns: 1fr 230px; gap: 28px; padding: 18px 28px 28px; }
+    .sa-rf-side { grid-template-columns: 1fr; align-content: start; }
+  }
+
+  /* ---------- Bottom nav (mobile) ---------- */
+  .sa-bottomnav { display: none; position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 45;
+    background: rgba(250,250,250,0.86); backdrop-filter: blur(20px) saturate(120%); -webkit-backdrop-filter: blur(20px) saturate(120%);
+    border: 1px solid var(--ink-08); border-radius: 999px; box-shadow: var(--shadow-md); padding: 6px; }
+  .sa-bottomnav-inner { display: flex; justify-content: space-around; }
+  .sa-navbtn { border: none; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center;
+    gap: 3px; padding: 7px 10px; border-radius: 999px; color: var(--earth); font-family: var(--sans); font-size: 8.5px;
+    letter-spacing: 0.1em; text-transform: uppercase; transition: color .18s var(--ease); flex: 1; }
+  .sa-navbtn.active { color: var(--ink); }
+  .sa-navbtn.active .sa-navdot { opacity: 1; }
+  .sa-navdot { width: 4px; height: 4px; border-radius: 50%; background: var(--peach); opacity: 0; }
+
+  .sa-only-mobile { display: block; }
+  .sa-only-desktop { display: none; }
+
+  /* ---------- Breakpoints ---------- */
+  @media (min-width: 760px) {
+    .sa-topbar-inner { padding: 14px 28px; }
+    .sa-wrap { padding: 32px 28px 56px; }
+    .sa-occ-stats { grid-template-columns: repeat(2, 1fr); }
+    .sa-ops-stats { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .sa-dist-grid { grid-template-columns: auto 1fr; gap: 40px; }
+    .sa-opp-inner { grid-template-columns: 1.5fr 1fr; align-items: center; }
+    .sa-kpi-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  }
+  @media (min-width: 1000px) {
+    .sa-top { grid-template-columns: 380px 1fr; }
+    .sa-hero-media { min-height: 100%; }
+    .sa-kpi-grid { grid-template-columns: repeat(3, 1fr); }
+    .sa-fin-grid { grid-template-columns: 1.6fr 1fr; align-items: stretch; }
+    .sa-occ-grid { grid-template-columns: 1.5fr 1fr; }
+    .sa-ops-grid { grid-template-columns: 1fr 1.35fr; }
+    .sa-only-desktop { display: block; }
+  }
+  @media (max-width: 759px) {
+    .sa-bottomnav { display: block; }
+    .sa-tabs-bar { display: none; }
+    .sa-wrap { padding-bottom: 110px; }
+    .sa-only-mobile { display: block; }
+    .sa-topbar-right .sa-only-desktop { display: none; }
+    .sa-topbar-inner { flex-wrap: wrap; row-gap: 10px; }
+    .sa-topbar-controls { order: 3; width: 100%; margin-left: 0; gap: 8px; }
+    .sa-topbar-controls > div { flex: 1; }
+    .sa-topbar-controls > div > button { width: 100%; justify-content: space-between; }
+  }
+  @media (min-width: 760px) { .sa-only-mobile { display: none; } }
+</style>
+</head>
+<body>
+  <template id="__bundler_thumbnail">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <rect width="100" height="100" fill="#F5F3F0"/>
+      <path d="M50 30 C 51 41, 54 44, 70 45 C 54 46, 51 49, 50 60 C 49 49, 46 46, 30 45 C 46 44, 49 41, 50 30 Z" fill="#E9826A"/>
+      <text x="50" y="78" font-family="Georgia, serif" font-size="13" letter-spacing="2" fill="#3E3F3F" text-anchor="middle">SPACIO</text>
+    </svg>
+  </template>
+  <div id="app"></div>
+
+  <script src="sheets.js"></script>
+  <script src="i18n.js"></script>
+  <script src="aggregate.js"></script>
+  <script src="insights.js"></script>
+  <script type="text/babel" src="ui.jsx"></script>
+  <script type="text/babel" src="charts.jsx"></script>
+  <script type="text/babel" src="login.jsx"></script>
+  <script type="text/babel" src="dashboard.jsx"></script>
+  <script type="text/babel" src="sections.jsx"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+    function Dashboard({ owner, lang, setLang, currency, setCurrency, onLogout, onUpdateOwner }) {
+      const isAdmin = !!owner.isAdmin;
+      const allOwnerProps = SpacioData.ownerProps(owner);
+      const [adminZona, setAdminZona] = useState("all");
+      const [adminEdificio, setAdminEdificio] = useState("all");
+      const scopeProps = isAdmin
+        ? allOwnerProps.filter(p => (adminZona === "all" || p.zona === adminZona) && (adminEdificio === "all" || p.edificio === adminEdificio))
+        : allOwnerProps;
+      const props = scopeProps;
+      const single = props.length === 1;
+      const [selProp, setSelProp] = useState(single ? props[0].id : "all");
+      const [period, setPeriod] = useState("current");
+      const [tab, setTab] = useState(() => { try { return new URLSearchParams(location.search).get("tab") || "dashboard"; } catch (e) { return "dashboard"; } });
+
+      const t = (k) => SpacioI18n.t(lang, k);
+      const fmt = {
+        money: (v) => SpacioI18n.money(v, currency),
+        moneyShort: (v) => SpacioI18n.moneyShort(v, currency),
+        pct: SpacioI18n.pct, num: SpacioI18n.num,
+      };
+
+      // if current selection falls outside the admin scope, fall back to "all"
+      const selInScope = selProp === "all" || props.some(p => p.id === selProp);
+      const effSelProp = selInScope ? selProp : "all";
+      const isAll = effSelProp === "all";
+      const activeProps = isAll ? props : props.filter(p => p.id === effSelProp);
+      const property = isAll ? null : activeProps[0];
+      const scopeKey = isAdmin ? adminZona + "|" + adminEdificio : owner.code;
+      const months = useMemo(() => (isAll || !property) ? SpacioAgg.combineMonths(props.length ? props : allOwnerProps) : property.months, [effSelProp, scopeKey, owner.code]);
+      const pdata = useMemo(() => SpacioAgg.periodData(months, period), [months, period]);
+
+      const propOptions = (single ? [] : [{ value: "all", label: t("all_props"), sub: props.length + " " + (lang === "es" ? "propiedades" : "properties") }])
+        .concat(props.map(p => ({ value: p.id, label: p.name, sub: p.location })));
+
+      const periodText = (() => {
+        const s = pdata.slice; if (!s.length) return "";
+        const a = s[0], b = s[s.length - 1];
+        if (s.length === 1) return cap(SpacioI18n.monthLong(lang, a.m)) + " " + a.y;
+        return cap(a.label[lang]) + " " + a.y + " — " + cap(b.label[lang]) + " " + b.y;
+      })();
+      const contextLine = SpacioInsights.hero(lang, pdata.cur, pdata.hist);
+
+      const lastSlice = pdata.slice[pdata.slice.length - 1];
+      const reportYM = lastSlice ? { y: lastSlice.y, m: lastSlice.m } : null;
+
+      const monthOpts = (months || []).filter(m => m.present).slice().reverse().map(m => ({
+        value: "ym:" + m.y + "-" + m.m, label: cap(SpacioI18n.monthLong(lang, m.m)) + " " + m.y,
+      }));
+      const periodOpts = [
+        { value: "current", label: t("p_current") },
+        { value: "m3", label: t("p_3m") },
+        { value: "m6", label: t("p_6m") },
+        { value: "m12", label: t("p_12m") },
+      ].concat(monthOpts);
+
+      const tabs = isAdmin ? [
+        { id: "dashboard", icon: "home", label: t("nav_dashboard") },
+        { id: "expenses", icon: "coins", label: t("nav_expenses") },
+        { id: "report", icon: "file", label: t("nav_report") },
+        { id: "deposits", icon: "coins", label: t("nav_deposits") },
+        { id: "setup", icon: "grid", label: t("nav_setup") },
+      ] : [
+        { id: "dashboard", icon: "home", label: t("nav_dashboard") },
+        { id: "expenses", icon: "coins", label: t("nav_expenses") },
+        { id: "report", icon: "file", label: t("nav_report") },
+        { id: "account", icon: "user", label: t("nav_account") },
+      ];
+      const switchTab = (id) => { setTab(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+
+      return (
+        <div>
+          <TopBar owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency}
+            propOptions={propOptions} selProp={effSelProp} setSelProp={setSelProp} period={period} setPeriod={setPeriod}
+            months={months} periodText={periodText} hidePropSelect={isAdmin}
+            onLogout={onLogout} t={t} />
+
+          <div className="sa-tabs-bar">
+            <div className="sa-tabs-inner">
+              {tabs.map(tb => (
+                <button key={tb.id} className={"sa-tab" + (tab === tb.id ? " active" : "")} onClick={() => switchTab(tb.id)}>
+                  <Icon name={tb.icon} size={15} stroke="currentColor" />{tb.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="sa-wrap">
+            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && (
+              <AdminFilters allProps={allOwnerProps} zona={adminZona} setZona={setAdminZona}
+                edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={effSelProp} setSelProp={setSelProp} t={t} lang={lang} />
+            )}
+            <div className="sa-pagehead">
+              <div>
+                <Eyebrow style={{ marginBottom: 12 }}>{isAdmin ? t("admin_badge") : t("greeting") + ", " + owner.name}</Eyebrow>
+                <h1 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "clamp(28px,4.4vw,46px)", letterSpacing: "-0.015em", lineHeight: 1.04, margin: 0, color: "var(--ink)" }}>
+                  {isAll ? (isAdmin ? "Spacio AM" : (lang === "es" ? "Tu portafolio" : "Your portfolio")) : property.name}
+                </h1>
+                {tab !== "account" && (
+                  <div className="sa-period-chip">
+                    <Icon name="calendar" size={13} stroke="var(--earth)" />
+                    <span>{t("period_showing")}</span><strong>{periodText}</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {tab === "dashboard" && (
+              <React.Fragment>
+                <div className="sa-top" id="top">
+                  <Hero property={property} isAll={isAll} propsCount={props.length} periodText={periodText} contextLine={contextLine} t={t} lang={lang} />
+                  <SummaryKPIs cur={pdata.cur} prev={pdata.prev} fmt={fmt} t={t} />
+                </div>
+                <LiquidationBlock pdata={pdata} fmt={fmt} t={t} lang={lang} />
+                <FinancialSection pdata={pdata} fmt={fmt} t={t} lang={lang} />
+                <DistributionSection pdata={pdata} fmt={fmt} t={t} lang={lang} />
+                <OccupancySection pdata={pdata} fmt={fmt} t={t} lang={lang} />
+                <EvolutionSection pdata={pdata} fmt={fmt} t={t} lang={lang} />
+              </React.Fragment>
+            )}
+
+            {tab === "expenses" && (
+              <ExpensesSection activeProps={activeProps} pdata={pdata} fmt={fmt} t={t} lang={lang} />
+            )}
+
+            {tab === "report" && (
+              <div className="sa-section" style={{ marginTop: 28 }}>
+                {isAll && props.length > 1 && (
+                  <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.04em", color: "var(--earth)", margin: "0 0 18px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Icon name="info" size={14} stroke="var(--earth)" /> {t("report_pickall")}
+                  </p>
+                )}
+                {activeProps.map(p => {
+                  const mo = reportYM ? p.months.find(x => x.y === reportYM.y && x.m === reportYM.m) : null;
+                  const rs = reportYM ? SpacioAgg.resForMonth(p, reportYM.y, reportYM.m) : [];
+                  return <ReporteFinanciero key={p.id} property={p} monthObj={mo} reservations={rs} t={t} lang={lang} />;
+                })}
+              </div>
+            )}
+
+            {tab === "account" && (
+              <AccountSection owner={owner} lang={lang} t={t} onUpdate={onUpdateOwner} />
+            )}
+
+            {tab === "setup" && isAdmin && (
+              <SetupSection lang={lang} t={t} />
+            )}
+
+            {tab === "deposits" && isAdmin && (
+              <DepositsSection allProps={allOwnerProps} pdata={pdata} period={period} fmt={fmt} t={t} lang={lang} />
+            )}
+
+            <footer style={{ marginTop: 64, paddingTop: 26, borderTop: "1px solid var(--warm-grey)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--earth)" }}>© Spacio AM · MMXXVI</span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--earth)" }}>{t("help")}</span>
+            </footer>
+          </div>
+
+          <nav className="sa-bottomnav">
+            <div className="sa-bottomnav-inner">
+              {tabs.map(tb => (
+                <button key={tb.id} className={"sa-navbtn" + (tab === tb.id ? " active" : "")} onClick={() => switchTab(tb.id)}>
+                  <Icon name={tb.icon} size={19} stroke="currentColor" />
+                  <span>{tb.label}</span>
+                  <span className="sa-navdot" />
+                </button>
+              ))}
+            </div>
+          </nav>
+        </div>
+      );
+    }
+
+    function Splash({ state, onRetry, lang }) {
+      const es = lang !== "en";
+      return (
+        <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--alabaster)", padding: 24, textAlign: "center" }}>
+          <div style={{ marginBottom: 30 }}><img src="logo-wordmark.png" alt="Spacio AM" style={{ height: 72, width: "auto", display: "block" }} /></div>
+          {state === "loading" && (
+            <React.Fragment>
+              <div className="sa-spin" style={{ width: 26, height: 26, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%" }} />
+              <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginTop: 22 }}>
+                {es ? "Conectando con tu información…" : "Connecting to your data…"}
+              </p>
+            </React.Fragment>
+          )}
+          {state === "error" && (
+            <React.Fragment>
+              <Icon name="info" size={26} stroke="var(--peach)" />
+              <p style={{ fontFamily: "var(--serif)", fontSize: 22, color: "var(--ink)", margin: "16px 0 6px", maxWidth: 420 }}>
+                {es ? "No pudimos leer la hoja en este momento." : "We couldn't read the sheet right now."}
+              </p>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", maxWidth: 420, margin: "0 0 22px" }}>
+                {es ? "Verifica que el documento esté publicado o compartido como “cualquiera con el enlace”, y vuelve a intentar." : "Make sure the document is published or shared as “anyone with the link”, then try again."}
+              </p>
+              <button onClick={onRetry} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 12, padding: "13px 26px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase" }}>
+                {es ? "Reintentar" : "Retry"}
+              </button>
+            </React.Fragment>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [lang, setLang] = useState(() => localStorage.getItem("sa-lang") || "es");
+      const [currency, setCurrency] = useState(() => localStorage.getItem("sa-cur") || "USD");
+      const [owner, setOwnerState] = useState(null);
+      const [state, setState] = useState("loading"); // loading | ready | error
+      useEffect(() => { localStorage.setItem("sa-lang", lang); document.documentElement.lang = lang; }, [lang]);
+      useEffect(() => { localStorage.setItem("sa-cur", currency); }, [currency]);
+
+      // session: keep the user logged in across refreshes until logout or 30-day expiry
+      const SESSION_KEY = "sa-session";
+      const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // 30 días
+      const saveSession = (o) => {
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify({ code: o.code, isAdmin: !!o.isAdmin, ts: Date.now() })); } catch (e) {}
+      };
+      const resolveOwner = (code, isAdmin) => {
+        if (isAdmin && SpacioData.admin) return Object.assign({}, SpacioData.admin);
+        const acc = SpacioData.owners.find(x => x.code === code || (x.codes && x.codes.includes(code)));
+        return acc ? Object.assign({}, acc, SpacioData.effCreds(acc)) : null;
+      };
+      const setOwner = (o) => {
+        if (o) saveSession(o); else { try { localStorage.removeItem(SESSION_KEY); } catch (e) {} }
+        setOwnerState(o);
+      };
+
+      const loadData = React.useCallback(() => {
+        setState("loading");
+        SpacioLoad().then(() => {
+          setState("ready");
+          try {
+            // 1) dev/testing convenience: ?u=Socio_025 auto-logs in
+            const u = new URLSearchParams(location.search).get("u");
+            if (u) {
+              let o = SpacioData.auth(u, "spacioam") || SpacioData.auth(u, "Valencia2026!");
+              if (!o) { const acc = SpacioData.owners.find(x => (x.codes && x.codes.includes(u)) || x.code === u); if (acc) o = Object.assign({}, acc, SpacioData.effCreds(acc)); }
+              if (!o && (u === "admin" || /spacioam@gmail/i.test(u))) o = Object.assign({}, SpacioData.admin);
+              if (o) { setOwner(o); return; }
+            }
+            // 2) restore a saved session (until logout / expiry)
+            const raw = localStorage.getItem(SESSION_KEY);
+            if (raw) {
+              const s = JSON.parse(raw);
+              if (s && s.ts && (Date.now() - s.ts) < SESSION_TTL) {
+                const o = resolveOwner(s.code, s.isAdmin);
+                if (o) { setOwnerState(o); saveSession(o); }
+              } else { localStorage.removeItem(SESSION_KEY); }
+            }
+          } catch (e) { }
+        }).catch((e) => { console.error("Sheet load failed", e); setState("error"); });
+      }, []);
+      useEffect(() => { loadData(); }, [loadData]);
+
+      if (state !== "ready") return <Splash state={state} onRetry={loadData} lang={lang} />;
+      if (!owner) return <Login lang={lang} setLang={setLang} onLogin={setOwner} />;
+      return <Dashboard key={owner.code} owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency} onLogout={() => setOwner(null)} onUpdateOwner={setOwnerState} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById("app")).render(<App />);
+  </script>
+</body>
+</html>
