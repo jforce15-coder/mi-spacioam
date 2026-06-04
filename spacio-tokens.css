@@ -1,0 +1,225 @@
+/* ============================================================
+   Spacio AM — Colors & Type Tokens
+   "Hay espacios en donde sueñas con volver a despertar."
+   ============================================================ */
+
+/* ---------- Fonts ---------- */
+@font-face {
+  font-family: "Valky";
+  src: url("fonts/Valky-Light.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Valky";
+  src: url("fonts/Valky-Regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Valky";
+  src: url("fonts/Valky-Semibold.otf") format("opentype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Valky";
+  src: url("fonts/Valky-Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Body: Montserrat via Google Fonts (loaded by each HTML that uses it) */
+
+:root {
+  /* ---------- Brand Palette ---------- */
+  --alabaster:    #FAFAFA;  /* primary background */
+  --beige-soft:   #F5F3F0;  /* secondary background, brushstroke fill */
+  --earth:        #938B8A;  /* secondary text, captions */
+  --warm-grey:    #D8D4CE;  /* dividers, subtle lines */
+  --ink:          #3E3F3F;  /* primary text, all headings */
+  --peach:        #E9826A;  /* peach neon — accents only, never dominant */
+
+  /* tints / utilities */
+  --ink-08:       rgba(62, 63, 63, 0.08);
+  --ink-16:       rgba(62, 63, 63, 0.16);
+  --ink-60:       rgba(62, 63, 63, 0.60);
+  --beige-30:     rgba(245, 243, 240, 0.30);  /* brushstroke transparency */
+  --peach-12:     rgba(233, 130, 106, 0.12);
+
+  /* ---------- Semantic colors ---------- */
+  --bg:           var(--alabaster);
+  --bg-alt:       var(--beige-soft);
+  --fg:           var(--ink);
+  --fg-muted:     var(--earth);
+  --divider:      var(--warm-grey);
+  --accent:       var(--peach);
+
+  /* ---------- Type families ---------- */
+  --serif: "Valky", "Cormorant Garamond", "Playfair Display", Georgia, serif;
+  --sans:  "Montserrat", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* ---------- Type scale (editorial — generous) ---------- */
+  --t-display: clamp(56px, 9vw, 144px);
+  --t-h1:      clamp(40px, 6vw,  88px);
+  --t-h2:      clamp(28px, 4vw,  56px);
+  --t-h3:      clamp(22px, 2.4vw, 32px);
+  --t-h4:      18px;
+  --t-body:    15px;
+  --t-small:   12px;
+  --t-eyebrow: 11px;
+
+  /* ---------- Tracking ---------- */
+  --tr-tight:  -0.01em;        /* large serif display */
+  --tr-normal:  0.02em;
+  --tr-wide:    0.14em;        /* Montserrat body */
+  --tr-eyebrow: 0.32em;        /* uppercase labels */
+
+  /* ---------- Line-heights ---------- */
+  --lh-display: 1.02;
+  --lh-heading: 1.12;
+  --lh-body:    1.7;
+
+  /* ---------- Spacing (8px base, generous) ---------- */
+  --s-1:  4px;
+  --s-2:  8px;
+  --s-3:  16px;
+  --s-4:  24px;
+  --s-5:  32px;
+  --s-6:  48px;
+  --s-7:  64px;
+  --s-8:  96px;
+  --s-9:  128px;
+  --s-10: 192px;
+
+  /* ---------- Radius (iPhone-style, soft) ---------- */
+  --r-sm: 10px;
+  --r-md: 18px;
+  --r-lg: 28px;
+  --r-xl: 40px;
+  --r-pill: 999px;
+  /* used by image cards with ONLY-top-rounded corners */
+  --r-card-top: 28px 28px 0 0;
+
+  /* ---------- Borders & shadows (very soft) ---------- */
+  --border: 1px solid var(--warm-grey);
+  --border-soft: 1px solid var(--ink-08);
+  --shadow-xs: 0 1px 2px rgba(62,63,63,0.04);
+  --shadow-sm: 0 4px 16px rgba(62,63,63,0.05);
+  --shadow-md: 0 12px 40px rgba(62,63,63,0.07);
+  --shadow-lg: 0 28px 80px rgba(62,63,63,0.10);
+
+  /* ---------- Motion ---------- */
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --d-fast: 180ms;
+  --d-med:  360ms;
+  --d-slow: 720ms;
+}
+
+/* ============================================================
+   Semantic typographic classes
+   ============================================================ */
+
+.t-display {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--t-display);
+  line-height: var(--lh-display);
+  letter-spacing: var(--tr-tight);
+  color: var(--fg);
+  text-wrap: balance;
+}
+.t-h1, h1 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--t-h1);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--tr-tight);
+  color: var(--fg);
+  text-wrap: balance;
+  margin: 0;
+}
+.t-h2, h2 {
+  font-family: var(--serif);
+  font-weight: 400;
+  font-size: var(--t-h2);
+  line-height: var(--lh-heading);
+  letter-spacing: var(--tr-tight);
+  color: var(--fg);
+  text-wrap: balance;
+  margin: 0;
+}
+.t-h3, h3 {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: var(--t-h3);
+  line-height: var(--lh-heading);
+  color: var(--fg);
+  margin: 0;
+}
+.t-h4, h4 {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: var(--t-h4);
+  letter-spacing: var(--tr-wide);
+  text-transform: uppercase;
+  color: var(--fg);
+  margin: 0;
+}
+.t-eyebrow {
+  font-family: var(--sans);
+  font-weight: 500;
+  font-size: var(--t-eyebrow);
+  letter-spacing: var(--tr-eyebrow);
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.t-body, p {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tr-wide);
+  color: var(--fg);
+  text-wrap: pretty;
+}
+.t-small, small {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: var(--t-small);
+  letter-spacing: var(--tr-wide);
+  color: var(--fg-muted);
+}
+.t-quote {
+  font-family: var(--serif);
+  font-weight: 300;
+  font-style: italic;
+  font-size: var(--t-h2);
+  line-height: 1.25;
+  letter-spacing: var(--tr-tight);
+  color: var(--fg);
+  text-wrap: balance;
+}
+
+/* ============================================================
+   Element resets (page-scope)
+   ============================================================ */
+.spacio body, body.spacio {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: var(--t-body);
+  line-height: var(--lh-body);
+  letter-spacing: var(--tr-wide);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* accent helpers — used sparingly */
+.accent { color: var(--accent); }
+.muted  { color: var(--fg-muted); }
+.divider { border: 0; border-top: var(--border); }
