@@ -352,6 +352,9 @@ function InvoiceViewBox({ data, lang, onClose }) {
 
           {tab === "sat" && invoices.length > 0 && (
             <React.Fragment>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.02em", lineHeight: 1.55, color: "var(--earth)", margin: "0 0 12px", textWrap: "pretty" }}>
+                {es ? "Toca “Ver factura” para abrirla en la Agencia Virtual (requiere haber iniciado sesión en el SAT). Si no carga, abre el verificador público y pega estos datos:" : "Tap “View invoice” to open it in Agencia Virtual (requires being logged in to SAT). If it doesn't load, open the public verifier and paste these fields:"}
+              </p>
               <div className="pya-satcopy">
                 {invoices.map((inv, i) => (
                   <div className="pya-satcopy-card" key={i}>
@@ -362,10 +365,14 @@ function InvoiceViewBox({ data, lang, onClose }) {
                     </a>
                     <CopyField label={es ? "Nº de autorización" : "Authorization No."} value={inv.auth} mono />
                     {inv.nit && <CopyField label={es ? "NIT emisor" : "Issuer NIT"} value={inv.nit} />}
+                    {cfg.nit && <CopyField label={es ? "ID del receptor" : "Receiver ID"} value={cfg.nit} />}
                     {inv.total != null && <CopyField label={es ? "Monto total" : "Total amount"} value={(Math.round(inv.total * 100) / 100).toFixed(2)} />}
                   </div>
                 ))}
               </div>
+              <a className="pya-openbtn pya-openbtn-dark" href={satUrl} target="_blank" rel="noreferrer" style={{ marginTop: 2, marginBottom: 12 }}>
+                {es ? "Abrir verificador del SAT" : "Open SAT verifier"} <Icon name="arrowUpRight" size={15} stroke="var(--alabaster)" />
+              </a>
               <button onClick={() => setCfgOpen(o => !o)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--earth)", textDecoration: "underline" }}>
                 {cfg.clave ? (es ? "Cambiar Clave de Agencia Virtual" : "Change Agencia Virtual key") : (es ? "Configurar acceso para ‘Ver factura’" : "Set up access for ‘View invoice’")}
               </button>
@@ -407,8 +414,7 @@ function InvoiceViewBox({ data, lang, onClose }) {
           )}
           {tab === "sat" && (
             <p style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--earth)", margin: "12px 0 0", textWrap: "pretty" }}>
-              {es ? "“Ver factura” abre la Agencia Virtual del SAT y salta a la factura por su nº de autorización. Si no carga, usa el " : "“View invoice” opens SAT's Agencia Virtual and jumps to the invoice by its authorization number. If it doesn't load, use the "}
-              <a href={satUrl} target="_blank" rel="noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>{es ? "verificador público" : "public verifier"}</a>{es ? " con los datos de arriba." : " with the fields above."}
+              {es ? "El verificador del SAT pide un captcha. Algunos DTE tardan hasta 6 días en aparecer." : "The SAT verifier asks for a captcha. Some DTEs take up to 6 days to appear."}
             </p>
           )}
         </div>
