@@ -142,6 +142,7 @@
     const propById = {};       // any property_id -> same property object (for DATABASE lookup)
     const idxByCodeName = {};  // "code|normName" -> property (for Resumen)
     const idxByName = {};      // normName -> property (for expenses)
+    const idxByLoose = {};     // edificio+apto / zona+apto -> property (fuzzy)
     const ownerNames = {};     // code -> ordered list of normNames
     const codeInfo = {};       // code -> { email, pass, secondary }
 
@@ -173,6 +174,11 @@
         };
         idxByCodeName[code + "|" + nm] = p;
         idxByName[nm] = p;
+        // indices "sueltos" para tolerar pequenas diferencias de nombre en
+        // la hoja de gastos (p.ej. "Z10 - Ignacio - 506" vs "Z10-Ignacio-506")
+        const lp = parseName(name);
+        if (lp.edificio && lp.apto) idxByLoose[norm(lp.edificio + lp.apto)] = idxByLoose[norm(lp.edificio + lp.apto)] || p;
+        if (lp.zona && lp.apto) idxByLoose[norm(lp.zona + lp.apto)] = idxByLoose[norm(lp.zona + lp.apto)] || p;
         (ownerNames[code] = ownerNames[code] || []).push(nm);
       }
       // accumulate listings + pids from every duplicate row (consolidated)
@@ -274,24 +280,38 @@
     });
 
     // insumos & gastos → expenses (only owner-billable categories)
-    const BILLABLE = { "insumos & gastos": "insumos", "reparaciones o inversión": "reparaciones", "reparaciones o inversion": "reparaciones" };
+    const BILLABLE = { "insumos & gastos": "insumos", "reparaciones o inversión": "reparaciones", "reparaciones o inversion": "reparaciones", "mantenimiento e inversión": "reparaciones", "mantenimientos e inversión": "reparaciones", "mantenimiento e inversion": "reparaciones" };
+    // etiquetas (columna G) que NUNCA se le cobran al socio: el gasto se
+    // registra y lo ve el administrador, pero se oculta de la vista del socio.
+    const NON_BILLABLE_TAGS = { "restaurante / comida": 1, "restaurante/comida": 1, "compras ajenas a insumos": 1, "gasto spacio am": 1 };
+    // resuelve el anio de un gasto sin anio contra la ventana real del reporte
+    const yearsByMonth = {}; monthKeys.forEach(k => { (yearsByMonth[k.m] = yearsByMonth[k.m] || []).push(k.y); });
+    const resolveYear = (mn) => { const ys = yearsByMonth[mn]; return ys && ys.length ? Math.max.apply(null, ys) : null; };
     const nameKey = exp.head[2] || "property";
     exp.items.forEach(r => {
       const pname = (r[nameKey] || "").trim();
       if (!pname) return;
-      const p = idxByName[norm(pname)];
+      const lp = parseName(pname);
+      const p = idxByName[norm(pname)]
+        || (lp.edificio && lp.apto && idxByLoose[norm(lp.edificio + lp.apto)])
+        || (lp.zona && lp.apto && idxByLoose[norm(lp.zona + lp.apto)]);
       if (!p) return;
       const catRaw = (r["categoria"] || "").trim();
       const catKey = BILLABLE[catRaw.toLowerCase()];
       if (!catKey) return; // skip Gasto Spacio AM / Otro ingreso / Otro / blank
-      const ed = parseExpDate(r["Fecha de pedido"], num(r["Mes"]));
+      const tagRaw = (r["tag"] || "").trim();
+      const adminOnly = !!NON_BILLABLE_TAGS[tagRaw.toLowerCase()]; // oculto al socio
+      const ed = parseExpDate(r["Fecha de pedido"], num(r["Mes"]), resolveYear);
       // insumos & gastos line items are recorded in GTQ → convert to USD with TC (property+month)
       const valorGTQ = num(r["valor"]);
-      const rate = rateFor(norm(pname), ed.y, ed.m);
+      const rate = rateFor(norm(p.name), ed.y, ed.m);
       p.expenses.push({
         y: ed.y, m: ed.m, day: ed.day,
-        catKey, category: catRaw, desc: (r["Comentario"] || catRaw).trim() || catRaw,
+        catKey, category: catRaw, tag: tagRaw, adminOnly,
+        desc: (r["Comentario"] || catRaw).trim() || catRaw,
         amount: rate ? valorGTQ / rate : valorGTQ, amountGTQ: valorGTQ, tc: rate,
+        orderId: (r["orderId"] || "").trim(), orderUrl: (r["orderUrl"] || "").trim(),
+        authProductos: (r["authProductos"] || "").trim(), authTarifa: (r["authTarifa"] || "").trim(),
       });
     });
     Object.values(propById).forEach(p => p.expenses.sort((a, b) => (b.y - a.y) || (b.m - a.m) || (b.day - a.day)));
@@ -425,16 +445,38 @@
   };
   window.SpacioWrite = SpacioWrite;
 
-  // expense date: prefer a real date in "Fecha de pedido"; else month number heuristic
-  function parseExpDate(fecha, mesNum) {
+  // expense date: prefer a real date in "Fecha de pedido"; else month heuristic.
+  // `resolveYear(m)` (optional) picks a year that actually exists in the report
+  // window for month m, so expenses never fall into an empty (and invisible) bucket.
+  function parseExpDate(fecha, mesNum, resolveYear) {
     const s = String(fecha || "").trim();
-    const d = new Date(s);
-    if (!isNaN(d) && /\d{4}/.test(s)) return { y: d.getFullYear(), m: d.getMonth(), day: d.getDate() };
-    const dm = parseDayMon(s); // "15 Apr"
+    // 1) fecha completa con anio explicito: ISO, dd/mm/yyyy, "22 May 2026", "22 mayo 2026"
+    let mm = s.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (mm) return { y: +mm[1], m: +mm[2] - 1, day: +mm[3] };
+    mm = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);
+    if (mm) return { y: +mm[3], m: +mm[2] - 1, day: +mm[1] };
+    mm = s.match(/(\d{1,2})\s+([A-Za-zÁÉÍÓÚáéíóú]{3,})\.?\s+(\d{4})/);
+    if (mm) {
+      const mi = monthIndexOf(mm[2]); if (mi != null) return { y: +mm[3], m: mi, day: +mm[1] };
+    }
+    const dRaw = new Date(s);
+    if (!isNaN(dRaw) && /\d{4}/.test(s)) return { y: dRaw.getFullYear(), m: dRaw.getMonth(), day: dRaw.getDate() };
+    // 2) sin anio: "22 May" / "1 May" + numero de Mes → deducir mes y dia
+    const dm = parseDayMon(s);
     const mn = mesNum && mesNum >= 1 && mesNum <= 12 ? mesNum - 1 : (dm ? dm.mon : 0);
-    const y = mn >= 6 ? 2025 : 2026; // report window jul'25–abr'26
     const day = dm ? dm.day : 1;
+    // anio: usa el resolutor (ventana real) si existe; si no, heuristica jul'25–jun'26
+    const y = (resolveYear && resolveYear(mn)) || (mn >= 6 ? 2025 : 2026);
     return { y, m: mn, day };
+  }
+  function monthIndexOf(token) {
+    const t = String(token || "").toLowerCase().replace(/\./g, "");
+    if (ES_MONTH[t] != null) return ES_MONTH[t];
+    if (EN_MONTH[t] != null) return EN_MONTH[t];
+    const t3 = t.slice(0, 3);
+    if (EN_MONTH[t3] != null) return EN_MONTH[t3];
+    const es3 = { ene: 0, feb: 1, mar: 2, abr: 3, may: 4, jun: 5, jul: 6, ago: 7, sep: 8, oct: 9, nov: 10, dic: 11 };
+    return es3[t3] != null ? es3[t3] : null;
   }
 
   async function load() {
@@ -443,11 +485,26 @@
       fetchTab("SETUP"), fetchTab("Resumenconsolidado"), fetchTab("DATABASE"), fetchTab("insumos & gastos"), fetchTab("TC"),
     ]);
     const data = build(setup, resumen, dbT, expT, tcT);
+    // registro de archivos subidos (facturas/depositos a Drive) — best effort
+    try {
+      const filesT = await fetchTab("Archivos cargados");
+      data.files = (filesT.items || []).map(r => ({
+        tipo: (r["tipo"] || "").trim().toLowerCase(),
+        scope: (r["scope"] || "").trim().toLowerCase() || "property",
+        owner: (r["owner"] || "").trim(),
+        property_name: (r["property_name"] || "").trim(),
+        ym: (r["mes"] || "").trim(),
+        archivo: (r["archivo"] || "").trim(),
+        url: (r["url"] || "").trim(),
+        cargado: (r["cargado"] || "").trim(),
+      })).filter(r => r.tipo && r.ym);
+    } catch (e) { data.files = []; }
     window.SpacioData = data;
-    window.__sheets = { setup: setup.items.length, resumen: resumen.items.length, db: dbT.items.length, exp: expT.items.length, tc: tcT.items.length, accounts: data.owners.length };
+    window.__sheets = { setup: setup.items.length, resumen: resumen.items.length, db: dbT.items.length, exp: expT.items.length, tc: tcT.items.length, accounts: data.owners.length, files: (data.files || []).length };
     return data;
   }
 
   window.SpacioLoad = load;
   window.SPACIO_RATE = GTQ_RATE;
+  window.SPACIO_SHEET_ID = SHEET_ID;
 })();

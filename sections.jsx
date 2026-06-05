@@ -127,11 +127,14 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
 };
 
 // ---- Expenses (grouped table → mobile cards) ----
-const ExpensesSection = ({ activeProps, pdata, fmt, t, lang }) => {
+const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const { money } = fmt;
   const [open, setOpen] = useState(false);
+  const [invBox, setInvBox] = useState(null);
   const sliceMonths = pdata.slice.length ? pdata.slice : pdata.hist.months.slice(-3);
-  const rows = SpacioAgg.collectRows(activeProps, sliceMonths, "expenses");
+  const allRows = SpacioAgg.collectRows(activeProps, sliceMonths, "expenses");
+  // gastos con etiqueta no-cobrable (Gasto Spacio AM, etc.) solo los ve el admin
+  const rows = allRows.filter(r => isAdmin || !r.adminOnly);
   // headline total comes from Resumenconsolidado (insumos + reparaciones), per brief
   const total = pdata.cur.insumos + pdata.cur.reparaciones;
   // group line items by their real category string
@@ -176,7 +179,17 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang }) => {
               {shown.map((r, i) => (
                 <div key={i} className="sa-exp-row">
                   <span className="sa-exp-date">{r.day} {monthName(r).slice(0, 3)}</span>
-                  <span className="sa-exp-desc">{r.desc}{activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--earth)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}</span>
+                  <span className="sa-exp-desc">
+                    {r.desc}
+                    {activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--earth)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
+                    {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--peach)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
+                    {(r.orderUrl || r.authProductos || r.authTarifa) && (
+                      <button onClick={() => setInvBox({ orderUrl: r.orderUrl, authProductos: r.authProductos, authTarifa: r.authTarifa, desc: r.desc, vendor: r.desc })}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle" }}>
+                        <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver factura" : "View invoice"}
+                      </button>
+                    )}
+                  </span>
                   <span className="sa-exp-amt">{money(r.amount)}</span>
                 </div>
               ))}
@@ -189,6 +202,8 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang }) => {
           </button>
         )}
       </Card>
+      {isAdmin && typeof PedidosYaImport !== "undefined" && <PedidosYaImport lang={lang} />}
+      {invBox && typeof InvoiceViewBox !== "undefined" && <InvoiceViewBox data={invBox} lang={lang} onClose={() => setInvBox(null)} />}
     </section>
   );
 };
@@ -545,17 +560,77 @@ const SetupSection = ({ lang, t }) => {
   );
 };
 
-// ---- Liquidation block (above Financial): deposit / withholding / VAT + invoicing notice ----
-const LiquidationBlock = ({ pdata, fmt, t, lang }) => {
+// ---- file helpers shared by Liquidation + Deposits ----
+function useFilesTick() {
+  const [, set] = useState(0);
+  useEffect(() => {
+    const h = () => set(x => x + 1);
+    window.addEventListener("spacio-files", h);
+    return () => window.removeEventListener("spacio-files", h);
+  }, []);
+}
+const pad2 = (n) => String(n).padStart(2, "0");
+const ymOf = (mo) => mo ? (mo.y + "-" + pad2(mo.m + 1)) : null;
+const longMonth = (lang, y, m) => { const s = SpacioI18n.monthLong(lang, m); return s.charAt(0).toUpperCase() + s.slice(1) + " " + y; };
+// resolve the readable owner label that covers a property / scope
+function ownerLabelFor({ scope, property, activeProps, owner, isAdmin }) {
+  const find = (pid) => (SpacioData.owners || []).find(o => o.props.indexOf(pid) >= 0);
+  if (scope === "property" && property) { const a = find(property.id); return a ? (a.name || a.code) : ""; }
+  if (!isAdmin && owner) return owner.name || owner.code;
+  const set = new Set();
+  (activeProps || []).forEach(p => { const a = find(p.id); if (a) set.add(a.name || a.code); });
+  return set.size === 1 ? [...set][0] : "";
+}
+
+function FileUploadButton({ label, onPick, busy, dark }) {
+  const ref = useRef(null);
+  return (
+    <React.Fragment>
+      <input ref={ref} type="file" accept="image/*,application/pdf" style={{ display: "none" }}
+        onChange={e => { const f = e.target.files[0]; if (f) onPick(f); e.target.value = ""; }} />
+      <button type="button" className={"sa-file-btn " + (dark ? "dark" : "ghost")} disabled={busy} onClick={() => ref.current && ref.current.click()}>
+        {busy ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: dark ? "var(--alabaster)" : "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="upload" size={15} stroke={dark ? "var(--alabaster)" : "var(--ink)"} />}
+        {label}
+      </button>
+    </React.Fragment>
+  );
+}
+
+// ---- Liquidation block (above Financial): deposit receipt + invoice upload + overdue alert ----
+const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, isAdmin, isAll }) => {
+  useFilesTick();
   const { money } = fmt;
   const c = pdata.cur;
+  const [busy, setBusy] = useState("");
   const stats = [
     { label: t("liq_deposit"), value: money(c.deposito), help: t("liq_deposit_help"), accent: true },
   ];
   if ((c.retencion || 0) > 0.005) stats.push({ label: t("liq_retencion"), value: money(c.retencion) });
   if ((c.ivaSocios || 0) > 0.005) stats.push({ label: t("liq_iva"), value: money(c.ivaSocios) });
+
+  const endMonth = pdata.slice && pdata.slice.length ? pdata.slice[pdata.slice.length - 1] : null;
+  const ym = ymOf(endMonth);
+  const scope = isAll ? "owner" : "property";
+  const ownerLabel = ownerLabelFor({ scope, property, activeProps, owner, isAdmin });
+  const propName = property ? property.name : "";
+  const canUpload = !!ym && (scope === "property" ? !!propName : !!ownerLabel);
+  const SF = window.SpacioFiles;
+
+  const invCov = SF && ym ? SF.coverage("factura", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
+  const depCov = SF && ym ? SF.coverage("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
+  const income = c.ingresoNeto || 0;
+  const enforce = endMonth && endMonth.y >= (SF ? SF.ENFORCE_FROM_YEAR : 2026);
+  const overdue = (!invCov && income > 0.5 && enforce && SF) ? SF.urgency(endMonth.y, endMonth.m) : null;
+
+  const doUpload = async (file) => {
+    if (!canUpload) return;
+    setBusy("inv");
+    await SF.upload({ kind: "factura", scope, owner: ownerLabel, property_name: propName, ym, file });
+    setBusy("");
+  };
+
   return (
-    <section className="sa-section" id="sec-liquidation" style={{ marginTop: 8 }}>
+    <section className="sa-section" id="sec-liquidation" style={{ marginTop: 40 }}>
       <SectionHead eyebrow={t("liq_eyebrow")} title={t("liq_title")} sub={t("liq_sub")} />
       <div className="sa-liq-grid" data-cols={stats.length}>
         {stats.map((s, i) => (
@@ -569,6 +644,21 @@ const LiquidationBlock = ({ pdata, fmt, t, lang }) => {
           </Card>
         ))}
       </div>
+
+      {/* comprobante de depósito — descarga, justo encima de "Monto a facturar" */}
+      <div className="sa-file-deposit">
+        <span className="lbl">
+          <span className="ic"><Icon name="download" size={18} stroke={depCov ? "var(--ink)" : "var(--warm-grey)"} /></span>
+          <span>
+            <strong style={{ fontWeight: 600 }}>{t("liq_deposit_proof")}</strong>
+            <span style={{ display: "block", color: "var(--earth)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}</span>
+          </span>
+        </span>
+        {depCov && depCov.url
+          ? <a className="sa-file-btn ghost" href={depCov.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{t("liq_deposit_download")}</a>
+          : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", maxWidth: 260, textAlign: "right" }}>{t("liq_deposit_none")}</span>}
+      </div>
+
       <div className="sa-liq-invoice">
         <div className="sa-liq-invoice-amt">
           <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("liq_invoice_label")}</span>
@@ -577,17 +667,108 @@ const LiquidationBlock = ({ pdata, fmt, t, lang }) => {
         </div>
         <div className="sa-liq-invoice-body">
           <div className="sa-liq-line"><Icon name="file" size={15} stroke="var(--ink)" /><span><strong>{t("liq_invoice_to")}</strong></span></div>
-          <div className="sa-liq-line"><Icon name="arrowUpRight" size={15} stroke="var(--ink)" /><span>{t("liq_invoice_send")}</span></div>
-          <div className="sa-liq-note"><Icon name="info" size={14} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} /><span>{t("liq_invoice_note")}</span></div>
+          {invCov ? (
+            <div className="sa-file-row">
+              <span className="sa-file-ok"><Icon name="check" size={15} stroke="#5B8A6B" />{t("liq_invoice_uploaded")}</span>
+              {invCov.url && <a className="sa-file-btn ghost" href={invCov.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{t("liq_invoice_download")}</a>}
+              {canUpload && <FileUploadButton label={t("liq_invoice_replace")} onPick={doUpload} busy={busy === "inv"} />}
+            </div>
+          ) : (
+            <div className="sa-file-row">
+              {canUpload
+                ? <FileUploadButton label={t("liq_invoice_upload")} onPick={doUpload} busy={busy === "inv"} dark />
+                : <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--earth)", letterSpacing: "0.02em" }}>{lang === "es" ? "Selecciona una propiedad o tu portafolio para subir la factura." : "Select a property or your portfolio to upload the invoice."}</span>}
+            </div>
+          )}
+          {overdue && (overdue.level === 1 || overdue.level === 2) ? (
+            <div className={"sa-overdue lvl" + overdue.level}>
+              <Icon name={overdue.level >= 2 ? "alert" : "info"} size={overdue.level >= 2 ? 17 : 15} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span><strong>{t("liq_overdue_" + overdue.level)}</strong>{overdue.days > 0 ? " " + (lang === "es" ? ("(" + overdue.days + " días de atraso)") : ("(" + overdue.days + " days overdue)")) : ""}</span>
+            </div>
+          ) : (
+            <div className="sa-liq-note"><Icon name="info" size={14} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} /><span>{t("liq_invoice_note")}</span></div>
+          )}
         </div>
       </div>
     </section>
   );
 };
 
+// ---- Pending-invoices banner + modal (2026 months missing an invoice) ----
+const PendingInvoicesAlert = ({ activeProps, owner, isAdmin, isAll, lang, t, setPeriod, compact }) => {
+  useFilesTick();
+  const [open, setOpen] = useState(false);
+  const SF = window.SpacioFiles;
+  if (!SF) return null;
+  const scope = isAll ? "owner" : "property";
+  const ownerLabel = ownerLabelFor({ scope, property: isAll ? null : activeProps[0], activeProps, owner, isAdmin });
+  const pending = SF.missingInvoiceMonths({ owner: ownerLabel, properties: activeProps || [] });
+  // alerta de "más de 2 meses sin facturar": solo si hay backlog (>2) y ya pasó julio 2026
+  if (!SF.backlogActive() || pending.length <= 2) return null;
+  // urgencia máxima entre los meses pendientes → banner más notorio
+  const maxLvl = pending.reduce((mx, p) => Math.max(mx, SF.urgency(p.y, p.m).level), 0);
+  const goMonth = (p) => { setPeriod("ym:" + p.y + "-" + p.m); setOpen(false); try { const el = document.getElementById("sec-liquidation"); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 80, behavior: "smooth" }); } catch (e) {} };
+
+  return (
+    <React.Fragment>
+      <button className={"sa-pend-banner" + (maxLvl >= 3 ? " urgent" : "") + (compact ? " compact" : "")} onClick={() => setOpen(true)}>
+        <span className="sa-pend-ic"><Icon name={maxLvl >= 3 ? "alert" : "info"} size={20} stroke="var(--peach)" /></span>
+        <span className="sa-pend-txt"><b>{pending.length}</b> {pending.length === 1 ? t("pend_one") : t("pend_many")} · <b>{pending.map(p => longMonth(lang, p.y, p.m)).slice(0, 3).join(" · ")}</b>{pending.length > 3 ? " …" : ""}</span>
+        <Icon name="chevronRight" size={18} stroke={maxLvl >= 3 ? "var(--alabaster)" : "var(--ink)"} style={{ marginLeft: "auto", flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div className="pya-overlay" onClick={() => setOpen(false)} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(62,63,63,0.42)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, padding: 26, maxWidth: 460, width: "100%", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+              <div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--peach)" }}>{t("pend_title")}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.02em", color: "var(--earth)", marginTop: 6, lineHeight: 1.5, maxWidth: 320 }}>{t("pend_sub")}</div>
+              </div>
+              <button onClick={() => setOpen(false)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
+            </div>
+            <div className="sa-pend-list">
+              {pending.map(p => (
+                <button key={p.ym} className="sa-pend-item" onClick={() => goMonth(p)}>
+                  <span>
+                    <span className="sa-pend-month">{longMonth(lang, p.y, p.m)}</span>
+                    <span className="sa-pend-props" style={{ display: "block", marginTop: 2 }}>{p.props.length} {t("pend_props")}</span>
+                  </span>
+                  <Icon name="chevronRight" size={16} stroke="var(--ink)" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </React.Fragment>
+  );
+};
+
 // ---- Admin: Owner deposits — one table per currency, by owner or by property ----
 const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   const [view, setView] = useState("owner");
+  useFilesTick();
+  const [busyKey, setBusyKey] = useState("");
+  const SF = window.SpacioFiles;
+  const endMonth = pdata.slice && pdata.slice.length ? pdata.slice[pdata.slice.length - 1] : null;
+  const ym = ymOf(endMonth);
+  // sube el comprobante de depósito de una fila (propiedad o socio)
+  const uploadDeposit = async (g, file) => {
+    if (!ym || !SF) return;
+    const scope = view === "owner" ? "owner" : "property";
+    const acc = (SpacioData.owners || []).find(o => o.code === g.owner || (o.codes && o.codes.includes(g.owner)));
+    const ownerLabel = acc ? (acc.name || acc.code) : g.owner;
+    setBusyKey(g.key);
+    await SF.upload({ kind: "deposito", scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym, file });
+    setBusyKey("");
+  };
+  const depFor = (g) => {
+    if (!SF || !ym) return null;
+    const scope = view === "owner" ? "owner" : "property";
+    const acc = (SpacioData.owners || []).find(o => o.code === g.owner || (o.codes && o.codes.includes(g.owner)));
+    const ownerLabel = acc ? (acc.name || acc.code) : g.owner;
+    return SF.coverage("deposito", { scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym });
+  };
   // currency conversion to the property's OWN moneda
   const conv = (usd, moneda) => moneda === "GTQ" ? usd * SpacioI18n.GTQ_RATE : usd;
   const fmtMon = (usd, moneda) => (moneda === "GTQ" ? "Q " : "$") + Math.round(conv(usd, moneda)).toLocaleString("en-US");
@@ -644,6 +825,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     <th style={{ minWidth: 110, textAlign: "right" }}>{t("dep_col_total")}</th>
                     <th style={{ minWidth: 130 }}>{t("dep_col_account")}</th>
                     <th style={{ minWidth: 170 }}>{t("dep_col_email")}</th>
+                    <th style={{ minWidth: 150 }}>{t("liq_deposit_proof")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -656,6 +838,9 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                       <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtMon(g.total, mon)}</td>
                       <td style={{ color: g.cuenta ? "var(--ink)" : "var(--earth)" }}>{g.cuenta || t("dep_no_account")}</td>
                       <td style={{ color: "var(--earth)" }}>{g.email}</td>
+                      <td>{(() => { const dc = depFor(g); return dc && dc.url
+                        ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={dc.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{lang === "es" ? "Descargar" : "Download"}</a>
+                        : <FileUploadButton label={dc ? (lang === "es" ? "Reemplazar" : "Replace") : (lang === "es" ? "Subir" : "Upload")} onPick={(f) => uploadDeposit(g, f)} busy={busyKey === g.key} />; })()}</td>
                     </tr>
                   ))}
                   <tr style={{ background: "var(--beige-soft)" }}>
@@ -664,7 +849,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.income, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.iva, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.total, mon)}</td>
-                    <td></td><td></td>
+                    <td></td><td></td><td></td>
                   </tr>
                 </tbody>
               </table>
@@ -681,4 +866,4 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   );
 };
 
-Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection });
+Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert });

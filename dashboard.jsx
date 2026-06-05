@@ -3,7 +3,7 @@
 // ============================================================
 
 // ---- Top bar ----
-const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, onLogout, t }) => {
+const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, invoiceAlert, onAlertClick, onLogout, t }) => {
   const [menu, setMenu] = useState(false);
   const mref = useRef(null);
   useEffect(() => {
@@ -22,6 +22,12 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
             <Select icon="home" value={selProp} onChange={setSelProp} options={propOptions} minWidth={220} />
           )}
           <PeriodPicker period={period} setPeriod={setPeriod} months={months} periodText={periodText} t={t} lang={lang} />
+          {invoiceAlert && invoiceAlert.level >= 3 && (
+            <button className="sa-topalert" onClick={onAlertClick} title={t("liq_overdue_3")}>
+              <Icon name="alert" size={14} stroke="var(--alabaster)" />
+              <span>{lang === "es" ? "Factura pendiente" : "Invoice due"}</span>
+            </button>
+          )}
         </div>
 
         <div className="sa-topbar-right">

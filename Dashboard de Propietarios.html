@@ -90,6 +90,54 @@
   .sa-liq-line strong { font-weight: 600; }
   .sa-liq-note { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--warm-grey);
     font-family: var(--sans); font-size: 12px; line-height: 1.55; letter-spacing: 0.02em; color: var(--earth); text-wrap: pretty; }
+
+  /* ---------- file upload / download chips ---------- */
+  .sa-file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .sa-file-btn { display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer; font-family: var(--sans);
+    font-size: 12px; font-weight: 600; letter-spacing: 0.06em; padding: 11px 18px; border-radius: 12px; transition: all .18s var(--ease); }
+  .sa-file-btn:disabled { opacity: 0.5; cursor: default; }
+  .sa-file-btn.dark { background: var(--ink); color: var(--alabaster); }
+  .sa-file-btn.dark:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .sa-file-btn.ghost { background: var(--alabaster); color: var(--ink); border: 1px solid var(--warm-grey); }
+  .sa-file-btn.ghost:hover { border-color: var(--ink); }
+  .sa-file-ok { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.04em; color: #5B8A6B; }
+  .sa-file-deposit { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    background: var(--alabaster); border: 1px solid var(--ink-08); border-radius: 16px; padding: 14px 18px; margin-bottom: 16px; }
+  .sa-file-deposit .lbl { display: flex; align-items: center; gap: 11px; font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.03em; color: var(--ink); }
+  .sa-file-deposit .ic { width: 38px; height: 38px; border-radius: 11px; background: var(--beige-soft); display: inline-flex; align-items: center; justify-content: center; }
+
+  /* ---------- overdue invoice alert (escalates) ---------- */
+  .sa-overdue { display: flex; align-items: flex-start; gap: 12px; border-radius: 14px; padding: 13px 16px; margin-top: 4px;
+    font-family: var(--sans); font-size: 12.5px; line-height: 1.5; letter-spacing: 0.02em; text-wrap: pretty; }
+  .sa-overdue.lvl1 { background: var(--beige-soft); color: var(--earth); border: 1px solid var(--warm-grey); font-size: 12px; padding: 11px 14px; }
+  .sa-overdue.lvl2 { background: var(--peach-12); color: var(--ink); border: 1px solid var(--peach); font-size: 13.5px; padding: 15px 18px; font-weight: 500; }
+  .sa-overdue.lvl3 { background: var(--peach); color: var(--alabaster); border: 1px solid var(--peach); box-shadow: 0 8px 26px rgba(233,130,106,0.34); animation: saPulse 1.8s var(--ease) infinite; }
+  @keyframes saPulse { 0%,100% { box-shadow: 0 8px 26px rgba(233,130,106,0.30); } 50% { box-shadow: 0 8px 34px rgba(233,130,106,0.55); } }
+  .sa-overdue strong { font-weight: 700; }
+  /* small elegant alert next to the period filters (level 3 / past month-end) */
+  .sa-topalert { display: inline-flex; align-items: center; gap: 7px; border: none; cursor: pointer; background: var(--peach); color: var(--alabaster);
+    border-radius: 999px; padding: 9px 15px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; white-space: nowrap;
+    box-shadow: 0 6px 18px rgba(233,130,106,0.30); transition: transform .18s var(--ease); animation: saPulse 2s var(--ease) infinite; }
+  .sa-topalert:hover { transform: translateY(-1px); }
+  .sa-pend-banner.compact { padding: 12px 16px; margin: -6px 0 22px; }
+  .sa-pend-banner.compact .sa-pend-ic { width: 34px; height: 34px; }
+  .sa-pend-banner.compact .sa-pend-txt { font-size: 12px; }
+
+  /* ---------- pending invoices banner + modal ---------- */
+  .sa-pend-banner { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; cursor: pointer; border: 1px solid var(--peach);
+    background: var(--peach-12); border-radius: 16px; padding: 15px 18px; margin: 0 0 22px; transition: all .18s var(--ease); }
+  .sa-pend-banner:hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
+  .sa-pend-banner.urgent { background: var(--peach); border-color: var(--peach); box-shadow: 0 10px 30px rgba(233,130,106,0.32); }
+  .sa-pend-banner.urgent .sa-pend-txt, .sa-pend-banner.urgent .sa-pend-txt b { color: var(--alabaster); }
+  .sa-pend-ic { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; background: var(--alabaster); display: inline-flex; align-items: center; justify-content: center; }
+  .sa-pend-txt { font-family: var(--sans); font-size: 13px; letter-spacing: 0.02em; line-height: 1.4; color: var(--ink); }
+  .sa-pend-txt b { font-weight: 700; }
+  .sa-pend-list { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
+  .sa-pend-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; border: 1px solid var(--warm-grey);
+    background: var(--alabaster); border-radius: 13px; padding: 13px 16px; transition: all .16s var(--ease); }
+  .sa-pend-item:hover { border-color: var(--ink); transform: translateX(2px); }
+  .sa-pend-month { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+  .sa-pend-props { font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--earth); }
   .sa-dep-table td { font-size: 12.5px; }
 
   /* ---------- Admin ---------- */
@@ -278,12 +326,19 @@
   <div id="app"></div>
 
   <script src="sheets.js"></script>
+  <script src="files.js"></script>
   <script src="i18n.js"></script>
   <script src="aggregate.js"></script>
   <script src="insights.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }</script>
+  <script src="pedidosya-parse.js"></script>
   <script type="text/babel" src="ui.jsx"></script>
   <script type="text/babel" src="charts.jsx"></script>
   <script type="text/babel" src="login.jsx"></script>
+  <script type="text/babel" src="pedidosya-ui.jsx"></script>
+  <script type="text/babel" src="pedidosya.jsx"></script>
   <script type="text/babel" src="dashboard.jsx"></script>
   <script type="text/babel" src="sections.jsx"></script>
 
@@ -337,6 +392,24 @@
       const lastSlice = pdata.slice[pdata.slice.length - 1];
       const reportYM = lastSlice ? { y: lastSlice.y, m: lastSlice.m } : null;
 
+      // alerta de factura del período visto (nivel 1-2 → en el bloque; nivel 3 → arriba)
+      const invAlert = (() => {
+        const SF = window.SpacioFiles; if (!SF) return null;
+        const em = lastSlice;
+        if (!em || em.y < SF.ENFORCE_FROM_YEAR) return null;
+        const ymS = em.y + "-" + String(em.m + 1).padStart(2, "0");
+        const scope = isAll ? "owner" : "property";
+        const oLabel = (typeof ownerLabelFor !== "undefined")
+          ? ownerLabelFor({ scope, property: isAll ? null : activeProps[0], activeProps, owner, isAdmin })
+          : (owner.name || owner.code);
+        const cov = SF.coverage("factura", { scope, owner: oLabel, property_name: isAll ? "" : (activeProps[0] ? activeProps[0].name : ""), ym: ymS });
+        const income = pdata.cur.ingresoNeto || 0;
+        if (cov || income <= 0.5) return null;
+        const u = SF.urgency(em.y, em.m);
+        return u.level >= 1 ? { level: u.level, y: em.y, m: em.m, days: u.days } : null;
+      })();
+      const scrollToLiq = () => { try { const el = document.getElementById("sec-liquidation"); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 70, behavior: "smooth" }); } catch (e) {} };
+
       const monthOpts = (months || []).filter(m => m.present).slice().reverse().map(m => ({
         value: "ym:" + m.y + "-" + m.m, label: cap(SpacioI18n.monthLong(lang, m.m)) + " " + m.y,
       }));
@@ -366,6 +439,7 @@
           <TopBar owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency}
             propOptions={propOptions} selProp={effSelProp} setSelProp={setSelProp} period={period} setPeriod={setPeriod}
             months={months} periodText={periodText} hidePropSelect={isAdmin}
+            invoiceAlert={(tab === "dashboard" && !isAdmin) ? invAlert : null} onAlertClick={scrollToLiq}
             onLogout={onLogout} t={t} />
 
           <div className="sa-tabs-bar">
@@ -398,13 +472,17 @@
               </div>
             </div>
 
+            {tab === "dashboard" && !isAdmin && typeof PendingInvoicesAlert !== "undefined" && (
+              <PendingInvoicesAlert activeProps={activeProps} owner={owner} isAdmin={isAdmin} isAll={isAll} lang={lang} t={t} setPeriod={setPeriod} compact />
+            )}
+
             {tab === "dashboard" && (
               <React.Fragment>
                 <div className="sa-top" id="top">
                   <Hero property={property} isAll={isAll} propsCount={props.length} periodText={periodText} contextLine={contextLine} t={t} lang={lang} />
                   <SummaryKPIs cur={pdata.cur} prev={pdata.prev} fmt={fmt} t={t} />
                 </div>
-                <LiquidationBlock pdata={pdata} fmt={fmt} t={t} lang={lang} />
+                <LiquidationBlock pdata={pdata} fmt={fmt} t={t} lang={lang} property={property} activeProps={activeProps} owner={owner} isAdmin={isAdmin} isAll={isAll} />
                 <FinancialSection pdata={pdata} fmt={fmt} t={t} lang={lang} />
                 <DistributionSection pdata={pdata} fmt={fmt} t={t} lang={lang} />
                 <OccupancySection pdata={pdata} fmt={fmt} t={t} lang={lang} />
@@ -413,7 +491,7 @@
             )}
 
             {tab === "expenses" && (
-              <ExpensesSection activeProps={activeProps} pdata={pdata} fmt={fmt} t={t} lang={lang} />
+              <ExpensesSection activeProps={activeProps} pdata={pdata} fmt={fmt} t={t} lang={lang} isAdmin={isAdmin} />
             )}
 
             {tab === "report" && (
