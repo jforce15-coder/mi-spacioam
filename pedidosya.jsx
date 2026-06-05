@@ -234,9 +234,8 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
   const Badge = ({ l }) => l.alreadyImported
     ? <span className="pya-badge dupe"><Icon name="check" size={11} stroke="var(--alabaster)" />{tr("Ya importado", "Imported")}</span>
     : (l.prod && l.prod.kind === "otro") ? <span className="pya-badge revisar"><span className="dot" />{tr("Otra NIT", "Other NIT")}</span>
-    : l.prod && l.tar ? <span className="pya-badge matched"><span className="dot" />{tr("Prod + tarifa", "Prod + fee")}</span>
-    : l.prod ? <span className="pya-badge sin"><span className="dot" />{tr("Solo productos", "Products only")}</span>
-    : <span className="pya-badge revisar"><span className="dot" />{tr("Solo tarifa", "Fee only")}</span>;
+    : l.prod ? <span className="pya-badge matched"><span className="dot" />{tr("Productos", "Products")}</span>
+    : <span className="pya-badge sin"><span className="dot" />{tr("Tarifa de servicio", "Service fee")}</span>;
 
   return (
     <React.Fragment>
@@ -300,9 +299,9 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
               <thead>
                 <tr>
                   <th style={{ width: 34 }}><PyaCheck on={allOn} onClick={toggleAll} /></th>
-                  <th>{tr("Factura(s)", "Invoice(s)")}</th>
+                  <th>{tr("Factura", "Invoice")}</th>
                   <th>{tr("Fecha", "Date")}</th>
-                  <th style={{ textAlign: "right" }}>{tr("Consolidado", "Total")}</th>
+                  <th style={{ textAlign: "right" }}>{tr("Gran Total", "Grand total")}</th>
                   <th style={{ minWidth: 180 }}>{tr("Propiedad", "Property")}</th>
                   <th style={{ minWidth: 190 }}>{tr("URL del pedido", "Order URL")}</th>
                   <th style={{ minWidth: 150 }}>{tr("Categoría", "Category")}</th>
@@ -339,7 +338,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
 
           <div className="pya-footer">
             <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: saveMsg ? "var(--ink)" : "var(--earth)", maxWidth: 460, lineHeight: 1.5 }}>
-              {saveMsg || tr("Asigna propiedad y pega la URL del pedido. La URL une la tarifa de servicio con los productos en un solo monto para el socio.", "Assign a property and paste the order URL. The URL links the service fee with the products into one amount for the owner.")}
+              {saveMsg || tr("Cada factura va por separado. Asigna la propiedad y pega la MISMA URL del pedido en la factura de productos y en la de tarifa: así el propietario verá un solo monto y ambas facturas; tú las sigues viendo separadas.", "Each invoice is separate. Assign the property and paste the SAME order URL on the products invoice and on the service-fee invoice: the owner will see one amount and both invoices; you keep seeing them separate.")}
             </span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Borrar el archivo cargado y empezar de cero?", "Clear the loaded file and start over?"))) { setInvoices(null); setLines([]); setSatStats(null); setWarnings([]); setSaveMsg(""); } }} disabled={!lines.length}><Icon name="x" size={14} stroke="var(--earth)" />{tr("Limpiar", "Clear")}</button>

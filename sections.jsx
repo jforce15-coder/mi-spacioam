@@ -134,7 +134,27 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const sliceMonths = pdata.slice.length ? pdata.slice : pdata.hist.months.slice(-3);
   const allRows = SpacioAgg.collectRows(activeProps, sliceMonths, "expenses");
   // gastos con etiqueta no-cobrable (Gasto Spacio AM, etc.) solo los ve el admin
-  const rows = allRows.filter(r => isAdmin || !r.adminOnly);
+  const billRows = allRows.filter(r => isAdmin || !r.adminOnly);
+  // El propietario ve UN solo movimiento por pedido: las facturas que comparten
+  // la misma URL del pedido (productos + tarifa) se suman en un monto unificado,
+  // conservando ambas autorizaciones para "Ver factura". El admin las ve separadas.
+  const mergeByOrder = (rs) => {
+    const out = [], byUrl = {};
+    rs.forEach(r => {
+      const u = (r.orderUrl || "").trim();
+      if (!u) { out.push(r); return; }
+      if (!byUrl[u]) { byUrl[u] = Object.assign({}, r); out.push(byUrl[u]); }
+      else {
+        const g = byUrl[u];
+        g.amount = (g.amount || 0) + (r.amount || 0);
+        g.amountGTQ = (g.amountGTQ || 0) + (r.amountGTQ || 0);
+        g.authProductos = g.authProductos || r.authProductos;
+        g.authTarifa = g.authTarifa || r.authTarifa;
+      }
+    });
+    return out;
+  };
+  const rows = isAdmin ? billRows : mergeByOrder(billRows);
   // headline total comes from Resumenconsolidado (insumos + reparaciones), per brief
   const total = pdata.cur.insumos + pdata.cur.reparaciones;
   // group line items by their real category string

@@ -223,12 +223,26 @@
     emisor:  [/nombre\s*(completo\s*)?del?\s*emisor/i, /^emisor$/i],
     receptor:[/nombre\s*(completo\s*)?del?\s*receptor/i, /^receptor$/i],
     estado:  [/^estado$/i, /estado\s*(del)?\s*dte/i],
-    total:   [/gran\s*total/i, /total\s*\(moneda/i, /^total$/i, /monto\s*total/i],
+    // ORDEN = prioridad. "Gran Total (Moneda Original)" (columna S del export del
+    // SAT) primero, para no confundirlo con otras columnas "Total ...".
+    total:   [/gran\s*total\s*\(?\s*moneda\s*orig/i, /gran\s*total/i, /total\s*\(\s*moneda\s*orig/i, /monto\s*total/i, /total\s*\(\s*moneda/i, /^gran\s*total/i, /^total$/i],
   };
   function findCol(headers, patterns) {
     for (let i = 0; i < headers.length; i++) {
       const h = String(headers[i] || "").trim();
       if (patterns.some(re => re.test(h))) return i;
+    }
+    return -1;
+  }
+  // como findCol pero RESPETA el orden de prioridad de los patrones: prueba el
+  // primer patrón contra todas las columnas, luego el segundo, etc. Así una
+  // columna genérica "Total" no le gana a "Gran Total (Moneda Original)".
+  function findColPriority(headers, orderedPatterns) {
+    for (let p = 0; p < orderedPatterns.length; p++) {
+      const re = orderedPatterns[p];
+      for (let i = 0; i < headers.length; i++) {
+        if (re.test(String(headers[i] || "").trim())) return i;
+      }
     }
     return -1;
   }
@@ -250,9 +264,9 @@
     const headers = rows[hi].map(c => String(c || "").trim());
     const ix = {
       fecha: findCol(headers, COL.fecha), auth: findCol(headers, COL.auth),
-      nit: findCol(headers, COL.nit), emisor: findCol(headers, COL.emisor),
+      nit: findColPriority(headers, COL.nit), emisor: findCol(headers, COL.emisor),
       receptor: findCol(headers, COL.receptor), estado: findCol(headers, COL.estado),
-      total: findCol(headers, COL.total),
+      total: findColPriority(headers, COL.total),
     };
     if (ix.nit === -1 || ix.total === -1) {
       warnings.push("No se reconocieron las columnas NIT / Gran Total del SAT. Revisa que sea el export de FEL → Consultar DTE.");
@@ -437,31 +451,18 @@
   }
   // Empareja cada factura de productos con la tarifa de servicio más cercana del
   // mismo día (proximidad = orden de emisión en el export del SAT).
+  // Cada factura del SAT se muestra POR SEPARADO (productos, tarifa y otras NITs).
+  // El admin las ve siempre individuales; la unión productos↔tarifa se hace después
+  // con la URL del pedido (solo para mostrarle al propietario un monto unificado).
   function pairSATInvoices(invoices, importedSet, opts) {
     importedSet = importedSet || new Set();
     opts = opts || {};
-    const list = (invoices || []).map((inv, i) => Object.assign({ _idx: i }, inv));
-    const prods = list.filter(i => i.kind === "productos" && i.vigente);
-    const tars  = list.filter(i => i.kind === "tarifa"   && i.vigente);
-    const usedTar = new Set();
     const lines = [];
-    prods.forEach(prod => {
-      let tar = null, bestDist = Infinity;
-      tars.forEach(t => {
-        if (usedTar.has(t._idx)) return;
-        if (t.day && prod.day && t.day !== prod.day && dayDiff(t.day, prod.day) > 1) return;
-        const d = Math.abs(t._idx - prod._idx);
-        if (d < bestDist) { bestDist = d; tar = t; }
-      });
-      if (tar) usedTar.add(tar._idx);
-      lines.push(makeLine(prod, tar, importedSet));
+    (invoices || []).filter(i => i.vigente).forEach(inv => {
+      if (inv.kind === "tarifa") lines.push(makeLine(null, inv, importedSet));
+      else if (inv.kind === "productos") lines.push(makeLine(inv, null, importedSet));
+      else if (inv.kind === "otro" && opts.includeOther) lines.push(makeLine(inv, null, importedSet));
     });
-    tars.forEach(t => { if (!usedTar.has(t._idx)) lines.push(makeLine(null, t, importedSet)); });
-    // facturas de OTRA NIT (p.ej. el Market emite con NIT propia): se muestran como
-    // líneas sueltas asignables cuando el admin activa "incluir otras NITs".
-    if (opts.includeOther) {
-      list.filter(i => i.kind === "otro" && i.vigente).forEach(o => lines.push(makeLine(o, null, importedSet)));
-    }
     return lines.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
   }
 
