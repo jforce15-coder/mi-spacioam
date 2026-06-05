@@ -155,8 +155,12 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
     return out;
   };
   const rows = isAdmin ? billRows : mergeByOrder(billRows);
-  // headline total comes from Resumenconsolidado (insumos + reparaciones), per brief
-  const total = pdata.cur.insumos + pdata.cur.reparaciones;
+  // El total consolidado = suma de los movimientos mostrados en el período.
+  // (El resumen oficial no incluye lo recién cargado en "insumos & gastos",
+  //  por eso antes salía $0 aunque hubiera gastos abajo.)
+  const rowsTotal = rows.reduce((a, r) => a + (r.amount || 0), 0);
+  const resumenTotal = pdata.cur.insumos + pdata.cur.reparaciones;
+  const total = rowsTotal > 0.005 ? rowsTotal : resumenTotal;
   // group line items by their real category string
   const groups = {};
   rows.forEach(r => { const k = r.category || "Otros"; (groups[k] = groups[k] || []).push(r); });
