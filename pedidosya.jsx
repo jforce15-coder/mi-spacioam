@@ -152,6 +152,8 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
   const [box, setBox] = pyUseState(null);
   const [saveMsg, setSaveMsg] = pyUseState("");
   const [drag, setDrag] = pyUseState(false);
+  const [showOther, setShowOther] = pyUseState(false); // incluir facturas de otras NITs
+  const [query, setQuery] = pyUseState("");            // búsqueda por fecha / monto / emisor
 
   const catOptions = [
     { value: "insumos & gastos", label: tr("Insumos & gastos", "Supplies & expenses") },
@@ -164,24 +166,25 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
     { value: "Gasto Spacio AM", label: tr("Gasto Spacio AM", "Spacio AM expense") },
   ];
 
-  // re-empareja cuando cambian facturas o el set de importados (preserva ediciones)
+  // re-empareja cuando cambian facturas, importados o el toggle de otras NITs
   pyUseEffect(() => {
     if (!invoices) return;
     setLines(prev => {
-      const fresh = P.pairSATInvoices(invoices, imported);
+      const fresh = P.pairSATInvoices(invoices, imported, { includeOther: showOther });
       const byId = {}; prev.forEach(l => byId[l.id] = l);
       return fresh.map(l => { const old = byId[l.id]; return old ? Object.assign(l, { property_name: old.property_name, orderUrl: old.orderUrl, categoria: old.categoria, tag: old.tag, comentario: old.comentario, include: old.include }) : l; });
     });
-  }, [invoices, imported]);
+  }, [invoices, imported, showOther]);
 
   const onSAT = async (files) => {
     if (!files || !files.length) return;
     setBusy("sat"); setWarnings([]);
-    let allInv = [], allWarn = [], stat = { productos: 0, tarifa: 0, total: 0 };
+    let allInv = [], allWarn = [], stat = { productos: 0, tarifa: 0, total: 0, otros: 0, otrosByNit: [] };
     for (const f of files) {
       const res = await P.parseSATFile(f);
       allInv = allInv.concat(res.invoices); allWarn = allWarn.concat(res.warnings);
-      stat.productos += res.stats.productos; stat.tarifa += res.stats.tarifa; stat.total += res.stats.total;
+      stat.productos += res.stats.productos; stat.tarifa += res.stats.tarifa; stat.total += res.stats.total; stat.otros += (res.stats.otros || 0);
+      (res.stats.otrosByNit || []).forEach(n => stat.otrosByNit.push(n));
     }
     setInvoices(allInv); setSatStats(stat); setWarnings([...new Set(allWarn)]); setBusy("");
   };
@@ -193,7 +196,14 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
   const allOn = selectable.length > 0 && selectable.every(l => l.include);
   const toggleAll = () => setLines(ls => ls.map(l => l.alreadyImported ? l : Object.assign({}, l, { include: !allOn })));
 
-  const visible = pyUseMemo(() => lines.filter(l => filter === "all" ? true : filter === "imported" ? l.alreadyImported : !l.alreadyImported), [lines, filter]);
+  const matchQuery = (l) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    const hay = [P.prettyDay(l.day, lang), String(l.consolidated), l.prod && l.prod.total, l.tar && l.tar.total, l.receptor, l.prod && l.prod.emisor, l.prod && l.prod.auth, l.tar && l.tar.auth]
+      .filter(Boolean).join(" ").toLowerCase();
+    return hay.indexOf(q) > -1;
+  };
+  const visible = pyUseMemo(() => lines.filter(l => (filter === "all" ? true : filter === "imported" ? l.alreadyImported : !l.alreadyImported) && matchQuery(l)), [lines, filter, query, lang]);
   const counts = pyUseMemo(() => ({ all: lines.length, pending: lines.filter(l => !l.alreadyImported).length, imported: lines.filter(l => l.alreadyImported).length }), [lines]);
 
   const downloadTSV = () => {
@@ -223,6 +233,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
 
   const Badge = ({ l }) => l.alreadyImported
     ? <span className="pya-badge dupe"><Icon name="check" size={11} stroke="var(--alabaster)" />{tr("Ya importado", "Imported")}</span>
+    : (l.prod && l.prod.kind === "otro") ? <span className="pya-badge revisar"><span className="dot" />{tr("Otra NIT", "Other NIT")}</span>
     : l.prod && l.tar ? <span className="pya-badge matched"><span className="dot" />{tr("Prod + tarifa", "Prod + fee")}</span>
     : l.prod ? <span className="pya-badge sin"><span className="dot" />{tr("Solo productos", "Products only")}</span>
     : <span className="pya-badge revisar"><span className="dot" />{tr("Solo tarifa", "Fee only")}</span>;
@@ -238,9 +249,23 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
           <span className="pya-drop-lbl">{tr("Archivo del SAT (FEL · Consultar DTE)", "SAT file (FEL · Consultar DTE)")}</span>
           <span className="pya-drop-hint">{tr("Exporta tu emisión/recepción de DTE. Filtramos solo PedidosYa: productos (NIT 110411668) y tarifa de servicio (NIT 100446329). .xls / .xlsx / .xml / PDF", "Export your DTE issuance/reception. We keep only PedidosYa: products (NIT 110411668) and service fee (NIT 100446329). .xls / .xlsx / .xml / PDF")}</span>
           {busy === "sat" && <span className="pya-drop-done"><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} /> {tr("Leyendo…", "Reading…")}</span>}
-          {satStats && busy !== "sat" && <span className="pya-drop-done"><Icon name="check" size={13} stroke="#5B8A6B" /> {satStats.total} {tr("facturas PedidosYa", "PedidosYa invoices")} · {satStats.productos} {tr("prod", "prod")} · {satStats.tarifa} {tr("tarifa", "fee")}</span>}
+          {satStats && busy !== "sat" && <span className="pya-drop-done"><Icon name="check" size={13} stroke="#5B8A6B" /> {satStats.total} {tr("facturas PedidosYa", "PedidosYa invoices")} · {satStats.productos} {tr("prod", "prod")} · {satStats.tarifa} {tr("tarifa", "fee")}{satStats.otros ? " · " + satStats.otros + tr(" de otras NITs", " from other NITs") : ""}</span>}
         </span>
       </label>
+
+      {satStats && satStats.otros > 0 && (
+        <div className="pya-warn" style={{ alignItems: "flex-start" }}>
+          <Icon name="info" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <p style={{ margin: 0 }}>{tr("¿No encuentras la factura de un pedido? El Market de PedidosYa suele facturar los productos con la NIT de la tienda, no con la de Delivery Hero. Actívalas para asignarlas:", "Can't find an order's invoice? PedidosYa Market often bills products under the store's own NIT, not Delivery Hero's. Turn them on to assign them:")}</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+              {(satStats.otrosByNit || []).slice(0, 6).map((n, i) => (
+                <span key={i} style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.02em", color: "var(--earth)", background: "var(--alabaster)", border: "1px solid var(--warm-grey)", borderRadius: 8, padding: "4px 8px" }}>{(n.emisor || ("NIT " + n.nit)).slice(0, 28)} · {n.count}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div className="pya-warn"><Icon name="info" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} /><p>{warnings.join(" ")}</p></div>
@@ -257,6 +282,17 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
             <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--earth)" }}>
               {selectedRows.length} {tr("listas para guardar", "ready to save")}{missingProp > 0 ? " · " + missingProp + tr(" sin propiedad", " missing property") : ""}
             </span>
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", margin: "0 0 14px" }}>
+            <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--earth)" /></span>
+              <input className="pya-input" style={{ paddingLeft: 36 }} value={query} onChange={e => setQuery(e.target.value)} placeholder={tr("Buscar por fecha o monto (ej. 31 May, 76.56, 78.56)", "Search by date or amount (e.g. 31 May, 76.56)")} />
+            </div>
+            <label style={{ display: "inline-flex", alignItems: "center", gap: 9, cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--ink)" }}>
+              <PyaCheck on={showOther} onClick={() => setShowOther(v => !v)} />
+              {tr("Incluir facturas de otras NITs", "Include other-NIT invoices")}{satStats && satStats.otros ? " (" + satStats.otros + ")" : ""}
+            </label>
           </div>
 
           <div className="pya-scroll">
@@ -279,9 +315,9 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
                 {visible.map(l => (
                   <tr key={l.id} className={l.alreadyImported ? "imported" : ""}>
                     <td>{!l.alreadyImported && <PyaCheck on={l.include} onClick={() => setLine(l.id, { include: !l.include })} />}</td>
-                    <td><Badge l={l} /></td>
+                    <td><Badge l={l} />{(l.prod && l.prod.kind === "otro" && l.prod.emisor) ? <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 9.5, letterSpacing: "0.02em", color: "var(--earth)", marginTop: 3, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.prod.emisor}</span> : null}</td>
                     <td className="pya-num">{P.prettyDay(l.day, lang)}</td>
-                    <td className="pya-num" style={{ textAlign: "right", fontWeight: 600 }}>{P.money(l.consolidated)}</td>
+                    <td className="pya-num" style={{ textAlign: "right", fontWeight: 600 }}>{P.money(l.consolidated)}{(l.prod && l.tar) ? <span style={{ display: "block", fontWeight: 400, fontSize: 9.5, color: "var(--earth)", marginTop: 2 }}>{tr("Prod", "Prod")} {P.money(l.prod.total)} · {tr("Tar", "Fee")} {P.money(l.tar.total)}</span> : null}</td>
                     <td><PyaMini value={l.property_name} options={propOptions} onChange={v => setLine(l.id, { property_name: v })} placeholder={tr("Asignar…", "Assign…")} search /></td>
                     <td><input className="pya-input" style={{ fontSize: 11.5, padding: "8px 10px" }} value={l.orderUrl} onChange={e => setLine(l.id, { orderUrl: e.target.value })} placeholder={tr("Pega el link del pedido", "Paste order link")} /></td>
                     <td><PyaMini value={l.categoria} options={catOptions} onChange={v => setLine(l.id, { categoria: v })} /></td>

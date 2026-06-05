@@ -265,7 +265,9 @@
       const total = numQ(ix.total > -1 ? row[ix.total] : 0);
       const estado = (ix.estado > -1 ? String(row[ix.estado] || "") : "").trim();
       const kind = nit === NIT_PRODUCTOS ? "productos" : nit === NIT_TARIFA ? "tarifa" : "otro";
-      if (kind === "otro") continue; // sólo PedidosYa
+      // Ya NO se descarta "otro": se conserva para que el admin pueda identificar
+      // facturas emitidas con OTRA NIT (p.ej. PedidosYa Market / la tienda factura
+      // los productos con su propia NIT, no con la de Delivery Hero).
       out.push({
         fechaRaw: ix.fecha > -1 ? row[ix.fecha] : "",
         day: parseLooseDate(ix.fecha > -1 ? row[ix.fecha] : ""),
@@ -300,9 +302,14 @@
     const invoices = rowsToInvoices(rows, warnings);
     const productos = invoices.filter(i => i.kind === "productos");
     const tarifa = invoices.filter(i => i.kind === "tarifa");
+    const otros = invoices.filter(i => i.kind === "otro");
+    // resumen por NIT de las "otras" facturas (para descubrir la NIT del Market)
+    const nitMap = {};
+    otros.forEach(i => { const k = i.nit || "?"; (nitMap[k] = nitMap[k] || { nit: k, emisor: i.emisor, count: 0, sum: 0 }); nitMap[k].count++; nitMap[k].sum += i.total || 0; if (!nitMap[k].emisor && i.emisor) nitMap[k].emisor = i.emisor; });
+    const otrosByNit = Object.values(nitMap).sort((a, b) => b.count - a.count);
     return {
       invoices,
-      stats: { rows: rows.length, productos: productos.length, tarifa: tarifa.length, total: invoices.length },
+      stats: { rows: rows.length, productos: productos.length, tarifa: tarifa.length, otros: otros.length, total: productos.length + tarifa.length, otrosByNit },
       warnings,
     };
   }
@@ -430,8 +437,9 @@
   }
   // Empareja cada factura de productos con la tarifa de servicio más cercana del
   // mismo día (proximidad = orden de emisión en el export del SAT).
-  function pairSATInvoices(invoices, importedSet) {
+  function pairSATInvoices(invoices, importedSet, opts) {
     importedSet = importedSet || new Set();
+    opts = opts || {};
     const list = (invoices || []).map((inv, i) => Object.assign({ _idx: i }, inv));
     const prods = list.filter(i => i.kind === "productos" && i.vigente);
     const tars  = list.filter(i => i.kind === "tarifa"   && i.vigente);
@@ -449,6 +457,11 @@
       lines.push(makeLine(prod, tar, importedSet));
     });
     tars.forEach(t => { if (!usedTar.has(t._idx)) lines.push(makeLine(null, t, importedSet)); });
+    // facturas de OTRA NIT (p.ej. el Market emite con NIT propia): se muestran como
+    // líneas sueltas asignables cuando el admin activa "incluir otras NITs".
+    if (opts.includeOther) {
+      list.filter(i => i.kind === "otro" && i.vigente).forEach(o => lines.push(makeLine(o, null, importedSet)));
+    }
     return lines.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0));
   }
 
