@@ -318,6 +318,9 @@ function CopyBtn({ text }) {
 function InvoiceViewBox({ data, lang, onClose }) {
   const P = window.PedidosYa;
   const es = lang !== "en";
+  const [cfg, setCfg] = pyaUseState(() => { try { const c = JSON.parse(localStorage.getItem("sa-sat-config")) || {}; return { nit: c.nit || "118287796", clave: c.clave || "" }; } catch (e) { return { nit: "118287796", clave: "" }; } });
+  const [cfgOpen, setCfgOpen] = pyaUseState(false);
+  const saveCfg = (c) => { setCfg(c); try { localStorage.setItem("sa-sat-config", JSON.stringify(c)); } catch (e) {} };
   const [tab, setTab] = pyaUseState(data.orderUrl ? "order" : "sat");
   const [frameErr, setFrameErr] = pyaUseState(false);
   pyaUseEffect(() => { setFrameErr(false); }, [tab]);
@@ -349,19 +352,35 @@ function InvoiceViewBox({ data, lang, onClose }) {
 
           {tab === "sat" && invoices.length > 0 && (
             <React.Fragment>
-              <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.02em", lineHeight: 1.55, color: "var(--earth)", margin: "0 0 12px", textWrap: "pretty" }}>
-                {es ? "El SAT no muestra la factura sin estos datos. Cópialos y pégalos en el verificador de abajo (botón ↻ junto a cada campo)." : "SAT won't show the invoice without these fields. Copy and paste them into the verifier below."}
-              </p>
               <div className="pya-satcopy">
                 {invoices.map((inv, i) => (
                   <div className="pya-satcopy-card" key={i}>
                     <div className="pya-satcopy-kind">{kindLabel(inv.kind)}{inv.total != null ? " · " + P.money(inv.total) : ""}</div>
+                    <a className="pya-openbtn pya-openbtn-dark" style={{ marginTop: 0, marginBottom: 11, width: "100%", boxSizing: "border-box", justifyContent: "center", opacity: cfg.clave ? 1 : 0.45, pointerEvents: cfg.clave ? "auto" : "none" }}
+                      href={P.links.satFactura(inv.auth, cfg.nit, cfg.clave)} target="_blank" rel="noreferrer">
+                      {es ? "Ver factura" : "View invoice"} <Icon name="arrowUpRight" size={14} stroke="var(--alabaster)" />
+                    </a>
                     <CopyField label={es ? "Nº de autorización" : "Authorization No."} value={inv.auth} mono />
                     {inv.nit && <CopyField label={es ? "NIT emisor" : "Issuer NIT"} value={inv.nit} />}
                     {inv.total != null && <CopyField label={es ? "Monto total" : "Total amount"} value={(Math.round(inv.total * 100) / 100).toFixed(2)} />}
                   </div>
                 ))}
               </div>
+              <button onClick={() => setCfgOpen(o => !o)} style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 0", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--earth)", textDecoration: "underline" }}>
+                {cfg.clave ? (es ? "Cambiar Clave de Agencia Virtual" : "Change Agencia Virtual key") : (es ? "Configurar acceso para ‘Ver factura’" : "Set up access for ‘View invoice’")}
+              </button>
+              {(cfgOpen || !cfg.clave) && (
+                <div style={{ background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 12, padding: 14, marginTop: 10 }}>
+                  <p style={{ fontFamily: "var(--sans)", fontSize: 11, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--earth)", margin: "0 0 10px", textWrap: "pretty" }}>
+                    {es ? "Para abrir la factura en la Agencia Virtual del SAT pega el NIT del receptor y tu Clave. Se guardan solo en este navegador (no se publican)." : "To open the invoice in SAT's Agencia Virtual, paste the receiver NIT and your Clave. Stored only in this browser."}
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <input className="pya-input" style={{ flex: "1 1 120px", fontSize: 12 }} defaultValue={cfg.nit} placeholder={es ? "NIT receptor" : "Receiver NIT"} id="sa-cfg-nit" />
+                    <input className="pya-input" style={{ flex: "2 1 200px", fontSize: 12 }} defaultValue={cfg.clave} placeholder={es ? "Clave de Agencia Virtual" : "Agencia Virtual key"} id="sa-cfg-clave" />
+                    <button className="pya-btn pya-btn-dark" onClick={() => { const nit = (document.getElementById("sa-cfg-nit") || {}).value || cfg.nit; const clave = (document.getElementById("sa-cfg-clave") || {}).value || ""; saveCfg({ nit: nit.trim(), clave: clave.trim() }); setCfgOpen(false); }}>{es ? "Guardar" : "Save"}</button>
+                  </div>
+                </div>
+              )}
             </React.Fragment>
           )}
 
@@ -372,26 +391,24 @@ function InvoiceViewBox({ data, lang, onClose }) {
             </div>
           )}
 
-          {cur && !frameErr ? (
-            <iframe className="pya-frame" src={cur} title="factura" onError={() => setFrameErr(true)}
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups" />
-          ) : cur ? (
-            <div className="pya-frame-fallback">
-              <Icon name="file" size={26} stroke="var(--earth)" />
-              <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, lineHeight: 1.55, color: "var(--earth)", margin: 0, maxWidth: 380, textWrap: "pretty" }}>
-                {es ? "Esta página no permite incrustarse aquí. Ábrela en una pestaña nueva." : "This page doesn't allow embedding here. Open it in a new tab."}
+          {tab === "order" && data.orderUrl && (
+            <div className="pya-frame-fallback" style={{ marginBottom: 4 }}>
+              <Icon name="file" size={26} stroke="var(--ink)" />
+              <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, lineHeight: 1.55, color: "var(--earth)", margin: 0, maxWidth: 400, textWrap: "pretty" }}>
+                {es ? "Abre el pedido en PedidosYa y toca \u201cDescargar factura\u201d para ver o guardar el PDF de la factura." : "Open the order in PedidosYa and tap \u201cDownload invoice\u201d to view or save the invoice PDF."}
               </p>
             </div>
-          ) : null}
+          )}
 
-          {cur && (
-            <a className="pya-openbtn pya-openbtn-dark" href={cur} target="_blank" rel="noreferrer" style={{ marginTop: 14 }}>
-              {tab === "order" ? (es ? "Abrir pedido en pestaña nueva" : "Open order in new tab") : (es ? "Abrir verificador del SAT" : "Open SAT verifier")} <Icon name="arrowUpRight" size={15} stroke="var(--alabaster)" />
+          {tab === "order" && data.orderUrl && (
+            <a className="pya-openbtn pya-openbtn-dark" href={data.orderUrl} target="_blank" rel="noreferrer" style={{ marginTop: 14 }}>
+              {es ? "Abrir pedido en PedidosYa" : "Open order in PedidosYa"} <Icon name="arrowUpRight" size={15} stroke="var(--alabaster)" />
             </a>
           )}
           {tab === "sat" && (
             <p style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--earth)", margin: "12px 0 0", textWrap: "pretty" }}>
-              {es ? "El verificador también pide el ID del receptor (el NIT de Spacio AM) y resolver un captcha. Algunos DTE tardan días en aparecer." : "The verifier also asks for the receiver ID (Spacio AM's NIT) and a captcha. Some DTEs take days to appear."}
+              {es ? "“Ver factura” abre la Agencia Virtual del SAT y salta a la factura por su nº de autorización. Si no carga, usa el " : "“View invoice” opens SAT's Agencia Virtual and jumps to the invoice by its authorization number. If it doesn't load, use the "}
+              <a href={satUrl} target="_blank" rel="noreferrer" style={{ color: "var(--ink)", textDecoration: "underline" }}>{es ? "verificador público" : "public verifier"}</a>{es ? " con los datos de arriba." : " with the fields above."}
             </p>
           )}
         </div>

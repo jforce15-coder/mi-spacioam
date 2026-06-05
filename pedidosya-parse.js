@@ -95,6 +95,9 @@
   const links = {
     order: (orderId) => "https://www.pedidosya.com.gt/order-details?orderId=" + encodeURIComponent(orderId) + "&origin=myOrders",
     satVerificador: "https://felpub.c.sat.gob.gt/verificador-web/publico/vistas/verificacionDte.jsf",
+    // Agencia Virtual del SAT: abre la lista de DTE recibidos del receptor (Nit + Clave)
+    // y salta a la factura por su nº de autorización (fragmento de texto).
+    satFactura: (auth, nit, clave) => "https://felcons.c.sat.gob.gt/dte-agencia-virtual/dte-consulta?Nit=" + encodeURIComponent(nit || "") + "&Clave=" + encodeURIComponent(clave || "") + (auth ? "#:~:text=" + encodeURIComponent(auth) : ""),
   };
 
   // ============================================================
