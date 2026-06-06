@@ -641,7 +641,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
   const SF = window.SpacioFiles;
 
   const invCov = SF && ym ? SF.coverage("factura", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
-  const depCov = SF && ym ? SF.coverage("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
+  const depAll = SF && ym ? SF.coverageAll("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : [];
   const income = c.ingresoNeto || 0;
   const enforce = endMonth && endMonth.y >= (SF ? SF.ENFORCE_FROM_YEAR : 2026);
   const overdue = (!invCov && income > 0.5 && enforce && SF) ? SF.urgency(endMonth.y, endMonth.m) : null;
@@ -669,17 +669,22 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
         ))}
       </div>
 
-      {/* comprobante de depósito — descarga, justo encima de "Monto a facturar" */}
+      {/* comprobante(s) de depósito — descarga, justo encima de "Monto a facturar".
+          Puede haber varios depósitos en el mismo mes; se listan todos. */}
       <div className="sa-file-deposit">
         <span className="lbl">
-          <span className="ic"><Icon name="download" size={18} stroke={depCov ? "var(--ink)" : "var(--warm-grey)"} /></span>
+          <span className="ic"><Icon name="download" size={18} stroke={depAll.length ? "var(--ink)" : "var(--warm-grey)"} /></span>
           <span>
             <strong style={{ fontWeight: 600 }}>{t("liq_deposit_proof")}</strong>
-            <span style={{ display: "block", color: "var(--earth)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}</span>
+            <span style={{ display: "block", color: "var(--earth)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}{depAll.length > 1 ? " · " + depAll.length + (lang === "es" ? " depósitos" : " deposits") : ""}</span>
           </span>
         </span>
-        {depCov && depCov.url
-          ? <a className="sa-file-btn ghost" href={depCov.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{t("liq_deposit_download")}</a>
+        {depAll.length
+          ? <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
+              {depAll.map((d, i) => d.url
+                ? <a key={d.fid || i} className="sa-file-btn ghost" href={d.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{depAll.length > 1 ? (t("liq_deposit_download") + " " + (i + 1)) : t("liq_deposit_download")}</a>
+                : null)}
+            </div>
           : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", maxWidth: 260, textAlign: "right" }}>{t("liq_deposit_none")}</span>}
       </div>
 
@@ -819,27 +824,35 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
   };
   const setItem = (id, patch) => setItems(its => its.map(d => d.id === id ? Object.assign({}, d, patch) : d));
   const removeItem = (id) => setItems(its => its.filter(d => d.id !== id));
-  const ymOfDay = (day) => { const m = String(day || "").match(/(\d{4})-(\d{1,2})/); return m ? m[1] + "-" + String(+m[2]).padStart(2, "0") : ym; };
   const ready = items.filter(d => d.property_name);
 
   const saveAll = async () => {
     if (!ready.length) return;
     setBusy("save"); setMsg("");
-    let ok = 0, monUpd = 0;
+    let ok = 0, monUpd = 0, failed = 0;
     for (const d of ready) {
-      const r = await SF.upload({ kind: "deposito", scope: "property", property_name: d.property_name, ym: ymOfDay(d.day), file: d.file, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day });
-      if (r && r.ok) ok++;
-      // registra el depósito (con número de cuenta) en la hoja de depósitos a socios
-      if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-        await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: "", archivo: (r && r.fileName) || d.fileName }] });
-        // actualiza la moneda en SETUP si se detectó
-        if (d.moneda === "USD" || d.moneda === "GTQ") { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda }); if (mr && mr.ok && mr.updated) monUpd++; }
-      }
+      setItem(d.id, { status: "uploading" });
+      // IMPORTANTE: el comprobante se guarda en el MES SELECCIONADO en el filtro
+      // superior (ym), no en la fecha en que se sube.
+      const r = await SF.upload({ kind: "deposito", scope: "property", property_name: d.property_name, ym, file: d.file, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day });
+      if (r && r.ok) {
+        ok++;
+        setItem(d.id, { status: "done" });
+        if (window.SpacioWrite && window.SpacioWrite.enabled()) {
+          await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: "", archivo: (r && r.fileName) || d.fileName }] });
+          if (d.moneda === "USD" || d.moneda === "GTQ") { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda }); if (mr && mr.ok && mr.updated) monUpd++; }
+        }
+      } else { failed++; setItem(d.id, { status: "error" }); }
     }
-    setItems(its => its.filter(d => !ready.includes(d)));
+    // solo quita los que se subieron bien; los que fallaron quedan para reintentar
+    setItems(its => its.filter(d => d.status !== "done"));
     setBusy("");
-    setMsg(tr(ok + " comprobante(s) asignados" + (monUpd ? " · " + monUpd + " moneda(s) actualizada(s) en Setup" : "") + ".", ok + " receipt(s) assigned" + (monUpd ? " · " + monUpd + " currency(ies) updated in Setup" : "") + "."));
+    setMsg(tr(
+      ok + " comprobante(s) guardados en " + monthName + (monUpd ? " · " + monUpd + " moneda(s) actualizada(s)" : "") + (failed ? " · " + failed + " con error (revisa la conexión)" : "") + ".",
+      ok + " receipt(s) saved to " + monthName + (monUpd ? " · " + monUpd + " currency(ies) updated" : "") + (failed ? " · " + failed + " failed (check connection)" : "") + "."));
   };
+  // nombre legible del mes seleccionado (destino de la carga)
+  const monthName = (() => { const m = String(ym || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (ym || ""); })();
 
   return (
     <div style={{ marginBottom: 24 }}>
@@ -851,6 +864,7 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
         <span>
           <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink)" }}>{tr("Subir comprobantes en lote", "Batch-upload receipts")}</span>
           <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", color: "var(--earth)", marginTop: 3, maxWidth: 460, lineHeight: 1.5, textWrap: "pretty" }}>{tr("Arrastra una o varias imágenes de depósitos. Leemos fecha y monto, y deducimos la propiedad por la descripción. Tú revisas antes de asignar.", "Drop one or many deposit images. We read date and amount, and guess the property from the description. You review before assigning.")}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 7, fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--peach)" }}><Icon name="calendar" size={12} stroke="var(--peach)" />{tr("Se guardarán en: ", "Will be saved to: ")}{monthName}</span>
           {busy === "ocr" && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6, fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("Leyendo imágenes…", "Reading images…")} {progress}%</span>}
         </span>
       </label>
@@ -879,9 +893,13 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
                     </select>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: d.property_name ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <Icon name={d.property_name ? "check" : "info"} size={11} stroke={d.property_name ? "#5B8A6B" : "var(--peach)"} />{d.property_name ? tr("propiedad deducida", "property guessed") : tr("asigna la propiedad", "assign property")}
-                    </span>
+                    {d.status === "uploading"
+                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 5 }}><span className="sa-spin" style={{ width: 11, height: 11, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("subiendo…", "uploading…")}</span>
+                      : d.status === "error"
+                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={11} stroke="var(--peach)" />{tr("error — reintenta", "error — retry")}</span>
+                      : <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: d.property_name ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <Icon name={d.property_name ? "check" : "info"} size={11} stroke={d.property_name ? "#5B8A6B" : "var(--peach)"} />{d.property_name ? tr("propiedad deducida", "property guessed") : tr("asigna la propiedad", "assign property")}
+                        </span>}
                     <button onClick={() => removeItem(d.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={11} stroke="currentColor" />{tr("quitar", "remove")}</button>
                   </div>
                 </div>
@@ -912,6 +930,7 @@ function UploadedDepositsList({ lang, t }) {
   const deps = SF ? SF.list("deposito") : [];
   if (!deps.length) return null;
   const monthLabel = (ym) => { const m = String(ym || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (ym || ""); };
+  const del = (r) => { if (window.confirm(tr("¿Borrar este comprobante? Se quitará del dashboard y de Drive.", "Delete this receipt? It will be removed from the dashboard and Drive."))) SF.remove(r); };
   return (
     <div style={{ marginBottom: 28 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
@@ -920,15 +939,16 @@ function UploadedDepositsList({ lang, t }) {
       </div>
       <div className="sa-uplist">
         {deps.map((r, i) => (
-          <div className="sa-uplist-row" key={i}>
+          <div className="sa-uplist-row" key={r.fid || i}>
             <span className="sa-uplist-ic"><Icon name="file" size={15} stroke="var(--ink)" /></span>
             <div className="sa-uplist-main">
               <span className="sa-uplist-prop">{r.property_name || (r.owner ? (tr("Socio: ", "Owner: ") + r.owner) : tr("(sin propiedad)", "(no property)"))}</span>
-              <span className="sa-uplist-meta">{monthLabel(r.ym)}{r.monto ? " · " + (r.cuenta ? "" : "") + "Q " + Number(r.monto).toLocaleString("en-US") : ""}{r.cuenta ? " · " + tr("cta. ", "acct. ") + r.cuenta : ""}</span>
+              <span className="sa-uplist-meta">{monthLabel(r.ym)}{r.monto ? " · Q " + Number(r.monto).toLocaleString("en-US") : ""}{r.cuenta ? " · " + tr("cta. ", "acct. ") + r.cuenta : ""}</span>
             </div>
             {r.url
               ? <a className="sa-file-btn ghost" style={{ padding: "7px 13px", fontSize: 11 }} href={r.url} target="_blank" rel="noreferrer"><Icon name="download" size={13} stroke="var(--ink)" />{tr("Ver", "View")}</a>
               : <span className="sa-uplist-pending">{r.sessionOnly ? tr("solo esta sesión", "this session only") : tr("sin enlace", "no link")}</span>}
+            <button className="sa-uplist-del" onClick={() => del(r)} title={tr("Borrar", "Delete")}><Icon name="trash" size={14} stroke="currentColor" /></button>
           </div>
         ))}
       </div>

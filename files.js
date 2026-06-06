@@ -22,6 +22,16 @@
     var who = rec.scope === "owner" ? ("owner:" + norm(rec.owner)) : ("prop:" + norm(rec.property_name));
     return [rec.tipo, who, rec.ym].join("|");
   }
+  // identidad ÚNICA de un archivo (permite varios por propiedad/mes): incluye el
+  // nombre del archivo (único en Drive) o el fid local.
+  function fidOf(rec) {
+    if (rec.fid) return rec.fid;
+    var who = rec.scope === "owner" ? ("owner:" + norm(rec.owner)) : ("prop:" + norm(rec.property_name));
+    return [rec.tipo, who, rec.ym, rec.archivo || rec.url || ""].join("|");
+  }
+  var TOMB_KEY = "sa-files-deleted";
+  function readTomb() { try { return JSON.parse(localStorage.getItem(TOMB_KEY)) || []; } catch (e) { return []; } }
+  function writeTomb(a) { try { localStorage.setItem(TOMB_KEY, JSON.stringify(a)); } catch (e) {} }
 
   function fileToBase64(file) {
     return new Promise(function (res, rej) {
@@ -39,9 +49,23 @@
       var pub = (window.SpacioData && window.SpacioData.files) || [];
       var loc = readLocal();
       var byKey = {};
-      pub.forEach(function (r) { byKey[keyOf(r)] = r; });
-      loc.forEach(function (r) { byKey[keyOf(r)] = r; }); // local gana (más reciente)
-      return Object.values(byKey);
+      // merge por identidad ÚNICA (fid) → varios archivos por propiedad/mes coexisten
+      pub.forEach(function (r) { byKey[fidOf(r)] = r; });
+      loc.forEach(function (r) { byKey[fidOf(r)] = r; }); // local gana (más reciente)
+      var tomb = readTomb();
+      return Object.values(byKey).filter(function (r) { return tomb.indexOf(fidOf(r)) < 0; });
+    },
+
+    // TODOS los archivos que cubren una propiedad/socio para un mes (puede haber
+    // varios depósitos). A nivel propiedad incluye también los del socio.
+    coverageAll: function (kind, opts) {
+      var ym = opts.ym, ownerN = norm(opts.owner), propN = norm(opts.property_name);
+      return this.records().filter(function (r) {
+        if (r.tipo !== kind || r.ym !== ym) return false;
+        if (opts.scope === "owner") return r.scope === "owner" && ownerN && norm(r.owner) === ownerN;
+        return (r.scope === "property" && propN && norm(r.property_name) === propN) ||
+               (r.scope === "owner" && ownerN && norm(r.owner) === ownerN);
+      });
     },
 
     // ¿hay archivo para este período? property: cubre el de la propiedad O el del socio.
@@ -88,8 +112,11 @@
 
     // sube un archivo; resuelve con el registro creado
     upload: async function (params) {
-      // params: { kind, scope, owner, property_name, ym, file }
+      // params: { kind, scope, owner, property_name, ym, file, multiple, monto, cuenta, fecha }
+      var fid = "f" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+      var multiple = params.multiple != null ? params.multiple : (params.kind === "deposito");
       var rec = {
+        fid: fid,
         tipo: params.kind, scope: params.scope || "property",
         owner: params.owner || "", property_name: params.scope === "owner" ? "" : (params.property_name || ""),
         ym: params.ym, archivo: "", url: "", local: true, ts: Date.now(),
@@ -101,29 +128,53 @@
         var b64 = await fileToBase64(params.file);
         var res = await window.SpacioWrite.post("uploadFile", {
           kind: params.kind, scope: rec.scope, owner: rec.owner,
-          property_name: params.property_name || "", mes: params.ym,
+          property_name: params.property_name || "", mes: params.ym, multiple: multiple, fid: fid,
           fileName: params.file.name, mimeType: params.file.type, dataBase64: b64,
         });
         if (res && res.ok) {
           rec.archivo = res.fileName || params.file.name; rec.url = res.url || ""; rec.local = false;
-          this._remember(rec); emit();
-          return { ok: true, rec: rec };
+          this._remember(rec, multiple); emit();
+          return { ok: true, rec: rec, fileName: rec.archivo, url: rec.url };
         }
-        // si falla el backend, caemos a local para no perder el trabajo
+        // si falla el backend, devolvemos el error para mostrar estado de carga
+        return { ok: false, error: (res && res.error) || "backend" };
       }
       // fallback local: URL de sesión (no sobrevive recarga, pero el registro sí)
       rec.archivo = params.file.name;
       try { rec.url = URL.createObjectURL(params.file); } catch (e) { rec.url = ""; }
       rec.sessionOnly = true;
-      this._remember(rec); emit();
-      return { ok: true, rec: rec, local: true };
+      this._remember(rec, multiple); emit();
+      return { ok: true, rec: rec, local: true, sessionOnly: true };
     },
 
-    _remember: function (rec) {
+    // borra un archivo (por su registro): quita del local, marca tumba para ocultar
+    // el publicado, y pide al backend borrarlo de Drive + hoja de registro.
+    remove: async function (rec) {
+      var fid = fidOf(rec);
+      var loc = readLocal().filter(function (r) { return fidOf(r) !== fid; });
+      writeLocal(loc);
+      var tomb = readTomb(); if (tomb.indexOf(fid) < 0) tomb.push(fid); writeTomb(tomb);
+      emit();
+      var backend = window.SpacioWrite && window.SpacioWrite.enabled && window.SpacioWrite.enabled();
+      if (backend) {
+        try {
+          await window.SpacioWrite.post("deleteFile", {
+            kind: rec.tipo, scope: rec.scope, owner: rec.owner || "",
+            property_name: rec.property_name || "", mes: rec.ym, archivo: rec.archivo || "",
+          });
+        } catch (e) {}
+      }
+      return { ok: true };
+    },
+
+    _remember: function (rec, multiple) {
       var loc = readLocal();
-      var k = keyOf(rec);
-      loc = loc.filter(function (r) { return keyOf(r) !== k; });
-      loc.push(rec); writeLocal(loc); 
+      if (!multiple) {
+        // un solo archivo por (tipo, propiedad/socio, mes): reemplaza el anterior
+        var k = keyOf(rec);
+        loc = loc.filter(function (r) { return keyOf(r) !== k; });
+      }
+      loc.push(rec); writeLocal(loc);
     },
 
     // meses 2026 (hasta el mes actual) con ingreso presente pero SIN factura.
