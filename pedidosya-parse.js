@@ -90,6 +90,11 @@
     const [y, m] = ymdStr.split("-").map(Number);
     return LONG[m - 1] + " de " + y;
   }
+  // mes como NÚMERO 1–12 (lo que espera generarResumenMensual: parseInt(mes)).
+  function mesNumES(ymdStr) {
+    const m = String(ymdStr || "").split("-")[1];
+    return m ? parseInt(m, 10) : "";
+  }
 
   // ---------- enlaces externos ----------
   const links = {
@@ -420,7 +425,7 @@
   // fila lista para "insumos & gastos"
   function toSheetRow(row) {
     return {
-      Mes: row.order.day ? mesLargoES(row.order.day) : "",
+      Mes: row.order.day ? mesNumES(row.order.day) : "",
       "Fecha de pedido": row.order.day || "",
       property_name: row.property_name || "",
       valor: Math.round(row.order.amount * 100) / 100,
@@ -482,7 +487,7 @@
   function toSheetRowFromLine(line) {
     const oid = (line.prod && line.prod.auth) || (line.tar && line.tar.auth) || "";
     return {
-      Mes: line.day ? mesLargoES(line.day) : "",
+      Mes: line.day ? mesNumES(line.day) : "",
       "Fecha de pedido": line.day || "",
       property_name: line.property_name || "",
       valor: line.consolidated,
@@ -507,7 +512,7 @@
     if (!ps.length) return [];
     const each = split ? Math.round((entry.valor / ps.length) * 100) / 100 : entry.valor;
     return ps.map((name, i) => ({
-      Mes: entry.day ? mesLargoES(entry.day) : "",
+      Mes: entry.day ? mesNumES(entry.day) : "",
       "Fecha de pedido": entry.day || "",
       property_name: name,
       valor: each,

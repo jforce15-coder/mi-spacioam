@@ -18,6 +18,17 @@
   function emit() { try { window.dispatchEvent(new CustomEvent("spacio-files")); } catch (e) {} }
 
   function norm(s) { return String(s || "").toLowerCase().replace(/\s+/g, "").replace(/[–—]/g, "-").replace(/[^a-z0-9\-]/g, ""); }
+  // deriva "YYYY-MM" de una fecha ISO, dd/mm/yyyy o "18 May 2026" / "mayo de 2026"
+  var ES_M = { ene: 1, feb: 2, mar: 3, abr: 4, may: 5, jun: 6, jul: 7, ago: 8, sep: 9, set: 9, oct: 10, nov: 11, dic: 12 };
+  function ymFromDate(s) {
+    s = String(s || "");
+    var m = s.match(/(\d{4})-(\d{1,2})/); if (m) return m[1] + "-" + String(+m[2]).padStart(2, "0");
+    m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/); if (m) return m[3] + "-" + String(+m[2]).padStart(2, "0");
+    m = s.toLowerCase().match(/(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)[a-z]*\.?\s*(?:de\s+)?(\d{4})/);
+    if (m) return m[2] + "-" + String(ES_M[m[1]]).padStart(2, "0");
+    m = s.match(/(\d{4})/); if (m) return m[1] + "-01";
+    return "";
+  }
   function keyOf(rec) {
     var who = rec.scope === "owner" ? ("owner:" + norm(rec.owner)) : ("prop:" + norm(rec.property_name));
     return [rec.tipo, who, rec.ym].join("|");
@@ -105,9 +116,23 @@
 
     // lista todos los archivos de un tipo (p.ej. "deposito"), ordenados por mes desc.
     list: function (kind) {
-      return this.records()
-        .filter(function (r) { return r.tipo === kind; })
-        .sort(function (a, b) { return String(b.ym).localeCompare(String(a.ym)); });
+      var out = this.records()
+        .filter(function (r) { return r.tipo === kind; });
+      // respaldo: depósitos registrados en "Depositos cargados" que no tengan
+      // ya un archivo en el registro (para que SIEMPRE se vean tras recargar)
+      if (kind === "deposito") {
+        var have = {};
+        out.forEach(function (r) { have[norm(r.property_name) + "|" + (r.ym || "")] = true; });
+        var deps = (window.SpacioData && window.SpacioData.depositos) || [];
+        deps.forEach(function (d) {
+          var ym = ymFromDate(d.fecha);
+          var key = norm(d.property_name) + "|" + ym;
+          if (have[key]) return;
+          have[key] = true;
+          out.push({ tipo: "deposito", scope: "property", owner: "", property_name: d.property_name, ym: ym, archivo: d.archivo || "", url: "", monto: d.monto, cuenta: d.cuenta, fecha: d.fecha, fromSheet: true });
+        });
+      }
+      return out.sort(function (a, b) { return String(b.ym).localeCompare(String(a.ym)); });
     },
 
     // sube un archivo; resuelve con el registro creado

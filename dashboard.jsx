@@ -346,11 +346,25 @@ const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang }) => {
 };
 
 // ---- Admin filter bar: zona / edificio / propiedad ----
-const AdminFilters = ({ allProps, zona, setZona, edificio, setEdificio, selProp, setSelProp, t, lang }) => {
-  const zonas = [...new Set(allProps.map(p => p.zona).filter(Boolean))].sort();
-  const inZona = zona === "all" ? allProps : allProps.filter(p => p.zona === zona);
+const AdminFilters = ({ allProps, owner, setOwner, zona, setZona, edificio, setEdificio, selProp, setSelProp, t, lang }) => {
+  // socios disponibles (por código canónico → nombre legible)
+  const ownerMap = {};
+  allProps.forEach(p => {
+    const o = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf(p.code) >= 0);
+    const code = o ? o.code : p.code;
+    if (!ownerMap[code]) ownerMap[code] = (o && o.name) || (p.code || "").replace(/_/g, " ");
+  });
+  const ownerCodes = Object.keys(ownerMap).sort((a, b) => ownerMap[a].localeCompare(ownerMap[b]));
+  const inOwner = owner === "all" ? allProps : allProps.filter(p => {
+    const o = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf(p.code) >= 0);
+    return (o ? o.code : p.code) === owner;
+  });
+  const zonas = [...new Set(inOwner.map(p => p.zona).filter(Boolean))].sort();
+  const inZona = zona === "all" ? inOwner : inOwner.filter(p => p.zona === zona);
   const edificios = [...new Set(inZona.map(p => p.edificio).filter(Boolean))].sort();
   const inEd = edificio === "all" ? inZona : inZona.filter(p => p.edificio === edificio);
+  const ownerOpts = [{ value: "all", label: lang === "es" ? "Todos los socios" : "All owners", sub: ownerCodes.length + " " + (lang === "es" ? "socios" : "owners") }]
+    .concat(ownerCodes.map(c => ({ value: c, label: ownerMap[c] })));
   const zonaOpts = [{ value: "all", label: t("admin_all_zonas") }].concat(zonas.map(z => ({ value: z, label: z })));
   const edOpts = [{ value: "all", label: t("admin_all_edificios") }].concat(edificios.map(e => ({ value: e, label: e })));
   const propOpts = [{ value: "all", label: t("admin_all_props"), sub: inEd.length + " " + (lang === "es" ? "propiedades" : "properties") }]
@@ -358,9 +372,10 @@ const AdminFilters = ({ allProps, zona, setZona, edificio, setEdificio, selProp,
   return (
     <div className="sa-admin-bar">
       <span className="sa-admin-badge"><Sparkle size={11} color="var(--alabaster)" />{t("admin_scope")}</span>
-      <Select value={zona} onChange={(v) => { setZona(v); setEdificio("all"); setSelProp("all"); }} options={zonaOpts} icon="pin" minWidth={150} />
-      <Select value={edificio} onChange={(v) => { setEdificio(v); setSelProp("all"); }} options={edOpts} icon="home" minWidth={170} />
-      <Select value={selProp} onChange={setSelProp} options={propOpts} icon="grid" minWidth={210} />
+      <Select value={owner} onChange={(v) => { setOwner(v); setZona("all"); setEdificio("all"); setSelProp("all"); }} options={ownerOpts} icon="user" minWidth={170} />
+      <Select value={zona} onChange={(v) => { setZona(v); setEdificio("all"); setSelProp("all"); }} options={zonaOpts} icon="pin" minWidth={140} />
+      <Select value={edificio} onChange={(v) => { setEdificio(v); setSelProp("all"); }} options={edOpts} icon="home" minWidth={160} />
+      <Select value={selProp} onChange={setSelProp} options={propOpts} icon="grid" minWidth={200} />
     </div>
   );
 };

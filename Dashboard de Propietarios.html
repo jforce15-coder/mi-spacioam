@@ -166,6 +166,14 @@
   .sa-uplist-del { flex-shrink: 0; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--warm-grey); background: var(--alabaster); border-radius: 9px; cursor: pointer; color: var(--earth); transition: all .14s var(--ease); }
   .sa-uplist-del:hover { border-color: var(--peach); color: var(--peach); }
 
+  /* ---------- setup property list ---------- */
+  .sa-setup-list { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  @media (min-width: 760px) { .sa-setup-list { grid-template-columns: repeat(2, 1fr); } }
+  .sa-setup-listrow { display: flex; align-items: center; gap: 13px; background: var(--beige-soft); border: 1px solid var(--ink-08); border-radius: 15px; padding: 12px 15px; }
+  .sa-setup-listic { width: 36px; height: 36px; flex-shrink: 0; border-radius: 11px; background: var(--alabaster); display: inline-flex; align-items: center; justify-content: center; }
+  .sa-setup-listname { display: block; font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sa-setup-listmeta { display: block; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.03em; color: var(--earth); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
   /* ---------- Admin ---------- */
   .sa-admin-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; padding: 14px 16px;
     background: var(--beige-soft); border-radius: 16px; }
@@ -378,8 +386,11 @@
       const allOwnerProps = SpacioData.ownerProps(owner);
       const [adminZona, setAdminZona] = useState("all");
       const [adminEdificio, setAdminEdificio] = useState("all");
+      const [adminOwner, setAdminOwner] = useState("all");
+      // mapa propiedad → código de socio canónico (para filtrar por socio)
+      const ownerOf = (p) => { const o = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf(p.code) >= 0); return o ? o.code : p.code; };
       const scopeProps = isAdmin
-        ? allOwnerProps.filter(p => (adminZona === "all" || p.zona === adminZona) && (adminEdificio === "all" || p.edificio === adminEdificio))
+        ? allOwnerProps.filter(p => (adminOwner === "all" || ownerOf(p) === adminOwner) && (adminZona === "all" || p.zona === adminZona) && (adminEdificio === "all" || p.edificio === adminEdificio))
         : allOwnerProps;
       const props = scopeProps;
       const single = props.length === 1;
@@ -400,7 +411,7 @@
       const isAll = effSelProp === "all";
       const activeProps = isAll ? props : props.filter(p => p.id === effSelProp);
       const property = isAll ? null : activeProps[0];
-      const scopeKey = isAdmin ? adminZona + "|" + adminEdificio : owner.code;
+      const scopeKey = isAdmin ? adminOwner + "|" + adminZona + "|" + adminEdificio : owner.code;
       const months = useMemo(() => (isAll || !property) ? SpacioAgg.combineMonths(props.length ? props : allOwnerProps) : property.months, [effSelProp, scopeKey, owner.code]);
       const pdata = useMemo(() => SpacioAgg.periodData(months, period), [months, period]);
 
@@ -480,7 +491,7 @@
 
           <div className="sa-wrap">
             {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && (
-              <AdminFilters allProps={allOwnerProps} zona={adminZona} setZona={setAdminZona}
+              <AdminFilters allProps={allOwnerProps} owner={adminOwner} setOwner={setAdminOwner} zona={adminZona} setZona={setAdminZona}
                 edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={effSelProp} setSelProp={setSelProp} t={t} lang={lang} />
             )}
             <div className="sa-pagehead">

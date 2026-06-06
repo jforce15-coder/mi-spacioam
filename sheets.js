@@ -191,7 +191,7 @@
       if (yesFlag(r["iva"])) p.flagIva = true;
       if (yesFlag(r["RETENCION"])) p.flagRetencion = true;
       if (yesFlag(r["OTRO INGRESO"])) p.flagOtroIngreso = true;
-      p.setupRows.push({ property_id: pid, property_name: name, usuario: code, iva: r["iva"] || "", fee: r["SPACIOAMFEE"] || "", retencion: r["RETENCION"] || "", otroIngreso: r["OTRO INGRESO"] || "", email: r["User email"] || "", listing: link });
+      p.setupRows.push({ property_id: pid, property_name: name, usuario: code, iva: r["iva"] || "", fee: r["SPACIOAMFEE"] || "", retencion: r["RETENCION"] || "", otroIngreso: r["OTRO INGRESO"] || "", email: r["User email"] || "", listing: link, raw: Object.assign({}, r) });
     });
 
     // Resumenconsolidado → monthly figures (match by code + normName; ACCUMULATE for dup listings)
@@ -298,17 +298,19 @@
       if (!p) return;
       const catRaw = (r["categoria"] || "").trim();
       const catKey = BILLABLE[catRaw.toLowerCase()];
-      if (!catKey) return; // skip Gasto Spacio AM / Otro ingreso / Otro / blank
+      const billable = !!catKey;
       const tagRaw = (r["tag"] || "").trim();
-      const adminOnly = !!NON_BILLABLE_TAGS[tagRaw.toLowerCase()]; // oculto al socio
+      // adminOnly = no se le cobra al socio (categoría no cobrable, o tag no cobrable).
+      // Estos gastos SÍ los ve el administrador, pero se ocultan al socio.
+      const adminOnly = !billable || !!NON_BILLABLE_TAGS[tagRaw.toLowerCase()];
       const ed = parseExpDate(r["Fecha de pedido"], num(r["Mes"]), resolveYear);
       // insumos & gastos line items are recorded in GTQ → convert to USD with TC (property+month)
       const valorGTQ = num(r["valor"]);
       const rate = rateFor(norm(p.name), ed.y, ed.m);
       p.expenses.push({
         y: ed.y, m: ed.m, day: ed.day,
-        catKey, category: catRaw, tag: tagRaw, adminOnly,
-        desc: (r["Comentario"] || catRaw).trim() || catRaw,
+        catKey: catKey || "otros", category: catRaw || "Otros", billable, tag: tagRaw, adminOnly,
+        desc: (r["Comentario"] || catRaw).trim() || catRaw || "—",
         amount: rate ? valorGTQ / rate : valorGTQ, amountGTQ: valorGTQ, tc: rate,
         orderId: (r["orderId"] || "").trim(), orderUrl: (r["orderUrl"] || "").trim(),
         authProductos: (r["authProductos"] || "").trim(), authTarifa: (r["authTarifa"] || "").trim(),
@@ -365,7 +367,7 @@
     const byId = propByName; // id === normalized name
 
     return {
-      live: true, rate: GTQ_RATE, monthKeys, MONTHS_ES, MONTHS_EN,
+      live: true, rate: GTQ_RATE, monthKeys, MONTHS_ES, MONTHS_EN, setupHead: setup.head || [],
       properties: byId, propertyList: Object.values(propByName), owners, admin,
       effCreds: eff,
       auth(login, pass) {
@@ -413,9 +415,12 @@
   // ---------- local SETUP overrides (admin edits; real write-back needs backend) ----------
   const SpacioSetup = {
     KEY: "sa-setup-overrides",
-    all() { try { return JSON.parse(localStorage.getItem(this.KEY)) || { edits: {}, added: [] }; } catch (e) { return { edits: {}, added: [] }; } },
+    all() { try { const a = JSON.parse(localStorage.getItem(this.KEY)) || {}; a.edits = a.edits || {}; a.added = a.added || []; a.editsRaw = a.editsRaw || {}; a.addedRaw = a.addedRaw || []; return a; } catch (e) { return { edits: {}, added: [], editsRaw: {}, addedRaw: [] }; } },
     saveEdit(id, row) { const a = this.all(); a.edits[id] = row; localStorage.setItem(this.KEY, JSON.stringify(a)); },
     addRow(row) { const a = this.all(); a.added.push(row); localStorage.setItem(this.KEY, JSON.stringify(a)); return a; },
+    // versiones "raw" (todas las columnas A–O por nombre de encabezado)
+    saveEditRaw(id, row) { const a = this.all(); a.editsRaw[id] = row; localStorage.setItem(this.KEY, JSON.stringify(a)); },
+    addRowRaw(row) { const a = this.all(); a.addedRaw.push(row); localStorage.setItem(this.KEY, JSON.stringify(a)); return a; },
     reset() { localStorage.removeItem(this.KEY); },
   };
   window.SpacioSetup = SpacioSetup;
@@ -547,6 +552,20 @@
         cargado: (r["cargado"] || "").trim(),
       })).filter(r => r.tipo && r.ym);
     } catch (e) { data.files = []; }
+    // depósitos registrados en "Depositos cargados" (respaldo visible aunque no
+    // haya quedado el archivo en Drive) — best effort
+    try {
+      const depT = await fetchTab("Depositos cargados");
+      data.depositos = (depT.items || []).map(r => ({
+        fecha: (r["Fecha"] || "").trim(),
+        monto: parseFloat(String(r["monto"] || "").replace(/[^0-9.\-]/g, "")) || 0,
+        property_name: (r["property_name"] || "").trim(),
+        cuenta: (r["Numero de cuenta"] || r["Número de cuenta"] || "").trim(),
+        categoria: (r["categoria"] || "").trim(),
+        comentario: (r["Comentario"] || "").trim(),
+        archivo: (r["archivo"] || "").trim(),
+      })).filter(r => r.property_name && (r.monto || r.fecha));
+    } catch (e) { data.depositos = []; }
     window.SpacioData = data;
     window.__sheets = { setup: setup.items.length, resumen: resumen.items.length, db: dbT.items.length, exp: expT.items.length, tc: tcT.items.length, accounts: data.owners.length, files: (data.files || []).length };
     return data;

@@ -127,13 +127,76 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
 };
 
 // ---- Expenses (grouped table → mobile cards) ----
+// modal de edición de un gasto (solo admin)
+const ExpenseEditModal = ({ exp, lang, allProps, onClose, onSave }) => {
+  const es = lang === "es";
+  const tr = (a, b) => (es ? a : b);
+  const CATS = ["insumos & gastos", "Reparaciones o inversión", "Mantenimiento e inversión", "Gasto Spacio AM", "Compras ajenas a insumos", "Restaurante / comida"];
+  const TAGS = ["", "Compras ajenas a insumos", "Gasto Spacio AM", "Restaurante / comida", "Pricing"];
+  const [cat, setCat] = useState(exp.category || "insumos & gastos");
+  const [desc, setDesc] = useState(exp.desc || "");
+  const [tag, setTag] = useState(exp.tag || "");
+  const [valor, setValor] = useState(exp.amountGTQ != null ? exp.amountGTQ : "");
+  const [prop, setProp] = useState(exp._prop || "");
+  const names = [...new Set((allProps || []).map(p => p.name))];
+  return (
+    <div className="pya-overlay" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.46)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, maxWidth: 480, width: "100%", boxShadow: "var(--shadow-lg)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "22px 24px 14px", borderBottom: "1px solid var(--warm-grey)" }}>
+          <div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Editar gasto", "Edit expense")}</div>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 20, color: "var(--ink)", marginTop: 4, lineHeight: 1.15 }}>{exp.day} {SpacioI18n.monthLong(lang, exp.m).slice(0, 3)} · {exp._prop}</div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
+        </div>
+        <div style={{ padding: "18px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Comentario", "Comment")}</span>
+            <input className="sa-setup-input" value={desc} onChange={e => setDesc(e.target.value)} />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Categoría", "Category")}</span>
+            <select className="sa-setup-input" value={cat} onChange={e => setCat(e.target.value)}>{CATS.map(c => <option key={c} value={c}>{c}</option>)}</select>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>Tag</span>
+            <select className="sa-setup-input" value={tag} onChange={e => setTag(e.target.value)}>{TAGS.map(c => <option key={c} value={c}>{c || "—"}</option>)}</select>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Valor (GTQ)", "Amount (GTQ)")}</span>
+            <input className="sa-setup-input" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Propiedad", "Property")}</span>
+            <select className="sa-setup-input" value={prop} onChange={e => setProp(e.target.value)}>{[exp._prop].concat(names.filter(n => n !== exp._prop)).map(n => <option key={n} value={n}>{n}</option>)}</select>
+          </label>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "14px 24px", borderTop: "1px solid var(--warm-grey)" }}>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--earth)", maxWidth: 220, lineHeight: 1.4 }}>{tr("Al guardar se recalcula el resumen del mes.", "Saving recalculates the month's summary.")}</span>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={onClose}>{tr("Cancelar", "Cancel")}</button>
+            <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => onSave({ category: cat, desc, tag, amountGTQ: parseFloat(valor) || 0, property_name: prop })}><Icon name="check" size={13} stroke="var(--alabaster)" />{tr("Guardar", "Save")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const { money } = fmt;
   const [open, setOpen] = useState(false);
   const [invBox, setInvBox] = useState(null);
+  const [editExp, setEditExp] = useState(null);   // expense being edited (admin)
+  const [expMsg, setExpMsg] = useState("");
+  const [localPatch, setLocalPatch] = useState({}); // orderId -> {field overrides} | "__deleted__"
   const sliceMonths = pdata.slice.length ? pdata.slice : pdata.hist.months.slice(-3);
-  const allRows = SpacioAgg.collectRows(activeProps, sliceMonths, "expenses");
-  // gastos con etiqueta no-cobrable (Gasto Spacio AM, etc.) solo los ve el admin
+  const allRowsRaw = SpacioAgg.collectRows(activeProps, sliceMonths, "expenses");
+  // aplica ediciones/eliminaciones locales (optimista; la hoja se relee al refrescar)
+  const allRows = allRowsRaw
+    .filter(r => localPatch[r.orderId] !== "__deleted__")
+    .map(r => (r.orderId && localPatch[r.orderId] && typeof localPatch[r.orderId] === "object") ? Object.assign({}, r, localPatch[r.orderId]) : r);
+  // gastos no cobrables (Gasto Spacio AM / tags no cobrables) solo los ve el admin
   const billRows = allRows.filter(r => isAdmin || !r.adminOnly);
   // El propietario ve UN solo movimiento por pedido: las facturas que comparten
   // la misma URL del pedido (productos + tarifa) se suman en un monto unificado,
@@ -156,11 +219,50 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   };
   const rows = isAdmin ? billRows : mergeByOrder(billRows);
   // El total consolidado = suma de los movimientos mostrados en el período.
-  // (El resumen oficial no incluye lo recién cargado en "insumos & gastos",
-  //  por eso antes salía $0 aunque hubiera gastos abajo.)
   const rowsTotal = rows.reduce((a, r) => a + (r.amount || 0), 0);
   const resumenTotal = pdata.cur.insumos + pdata.cur.reparaciones;
-  const total = rowsTotal > 0.005 ? rowsTotal : resumenTotal;
+  const total = rows.length ? rowsTotal : resumenTotal;
+  // mes (número 1–12) del período visto, para disparar el recálculo en la hoja
+  const recalcMonth = (sliceMonths[sliceMonths.length - 1] || {}).m;
+  const recalcYear = (sliceMonths[sliceMonths.length - 1] || {}).y;
+  // tras un cambio que afecta resultados: marca el mes en Resumen!C1 y dispara
+  // el recálculo (Código.gs) que reescribe Resumenconsolidado.
+  const triggerRecalc = () => {
+    if (SpacioWrite.enabled() && recalcMonth != null) {
+      SpacioWrite.post("recalcMonth", { month: recalcMonth + 1, year: recalcYear }).then(res => {
+        if (res && res.ok) setExpMsg(lang === "es" ? "Recalculado · Resumen actualizado." : "Recalculated · summary updated.");
+      });
+    }
+  };
+  const saveExp = async (r, patch) => {
+    if (!r.orderId) { setExpMsg(lang === "es" ? "Este gasto no se puede editar (sin identificador). Edítalo en la hoja." : "This expense has no id; edit it in the sheet."); setEditExp(null); return; }
+    // recalcula el monto USD a partir del nuevo valor GTQ y la TC de la fila
+    if (patch.amountGTQ != null && r.tc) patch.amount = patch.amountGTQ / r.tc;
+    else if (patch.amountGTQ != null) patch.amount = patch.amountGTQ;
+    setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: Object.assign({}, lp[r.orderId] && typeof lp[r.orderId] === "object" ? lp[r.orderId] : {}, patch) }));
+    setEditExp(null);
+    if (SpacioWrite.enabled()) {
+      const body = { orderId: r.orderId };
+      if (patch.category != null) body.categoria = patch.category;
+      if (patch.desc != null) body.Comentario = patch.desc;
+      if (patch.tag != null) body.tag = patch.tag;
+      if (patch.property_name != null) body.property_name = patch.property_name;
+      if (patch.amountGTQ != null) body.valor = patch.amountGTQ;
+      const res = await SpacioWrite.post("updateInsumo", body);
+      setExpMsg(res && res.ok ? (lang === "es" ? "Gasto actualizado." : "Expense updated.") : (lang === "es" ? "Error al guardar." : "Save failed."));
+      triggerRecalc();
+    } else setExpMsg(lang === "es" ? "Cambio local (conecta el backend para guardarlo)." : "Local change (connect backend to persist).");
+  };
+  const deleteExp = async (r) => {
+    if (!window.confirm(lang === "es" ? "¿Eliminar este gasto?" : "Delete this expense?")) return;
+    if (!r.orderId) { setExpMsg(lang === "es" ? "Sin identificador; elimínalo en la hoja." : "No id; delete it in the sheet."); return; }
+    setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: "__deleted__" }));
+    if (SpacioWrite.enabled()) {
+      const res = await SpacioWrite.post("deleteInsumo", { orderId: r.orderId });
+      setExpMsg(res && res.ok ? (lang === "es" ? "Gasto eliminado." : "Expense deleted.") : (lang === "es" ? "Error al eliminar." : "Delete failed."));
+      triggerRecalc();
+    } else setExpMsg(lang === "es" ? "Eliminado localmente (conecta el backend)." : "Deleted locally (connect backend).");
+  };
   // group line items by their real category string
   const groups = {};
   rows.forEach(r => { const k = r.category || "Otros"; (groups[k] = groups[k] || []).push(r); });
@@ -189,7 +291,6 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
         )}
         {groupKeys.map((k, gi) => {
           const items = groups[k].sort((a, b) => (b.y - a.y) || (b.m - a.m) || (b.day - a.day));
-          const shown = open ? items : items.slice(0, 3);
           const sub = items.reduce((a, r) => a + r.amount, 0);
           return (
             <div key={k} style={{ borderTop: gi ? "1px solid var(--warm-grey)" : "none" }}>
@@ -200,7 +301,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                 </span>
                 <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{money(sub)}</span>
               </div>
-              {shown.map((r, i) => (
+              {items.map((r, i) => (
                 <div key={i} className="sa-exp-row">
                   <span className="sa-exp-date">{r.day} {monthName(r).slice(0, 3)}</span>
                   <span className="sa-exp-desc">
@@ -213,6 +314,12 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                         <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver factura" : "View invoice"}
                       </button>
                     )}
+                    {isAdmin && (
+                      <span style={{ display: "inline-flex", gap: 4, marginLeft: 8, verticalAlign: "middle" }}>
+                        <button title={lang === "es" ? "Editar" : "Edit"} onClick={() => setEditExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--earth)" }}><Icon name="pencil" size={12} stroke="currentColor" /></button>
+                        <button title={lang === "es" ? "Eliminar" : "Delete"} onClick={() => deleteExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--earth)" }}><Icon name="trash" size={12} stroke="currentColor" /></button>
+                      </span>
+                    )}
                   </span>
                   <span className="sa-exp-amt">{money(r.amount)}</span>
                 </div>
@@ -220,12 +327,13 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
             </div>
           );
         })}
-        {rows.length > 9 && (
-          <button onClick={() => setOpen(o => !o)} className="sa-viewall">
-            {open ? t("view_less") : t("view_all")} <Icon name={open ? "chevronLeft" : "chevronRight"} size={14} style={{ transform: "rotate(90deg)" }} />
-          </button>
+        {expMsg && (
+          <div style={{ padding: "12px 20px", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", borderTop: "1px solid var(--warm-grey)" }}>{expMsg}</div>
         )}
       </Card>
+      {isAdmin && editExp && typeof ExpenseEditModal !== "undefined" && (
+        <ExpenseEditModal exp={editExp} lang={lang} allProps={activeProps} onClose={() => setEditExp(null)} onSave={(patch) => saveExp(editExp, patch)} />
+      )}
       {isAdmin && typeof PedidosYaImport !== "undefined" && <PedidosYaImport lang={lang} />}
       {invBox && typeof InvoiceViewBox !== "undefined" && <InvoiceViewBox data={invBox} lang={lang} onClose={() => setInvBox(null)} />}
     </section>
@@ -455,66 +563,70 @@ const SETUP_COLS = [
 ];
 
 const SetupSection = ({ lang, t }) => {
-  // flatten current setup rows from the data model + any local additions
+  const es = lang === "es";
+  const tr = (a, b) => (es ? a : b);
+  const HEAD = (SpacioData.setupHead && SpacioData.setupHead.length)
+    ? SpacioData.setupHead
+    : ["property_id", "property_name", "Usuario ID", "User email", "Password", "SPACIOAMFEE", "iva", "RETENCION", "OTRO INGRESO", "Listing link", "secondary user email", "Moneda", "Numero de cuenta"];
+  // una entrada por fila de SETUP (raw con TODAS las columnas A–O)
   const baseRows = useMemo(() => {
     const rows = [];
-    (SpacioData.propertyList || []).forEach(p => (p.setupRows || []).forEach(sr => rows.push({
-      property_id: sr.property_id, property_name: sr.property_name, usuario: sr.usuario,
-      email: sr.email, fee: sr.fee, iva: sr.iva, retencion: sr.retencion, otroIngreso: sr.otroIngreso, listing: sr.listing,
-    })));
+    (SpacioData.propertyList || []).forEach(p => (p.setupRows || []).forEach(sr => {
+      const raw = Object.assign({}, sr.raw || {});
+      raw.property_id = raw.property_id || sr.property_id;
+      raw.property_name = raw.property_name || sr.property_name;
+      rows.push(raw);
+    }));
     return rows;
   }, []);
   const store = SpacioSetup.all();
   const [rows, setRows] = useState(() => {
-    const merged = baseRows.map(r => Object.assign({}, r, store.edits[r.property_id] || {}));
-    return merged.concat(store.added || []);
+    const merged = baseRows.map(r => Object.assign({}, r, store.editsRaw && store.editsRaw[r.property_id] || {}));
+    return merged.concat(store.addedRaw || []);
   });
   const [q, setQ] = useState("");
+  const [editing, setEditing] = useState(null); // index being edited
+  const [quick, setQuick] = useState(false);
   const [savedId, setSavedId] = useState(null);
   // write-back connection
   const [apiUrl, setApiUrl] = useState(SpacioWrite.url());
   const [apiToken, setApiToken] = useState(SpacioWrite.token());
-  const [conn, setConn] = useState(SpacioWrite.enabled() ? "set" : "off"); // off | set | testing | ok | fail
+  const [conn, setConn] = useState(SpacioWrite.enabled() ? "set" : "off");
   const [syncMsg, setSyncMsg] = useState("");
 
   const saveConn = () => { SpacioWrite.setConfig(apiUrl, apiToken); setConn(SpacioWrite.enabled() ? "set" : "off"); };
-  const testConn = async () => {
-    SpacioWrite.setConfig(apiUrl, apiToken);
-    setConn("testing");
-    const r = await SpacioWrite.ping();
-    setConn(r && r.ok ? "ok" : "fail");
-  };
+  const testConn = async () => { SpacioWrite.setConfig(apiUrl, apiToken); setConn("testing"); const r = await SpacioWrite.ping(); setConn(r && r.ok ? "ok" : "fail"); };
   const syncDeposits = async () => {
-    if (!SpacioWrite.enabled()) { setSyncMsg(lang === "es" ? "Conecta el backend primero." : "Connect the backend first."); return; }
-    setSyncMsg(lang === "es" ? "Sincronizando…" : "Syncing…");
-    const items = SpacioData.depositoItems();
-    const r = await SpacioWrite.post("writeDeposito", { items });
-    setSyncMsg(r && r.ok ? (lang === "es" ? `Listo · ${r.rowsUpdated} filas escritas` : `Done · ${r.rowsUpdated} rows written`) : (lang === "es" ? "Error: " + (r.error || "sin conexión") : "Error: " + (r.error || "offline")));
+    if (!SpacioWrite.enabled()) { setSyncMsg(tr("Conecta el backend primero.", "Connect the backend first.")); return; }
+    setSyncMsg(tr("Sincronizando…", "Syncing…"));
+    const r = await SpacioWrite.post("writeDeposito", { items: SpacioData.depositoItems() });
+    setSyncMsg(r && r.ok ? tr(`Listo · ${r.rowsUpdated} filas`, `Done · ${r.rowsUpdated} rows`) : tr("Error: " + (r.error || "sin conexión"), "Error: " + (r.error || "offline")));
   };
 
-  const update = (idx, key, val) => {
-    setRows(rs => rs.map((r, i) => i === idx ? Object.assign({}, r, { [key]: val }) : r));
-  };
+  const editField = (key, val) => setRows(rs => rs.map((r, i) => i === editing ? Object.assign({}, r, { [key]: val }) : r));
   const persist = (r) => {
-    SpacioSetup.saveEdit(r.property_id, { property_name: r.property_name, usuario: r.usuario, email: r.email, fee: r.fee, iva: r.iva, retencion: r.retencion, otroIngreso: r.otroIngreso, listing: r.listing });
-    setSavedId(r.property_id); setTimeout(() => setSavedId(null), 1800);
+    SpacioSetup.saveEditRaw(r.property_id, r);
+    setSavedId(r.property_id); setTimeout(() => setSavedId(null), 1600);
     if (SpacioWrite.enabled()) {
-      const action = r._new ? "addProperty" : "saveSetupRow";
-      SpacioWrite.post(action, { row: r }).then(res => { if (!res.ok && !res.offline) console.warn(action, res); });
+      if (r._new) SpacioWrite.post("addProperty", { row: { property_id: r.property_id, property_name: r["property_name"], usuario: r["Usuario ID"], email: r["User email"], password: r["Password"], fee: r["SPACIOAMFEE"], iva: r["iva"], retencion: r["RETENCION"], otroIngreso: r["OTRO INGRESO"], listing: r["Listing link"], secondary: r["secondary user email"] } });
+      else SpacioWrite.post("saveSetupRaw", { property_id: r.property_id, values: r }).then(res => { if (res && !res.ok) console.warn("saveSetupRaw", res); });
     }
+    setEditing(null);
   };
   const addRow = () => {
     const id = "new-" + Date.now();
-    const r = { property_id: id, property_name: "", usuario: "", email: "", fee: "", iva: "", retencion: "", otroIngreso: "", listing: "", _new: true };
-    setRows(rs => [r].concat(rs)); SpacioSetup.addRow(r);
+    const r = { _new: true }; HEAD.forEach(h => r[h] = ""); r.property_id = id;
+    setRows(rs => [r].concat(rs)); SpacioSetup.addRowRaw(r); setEditing(0);
   };
   const exportRows = () => {
-    const header = ["property_id", "property_name", "Usuario ID", "User email", "SPACIOAMFEE", "iva", "RETENCION", "OTRO INGRESO", "Listing link"];
-    const lines = [header.join("\t")].concat(rows.map(r => [r.property_id, r.property_name, r.usuario, r.email, r.fee, r.iva, r.retencion, r.otroIngreso, r.listing].join("\t")));
+    const lines = [HEAD.join("\t")].concat(rows.map(r => HEAD.map(h => r[h] != null ? r[h] : "").join("\t")));
     const blob = new Blob([lines.join("\n")], { type: "text/tab-separated-values" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "setup-spacioam.tsv"; a.click();
   };
-  const filtered = rows.map((r, i) => ({ r, i })).filter(({ r }) => !q || (r.property_name || "").toLowerCase().includes(q.toLowerCase()) || (r.usuario || "").toLowerCase().includes(q.toLowerCase()));
+  const filtered = rows.map((r, i) => ({ r, i })).filter(({ r }) => !q || (r["property_name"] || "").toLowerCase().includes(q.toLowerCase()) || (r["Usuario ID"] || "").toLowerCase().includes(q.toLowerCase()));
+
+  // etiqueta amigable para un encabezado
+  const niceLabel = (h) => h;
 
   return (
     <section className="sa-section" style={{ marginTop: 28 }}>
@@ -524,62 +636,105 @@ const SetupSection = ({ lang, t }) => {
       <Card pad={20} soft style={{ marginBottom: 18 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 14 }}>
           <Icon name="link" size={16} stroke="var(--ink)" />
-          <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)" }}>{lang === "es" ? "Conexión de escritura" : "Write connection"}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)" }}>{tr("Conexión de escritura", "Write connection")}</span>
           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase",
             color: conn === "ok" ? "#5B8A6B" : conn === "fail" ? "var(--peach)" : "var(--earth)" }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: conn === "ok" ? "#5B8A6B" : conn === "fail" ? "var(--peach)" : conn === "set" ? "var(--earth)" : "var(--warm-grey)" }} />
-            {conn === "ok" ? (lang === "es" ? "Conectado" : "Connected") : conn === "fail" ? (lang === "es" ? "Sin respuesta" : "No response") : conn === "testing" ? (lang === "es" ? "Probando…" : "Testing…") : conn === "set" ? (lang === "es" ? "Configurado" : "Configured") : (lang === "es" ? "Sin conectar" : "Not connected")}
+            {conn === "ok" ? tr("Conectado", "Connected") : conn === "fail" ? tr("Sin respuesta", "No response") : conn === "testing" ? tr("Probando…", "Testing…") : conn === "set" ? tr("Configurado", "Configured") : tr("Sin conectar", "Not connected")}
           </span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
-          <input className="sa-setup-input" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder={lang === "es" ? "URL de la app web (…/exec)" : "Web app URL (…/exec)"} />
+          <input className="sa-setup-input" value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder={tr("URL de la app web (…/exec)", "Web app URL (…/exec)")} />
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <input className="sa-setup-input" style={{ flex: 1, minWidth: 180 }} value={apiToken} onChange={e => setApiToken(e.target.value)} placeholder="TOKEN" />
-            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={saveConn}>{lang === "es" ? "Guardar" : "Save"}</button>
-            <button className="sa-chip-btn sa-chip-btn-dark" onClick={testConn}>{lang === "es" ? "Probar conexión" : "Test"}</button>
+            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={saveConn}>{tr("Guardar", "Save")}</button>
+            <button className="sa-chip-btn sa-chip-btn-dark" onClick={testConn}>{tr("Probar conexión", "Test")}</button>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--warm-grey)" }}>
-          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={syncDeposits}><Icon name="coins" size={14} stroke="var(--earth)" />{lang === "es" ? "Sincronizar depósitos" : "Sync deposits"}</button>
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={syncDeposits}><Icon name="coins" size={14} stroke="var(--earth)" />{tr("Sincronizar depósitos", "Sync deposits")}</button>
           {syncMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{syncMsg}</span>}
         </div>
       </Card>
 
       <div className="sa-setup-toolbar">
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder={t("setup_search")}
-          className="sa-setup-input" style={{ maxWidth: 280 }} />
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder={t("setup_search")} className="sa-setup-input" style={{ maxWidth: 280 }} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setQuick(true)}><Icon name="eye" size={14} stroke="var(--earth)" />{tr("Vista rápida", "Quick view")}</button>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={exportRows}><Icon name="arrowUpRight" size={14} stroke="var(--earth)" />{t("setup_export")}</button>
           <button className="sa-chip-btn sa-chip-btn-dark" onClick={addRow}><Icon name="check" size={14} stroke="var(--alabaster)" />{t("setup_add")}</button>
         </div>
       </div>
-      <div className="sa-setup-scroll">
-        <table className="sa-setup-table">
-          <thead>
-            <tr>
-              {SETUP_COLS.map(c => <th key={c.k} style={{ minWidth: c.w }}>{t(c.label)}</th>)}
-              <th style={{ minWidth: 90 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map(({ r, i }) => (
-              <tr key={r.property_id}>
-                {SETUP_COLS.map(c => (
-                  <td key={c.k}><input className="sa-setup-input" value={r[c.k] || ""} onChange={e => update(i, c.k, e.target.value)} /></td>
-                ))}
-                <td>
-                  <button className="sa-chip-btn sa-chip-btn-dark" style={{ padding: "8px 12px" }} onClick={() => persist(r)}>
-                    {savedId === r.property_id ? <Icon name="check" size={13} stroke="var(--alabaster)" /> : t("setup_save")}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+      {/* lista de propiedades: nombre + editar */}
+      <div className="sa-setup-list">
+        {filtered.map(({ r, i }) => (
+          <div className="sa-setup-listrow" key={r.property_id}>
+            <span className="sa-setup-listic"><Icon name="home" size={15} stroke="var(--ink)" /></span>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <span className="sa-setup-listname">{r["property_name"] || tr("(sin nombre)", "(no name)")}</span>
+              <span className="sa-setup-listmeta">{[r["Usuario ID"], r["Moneda"], r["Numero de cuenta"] || r["Número de cuenta"]].filter(Boolean).join(" · ")}</span>
+            </div>
+            {savedId === r.property_id && <span className="sa-file-ok" style={{ marginRight: 4 }}><Icon name="check" size={14} stroke="#5B8A6B" />{tr("Guardado", "Saved")}</span>}
+            <button className="sa-chip-btn sa-chip-btn-dark" style={{ padding: "8px 16px" }} onClick={() => setEditing(i)}><Icon name="pencil" size={13} stroke="var(--alabaster)" />{tr("Editar", "Edit")}</button>
+          </div>
+        ))}
+        {filtered.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--earth)" }}>{tr("Sin resultados.", "No results.")}</div>}
       </div>
+
       <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "16px 0 0", display: "flex", gap: 8, maxWidth: 720 }}>
         <Icon name="info" size={14} stroke="var(--earth)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("setup_note")}
       </p>
+
+      {/* modal de edición — todos los campos A–O */}
+      {editing != null && rows[editing] && (
+        <div className="pya-overlay" onClick={() => setEditing(null)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.46)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, padding: 0, maxWidth: 560, width: "100%", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "22px 24px 16px", borderBottom: "1px solid var(--warm-grey)" }}>
+              <div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Editar propiedad", "Edit property")}</div>
+                <div style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--ink)", marginTop: 4, lineHeight: 1.1 }}>{rows[editing]["property_name"] || tr("Nueva propiedad", "New property")}</div>
+              </div>
+              <button onClick={() => setEditing(null)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "18px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              {HEAD.map(h => (
+                <label key={h} style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: (h === "property_name" || h === "Listing link") ? "1 / -1" : "auto" }}>
+                  <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{niceLabel(h)}{h === "property_id" ? " · ID" : ""}</span>
+                  <input className="sa-setup-input" value={rows[editing][h] != null ? rows[editing][h] : ""} disabled={h === "property_id" && !rows[editing]._new}
+                    onChange={e => editField(h, e.target.value)} style={h === "property_id" && !rows[editing]._new ? { opacity: 0.6 } : null} />
+                </label>
+              ))}
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--warm-grey)" }}>
+              <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setEditing(null)}>{tr("Cancelar", "Cancel")}</button>
+              <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => persist(rows[editing])}><Icon name="check" size={13} stroke="var(--alabaster)" />{t("setup_save")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* modal de vista rápida — tabla completa solo lectura */}
+      {quick && (
+        <div className="pya-overlay" onClick={() => setQuick(false)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.46)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 20, maxWidth: "min(96vw, 1200px)", width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-lg)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "18px 22px", borderBottom: "1px solid var(--warm-grey)" }}>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)" }}>{tr("Vista rápida · solo lectura", "Quick view · read only")}</span>
+              <button onClick={() => setQuick(false)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
+            </div>
+            <div className="sa-setup-scroll" style={{ overflow: "auto", padding: "8px 12px 16px" }}>
+              <table className="sa-setup-table">
+                <thead><tr>{HEAD.map(h => <th key={h} style={{ minWidth: 120, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.property_id}>{HEAD.map(h => <td key={h} style={{ whiteSpace: "nowrap", fontSize: 12 }}>{r[h] != null ? String(r[h]) : ""}</td>)}</tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
@@ -840,7 +995,7 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
         setItem(d.id, { status: "done" });
         if (window.SpacioWrite && window.SpacioWrite.enabled()) {
           await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: "", archivo: (r && r.fileName) || d.fileName }] });
-          if (d.moneda === "USD" || d.moneda === "GTQ") { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda }); if (mr && mr.ok && mr.updated) monUpd++; }
+          if (d.moneda === "USD" || d.moneda === "GTQ" || d.cuenta) { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda || "", cuenta: d.cuenta || "" }); if (mr && mr.ok && mr.updated) monUpd++; }
         }
       } else { failed++; setItem(d.id, { status: "error" }); }
     }
@@ -983,7 +1138,16 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   };
   // currency conversion to the property's OWN moneda
   const conv = (usd, moneda) => moneda === "GTQ" ? usd * SpacioI18n.GTQ_RATE : usd;
-  const fmtMon = (usd, moneda) => (moneda === "GTQ" ? "Q " : "$") + Math.round(conv(usd, moneda)).toLocaleString("en-US");
+  // monto con DECIMALES en texto pequeño (no rompe el layout ni la estética)
+  const fmtMon = (usd, moneda) => {
+    const v = conv(usd, moneda);
+    const sym = moneda === "GTQ" ? "Q " : "$";
+    const neg = v < 0 ? "-" : "";
+    const abs = Math.abs(v);
+    const ent = Math.floor(abs).toLocaleString("en-US");
+    const dec = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
+    return <span>{neg}{sym}{ent}<span style={{ fontSize: "0.72em", opacity: 0.62 }}>.{dec}</span></span>;
+  };
   // per-property settlement for the selected period
   const rows = allProps.map(p => {
     const pd = SpacioAgg.periodData(p.months, period);
@@ -1080,4 +1244,4 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   );
 };
 
-Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList });
+Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList });
