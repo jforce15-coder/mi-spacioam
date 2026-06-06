@@ -593,9 +593,27 @@ const SetupSection = ({ lang, t }) => {
   const [apiToken, setApiToken] = useState(SpacioWrite.token());
   const [conn, setConn] = useState(SpacioWrite.enabled() ? "set" : "off");
   const [syncMsg, setSyncMsg] = useState("");
+  const [diag, setDiag] = useState("");
 
   const saveConn = () => { SpacioWrite.setConfig(apiUrl, apiToken); setConn(SpacioWrite.enabled() ? "set" : "off"); };
-  const testConn = async () => { SpacioWrite.setConfig(apiUrl, apiToken); setConn("testing"); const r = await SpacioWrite.ping(); setConn(r && r.ok ? "ok" : "fail"); };
+  const testConn = async () => { SpacioWrite.setConfig(apiUrl, apiToken); setConn("testing"); const r = await SpacioWrite.ping(); setConn(r && r.ok ? "ok" : "fail"); setDiag("ping → " + JSON.stringify(r)); };
+  // Diagnóstico de ESCRITURA: hace un ping (muestra a qué hoja escribe) y una
+  // escritura real de prueba en "Depositos cargados". Muestra la respuesta cruda
+  // para ver exactamente qué responde el Apps Script (causa real del problema).
+  const diagWrite = async () => {
+    SpacioWrite.setConfig(apiUrl, apiToken);
+    setDiag(tr("Probando escritura…", "Testing write…"));
+    const p = await SpacioWrite.ping();
+    if (!p || !p.ok) { setDiag("✗ " + tr("El servidor no respondió al ping. Respuesta: ", "Server didn't answer ping. Response: ") + JSON.stringify(p)); return; }
+    const w = await SpacioWrite.post("appendDeposito", { rows: [{ Fecha: "TEST-" + Date.now(), monto: 0.01, property_name: "PRUEBA CONEXION", cuenta: "", categoria: "test", Comentario: "diagnóstico (puedes borrar esta fila)", archivo: "" }] });
+    const okWrite = w && w.ok;
+    setDiag(
+      (okWrite ? "✓ " : "✗ ") +
+      tr("Hoja: ", "Sheet: ") + (p.sheet || "?") +
+      " · " + tr("Escritura: ", "Write: ") + JSON.stringify(w) +
+      (okWrite ? tr(" · Revisa la pestaña 'Depositos cargados' (fila PRUEBA CONEXION).", " · Check the 'Depositos cargados' tab (PRUEBA CONEXION row).") : "")
+    );
+  };
   const syncDeposits = async () => {
     if (!SpacioWrite.enabled()) { setSyncMsg(tr("Conecta el backend primero.", "Connect the backend first.")); return; }
     setSyncMsg(tr("Sincronizando…", "Syncing…"));
@@ -649,8 +667,12 @@ const SetupSection = ({ lang, t }) => {
             <input className="sa-setup-input" style={{ flex: 1, minWidth: 180 }} value={apiToken} onChange={e => setApiToken(e.target.value)} placeholder="TOKEN" />
             <button className="sa-chip-btn sa-chip-btn-ghost" onClick={saveConn}>{tr("Guardar", "Save")}</button>
             <button className="sa-chip-btn sa-chip-btn-dark" onClick={testConn}>{tr("Probar conexión", "Test")}</button>
+            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={diagWrite}><Icon name="alert" size={13} stroke="var(--earth)" />{tr("Diagnóstico de escritura", "Write diagnostic")}</button>
           </div>
         </div>
+        {diag && (
+          <div style={{ marginTop: 12, padding: "11px 13px", background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 10, fontFamily: "var(--sans)", fontSize: 10.5, lineHeight: 1.5, color: "var(--earth)", wordBreak: "break-word", maxHeight: 140, overflow: "auto" }}>{diag}</div>
+        )}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--warm-grey)" }}>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={syncDeposits}><Icon name="coins" size={14} stroke="var(--earth)" />{tr("Sincronizar depósitos", "Sync deposits")}</button>
           {syncMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{syncMsg}</span>}
