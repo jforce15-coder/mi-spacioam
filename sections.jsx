@@ -1001,7 +1001,9 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
   };
   const setItem = (id, patch) => setItems(its => its.map(d => d.id === id ? Object.assign({}, d, patch) : d));
   const removeItem = (id) => setItems(its => its.filter(d => d.id !== id));
-  const ready = items.filter(d => d.property_name);
+  const ready = items.filter(d => (d.scope === "owner" ? d.owner : d.property_name));
+  // socios disponibles (por nombre legible) para el modo "Socio"
+  const owners = [...new Set((SpacioData.owners || []).map(o => o.name || o.code))].filter(Boolean);
 
   const saveAll = async () => {
     if (!ready.length) return;
@@ -1009,26 +1011,37 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
     let ok = 0, monUpd = 0, failed = 0;
     for (const d of ready) {
       setItem(d.id, { status: "uploading" });
+      const isOwner = d.scope === "owner";
       // IMPORTANTE: el comprobante se guarda en el MES SELECCIONADO en el filtro
       // superior (ym), no en la fecha en que se sube.
-      const r = await SF.upload({ kind: "deposito", scope: "property", property_name: d.property_name, ym, file: d.file, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day });
+      const r = await SF.upload(isOwner
+        ? { kind: "deposito", scope: "owner", owner: d.owner, ym, file: d.file, multiple: true, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day }
+        : { kind: "deposito", scope: "property", property_name: d.property_name, ym, file: d.file, multiple: true, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day });
       if (r && r.ok) {
         ok++;
         setItem(d.id, { status: "done" });
         if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-          await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: "", archivo: (r && r.fileName) || d.fileName }] });
-          if (d.moneda === "USD" || d.moneda === "GTQ" || d.cuenta) { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda || "", cuenta: d.cuenta || "" }); if (mr && mr.ok && mr.updated) monUpd++; }
+          // a nivel socio: registra el depósito en TODAS sus propiedades
+          const targets = isOwner ? propsOfOwner(d.owner) : [d.property_name];
+          for (const pn of targets) {
+            await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: pn, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: isOwner ? ("Socio: " + d.owner) : "", archivo: (r && r.fileName) || d.fileName }] });
+            if (d.moneda === "USD" || d.moneda === "GTQ" || d.cuenta) { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: pn, moneda: d.moneda || "", cuenta: d.cuenta || "" }); if (mr && mr.ok && mr.updated) monUpd++; }
+          }
         }
       } else { failed++; setItem(d.id, { status: "error" }); }
     }
-    // solo quita los que se subieron bien; los que fallaron quedan para reintentar
     setItems(its => its.filter(d => d.status !== "done"));
     setBusy("");
     setMsg(tr(
       ok + " comprobante(s) guardados en " + monthName + (monUpd ? " · " + monUpd + " moneda(s) actualizada(s)" : "") + (failed ? " · " + failed + " con error (revisa la conexión)" : "") + ".",
       ok + " receipt(s) saved to " + monthName + (monUpd ? " · " + monUpd + " currency(ies) updated" : "") + (failed ? " · " + failed + " failed (check connection)" : "") + "."));
   };
-  // nombre legible del mes seleccionado (destino de la carga)
+  // propiedades de un socio (por nombre legible del socio)
+  const propsOfOwner = (ownerName) => {
+    const o = (SpacioData.owners || []).find(o => (o.name || o.code) === ownerName);
+    if (!o) return [];
+    return (SpacioData.propertyList || []).filter(p => (o.codes || [o.code]).indexOf(p.code) >= 0).map(p => p.name);
+  };
   const monthName = (() => { const m = String(ym || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (ym || ""); })();
 
   return (
@@ -1053,10 +1066,19 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
               <div className="sa-dep-card" key={d.id}>
                 <img src={d.url} alt="" className="sa-dep-card-thumb" />
                 <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
-                  <select className="sa-dep-select" value={d.property_name} onChange={e => setItem(d.id, { property_name: e.target.value })}>
-                    <option value="">{tr("— asignar propiedad —", "— assign property —")}</option>
-                    {names.map(n => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  <div className="pya-segbtn" style={{ alignSelf: "flex-start" }}>
+                    <button className={(d.scope || "property") === "property" ? "on" : ""} onClick={() => setItem(d.id, { scope: "property" })}>{tr("Propiedad", "Property")}</button>
+                    <button className={d.scope === "owner" ? "on" : ""} onClick={() => setItem(d.id, { scope: "owner" })}>{tr("Socio", "Owner")}</button>
+                  </div>
+                  {d.scope === "owner"
+                    ? <select className="sa-dep-select" value={d.owner || ""} onChange={e => setItem(d.id, { owner: e.target.value })}>
+                        <option value="">{tr("— asignar socio (todas sus propiedades) —", "— assign owner (all their properties) —")}</option>
+                        {owners.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                    : <select className="sa-dep-select" value={d.property_name} onChange={e => setItem(d.id, { property_name: e.target.value })}>
+                        <option value="">{tr("— asignar propiedad —", "— assign property —")}</option>
+                        {names.map(n => <option key={n} value={n}>{n}</option>)}
+                      </select>}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input className="sa-dep-input" value={d.day} onChange={e => setItem(d.id, { day: e.target.value })} placeholder="2026-05-01" style={{ flex: 1 }} />
                     <input className="sa-dep-input" value={d.amount} onChange={e => setItem(d.id, { amount: e.target.value })} placeholder="Q 0.00" style={{ width: 84 }} inputMode="decimal" />
@@ -1074,9 +1096,9 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
                       ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 5 }}><span className="sa-spin" style={{ width: 11, height: 11, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("subiendo…", "uploading…")}</span>
                       : d.status === "error"
                       ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={11} stroke="var(--peach)" />{tr("error — reintenta", "error — retry")}</span>
-                      : <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: d.property_name ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          <Icon name={d.property_name ? "check" : "info"} size={11} stroke={d.property_name ? "#5B8A6B" : "var(--peach)"} />{d.property_name ? tr("propiedad deducida", "property guessed") : tr("asigna la propiedad", "assign property")}
-                        </span>}
+                      : (() => { const assigned = d.scope === "owner" ? d.owner : d.property_name; return <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: assigned ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <Icon name={assigned ? "check" : "info"} size={11} stroke={assigned ? "#5B8A6B" : "var(--peach)"} />{assigned ? (d.scope === "owner" ? tr("socio asignado", "owner assigned") : tr("propiedad deducida", "property guessed")) : (d.scope === "owner" ? tr("asigna el socio", "assign owner") : tr("asigna la propiedad", "assign property"))}
+                        </span>; })()}
                     <button onClick={() => removeItem(d.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={11} stroke="currentColor" />{tr("quitar", "remove")}</button>
                   </div>
                 </div>

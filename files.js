@@ -116,20 +116,30 @@
 
     // lista todos los archivos de un tipo (p.ej. "deposito"), ordenados por mes desc.
     list: function (kind) {
+      var tomb = readTomb();
       var out = this.records()
         .filter(function (r) { return r.tipo === kind; });
       // respaldo: depósitos registrados en "Depositos cargados" que no tengan
       // ya un archivo en el registro (para que SIEMPRE se vean tras recargar)
       if (kind === "deposito") {
-        var have = {};
-        out.forEach(function (r) { have[norm(r.property_name) + "|" + (r.ym || "")] = true; });
+        // ya cubiertos: por propiedad+mes Y por propiedad+monto (evita el
+        // duplicado "fantasma sin enlace" cuando el archivo quedó en otro mes)
+        var have = {}, haveAmt = {};
+        out.forEach(function (r) {
+          have[norm(r.property_name) + "|" + (r.ym || "")] = true;
+          if (r.monto) haveAmt[norm(r.property_name) + "|" + Math.round(r.monto * 100)] = true;
+        });
         var deps = (window.SpacioData && window.SpacioData.depositos) || [];
-        deps.forEach(function (d) {
+        deps.forEach(function (d, i) {
           var ym = ymFromDate(d.fecha);
           var key = norm(d.property_name) + "|" + ym;
-          if (have[key]) return;
+          var amtKey = norm(d.property_name) + "|" + Math.round((d.monto || 0) * 100);
+          if (have[key] || (d.monto && haveAmt[amtKey])) return; // ya hay archivo para este depósito
+          // fid estable para poder ocultarlo/borrarlo (tumba)
+          var fid = "sheet|" + norm(d.property_name) + "|" + ym + "|" + Math.round((d.monto || 0) * 100);
+          if (tomb.indexOf(fid) >= 0) return;
           have[key] = true;
-          out.push({ tipo: "deposito", scope: "property", owner: "", property_name: d.property_name, ym: ym, archivo: d.archivo || "", url: "", monto: d.monto, cuenta: d.cuenta, fecha: d.fecha, fromSheet: true });
+          out.push({ fid: fid, tipo: "deposito", scope: "property", owner: "", property_name: d.property_name, ym: ym, archivo: d.archivo || "", url: "", monto: d.monto, cuenta: d.cuenta, fecha: d.fecha, fromSheet: true });
         });
       }
       return out.sort(function (a, b) { return String(b.ym).localeCompare(String(a.ym)); });
@@ -183,10 +193,17 @@
       var backend = window.SpacioWrite && window.SpacioWrite.enabled && window.SpacioWrite.enabled();
       if (backend) {
         try {
-          await window.SpacioWrite.post("deleteFile", {
-            kind: rec.tipo, scope: rec.scope, owner: rec.owner || "",
-            property_name: rec.property_name || "", mes: rec.ym, archivo: rec.archivo || "",
-          });
+          if (rec.fromSheet) {
+            // fila solo en "Depositos cargados" (sin archivo en Drive): borra la fila
+            await window.SpacioWrite.post("deleteDeposito", {
+              property_name: rec.property_name || "", monto: rec.monto, fecha: rec.fecha || "",
+            });
+          } else {
+            await window.SpacioWrite.post("deleteFile", {
+              kind: rec.tipo, scope: rec.scope, owner: rec.owner || "",
+              property_name: rec.property_name || "", mes: rec.ym, archivo: rec.archivo || "",
+            });
+          }
         } catch (e) {}
       }
       return { ok: true };
