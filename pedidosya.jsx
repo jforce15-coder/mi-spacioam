@@ -8,7 +8,7 @@
 //   3) Depósitos  — sube imágenes de depósitos; OCR de fecha + monto.
 // Todo se escribe sin duplicar (dedupe por nº de autorización / orderId).
 // ============================================================
-const { useState: pyUseState, useEffect: pyUseEffect, useMemo: pyUseMemo, useRef: pyUseRef } = React;
+const { useState: pyUseState, useEffect: pyUseEffect, useMemo: pyUseMemo, useRef: pyUseRef, useCallback: pyUseCallback } = React;
 
 // --- CSV mínimo para leer "insumos & gastos" (dedupe) ---
 function pyaParseCSV(text) {
@@ -94,6 +94,7 @@ const PedidosYaImport = ({ lang }) => {
     { k: "sat", label: tr("SAT · PedidosYa", "SAT · PedidosYa"), icon: "file" },
     { k: "manual", label: tr("Gasto manual", "Manual expense"), icon: "coins" },
     { k: "deposit", label: tr("Depósitos", "Deposits"), icon: "wrench" },
+    { k: "manage", label: tr("Guardados", "Saved"), icon: "pencil" },
   ];
 
   return (
@@ -129,6 +130,9 @@ const PedidosYaImport = ({ lang }) => {
           </div>
           <div style={{ display: mode === "deposit" ? "block" : "none" }}>
             <PyaDepositPanel lang={lang} propOptions={propOptions} />
+          </div>
+          <div style={{ display: mode === "manage" ? "block" : "none" }}>
+            <PyaManagePanel lang={lang} propOptions={propOptions} active={mode === "manage"} />
           </div>
         </div>
       </div>
@@ -482,6 +486,12 @@ function PyaDepositPanel({ lang, propOptions }) {
   const P = window.PedidosYa;
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
+  const depCatOptions = [
+    { value: "Depósito a socio", label: tr("Depósito a socio", "Owner deposit") },
+    { value: "Reembolso", label: tr("Reembolso", "Refund") },
+    { value: "Ajuste", label: tr("Ajuste", "Adjustment") },
+    { value: "Otro", label: tr("Otro", "Other") },
+  ];
   const [deps, setDeps] = pyUseState([]);
   const [busy, setBusy] = pyUseState("");
   const [progress, setProgress] = pyUseState(0);
@@ -509,7 +519,7 @@ function PyaDepositPanel({ lang, propOptions }) {
       try { const r = await T.recognize(url, "spa"); text = r.data.text || ""; } catch (e) { text = ""; }
       const info = P.extractDeposit(text, f.name);
       const guess = P.matchProperty(text + " " + f.name, names);
-      const rec = { id: "d" + Date.now() + "-" + i, sig, url, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", comentario: "" };
+      const rec = { id: "d" + Date.now() + "-" + i, sig, url, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "Depósito a socio", comentario: "" };
       setProgress(Math.round(((i + 1) / imgs.length) * 100));
       setDeps(prev => prev.concat(rec));
     }
@@ -524,13 +534,13 @@ function PyaDepositPanel({ lang, propOptions }) {
   const save = async () => {
     if (!ready.length) return;
     setBusy("save"); setMsg("");
-    const rows = ready.map(d => ({ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, Comentario: d.comentario || (es ? "Depósito bancario" : "Bank deposit"), archivo: d.fileName }));
+    const rows = ready.map(d => ({ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, categoria: d.categoria || "Depósito a socio", Comentario: d.comentario || (es ? "Depósito bancario" : "Bank deposit"), archivo: d.fileName }));
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
       const res = await window.SpacioWrite.post("appendDeposito", { rows });
       if (res && res.ok) { pyaDepAdd(ready.map(d => d.sig)); setMsg(tr("Listo · " + (res.added != null ? res.added : rows.length) + " depósitos registrados." + (res.skipped ? " " + res.skipped + " ya existían." : ""), "Done · " + (res.added != null ? res.added : rows.length) + " deposits recorded." + (res.skipped ? " " + res.skipped + " already existed." : ""))); setDeps(ds => ds.filter(d => !ready.includes(d))); }
       else setMsg(tr("No se pudo escribir: " + ((res && res.error) || "sin conexión") + ".", "Could not write: " + ((res && res.error) || "offline") + "."));
     } else {
-      const header = ["Fecha", "monto", "property_name", "Comentario", "archivo"];
+      const header = ["Fecha", "monto", "property_name", "categoria", "Comentario", "archivo"];
       const lines2 = [header.join("\t")].concat(rows.map(o => header.map(h => o[h]).join("\t")));
       const blob = new Blob([lines2.join("\n")], { type: "text/tab-separated-values" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "depositos.tsv"; a.click();
@@ -566,6 +576,10 @@ function PyaDepositPanel({ lang, propOptions }) {
                   </div>
                   <PyaMini value={d.property_name} options={propOptions} onChange={v => setDep(d.id, { property_name: v })} placeholder={tr("Propiedad…", "Property…")} search />
                   <div className="pya-dep-row">
+                    <div style={{ flex: 1 }}><PyaMini value={d.categoria} options={depCatOptions} onChange={v => setDep(d.id, { categoria: v })} placeholder={tr("Categoría…", "Category…")} /></div>
+                  </div>
+                  <input className="pya-input" style={{ fontSize: 12, padding: "8px 10px" }} value={d.comentario} onChange={e => setDep(d.id, { comentario: e.target.value })} placeholder={tr("Comentario (opcional)", "Comment (optional)")} />
+                  <div className="pya-dep-row">
                     <span className="pya-dep-ocr">{d.property_name ? <React.Fragment><Icon name="check" size={11} stroke="#5B8A6B" />{tr("propiedad deducida", "property guessed")}</React.Fragment> : <React.Fragment><Icon name="info" size={11} stroke="var(--peach)" />{tr("asigna la propiedad", "assign property")}</React.Fragment>}</span>
                     <button className="pya-copy" style={{ marginLeft: "auto" }} onClick={() => removeDep(d.id)}><Icon name="x" size={12} stroke="currentColor" />{tr("quitar", "remove")}</button>
                   </div>
@@ -595,4 +609,171 @@ function PyaDepositPanel({ lang, propOptions }) {
   );
 }
 
-Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel });
+// ============================================================
+// 4) Panel "Guardados": editar / eliminar / subir factura a gastos ya guardados
+// ============================================================
+function PyaManagePanel({ lang, propOptions, active }) {
+  const P = window.PedidosYa;
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const [rows, setRows] = pyUseState(null);
+  const [busy, setBusy] = pyUseState("");
+  const [msg, setMsg] = pyUseState("");
+  const [editId, setEditId] = pyUseState(null);
+  const [draft, setDraft] = pyUseState({});
+  const [box, setBox] = pyUseState(null);
+  const [q, setQ] = pyUseState("");
+
+  const catOptions = [
+    { value: "insumos & gastos", label: tr("insumos & gastos", "supplies & expenses") },
+    { value: "Mantenimiento e inversión", label: tr("Mantenimiento e inversión", "Maintenance & investment") },
+    { value: "Reparaciones o inversión", label: tr("Reparaciones o inversión", "Repairs or investment") },
+  ];
+  const tagOptions = [
+    { value: "", label: tr("— sin tag", "— no tag") },
+    { value: "Compras ajenas a insumos", label: tr("Compras ajenas a insumos", "Non-supply purchase") },
+    { value: "Restaurante / comida", label: tr("Restaurante / comida", "Restaurant / food") },
+    { value: "Gasto Spacio AM", label: tr("Gasto Spacio AM", "Spacio AM expense") },
+  ];
+
+  const load = pyUseCallback(() => {
+    const sid = window.SPACIO_SHEET_ID; if (!sid) { setRows([]); return; }
+    setBusy("load"); setMsg("");
+    const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos") + "&_=" + Date.now();
+    fetch(url).then(r => r.text()).then(txt => {
+      const parsed = pyaParseCSV(txt);
+      if (!parsed.length) { setRows([]); setBusy(""); return; }
+      const head = parsed[0].map(h => h.trim().toLowerCase());
+      const col = (name) => head.indexOf(name);
+      const ci = { mes: col("mes"), fecha: col("fecha de pedido"), prop: col("property_name"), valor: col("valor"), cat: col("categoria"), com: col("comentario"), tag: col("tag"), oid: col("orderid"), url: col("orderurl"), ap: col("authproductos"), at: col("authtarifa") };
+      const out = [];
+      for (let i = 1; i < parsed.length; i++) {
+        const r = parsed[i]; const g = (c) => (c > -1 ? (r[c] || "").trim() : "");
+        const oid = g(ci.oid); if (!oid && !g(ci.prop)) continue;
+        out.push({ orderId: oid, mes: g(ci.mes), fecha: g(ci.fecha), property_name: g(ci.prop), valor: g(ci.valor), categoria: g(ci.cat), comentario: g(ci.com), tag: g(ci.tag), orderUrl: g(ci.url), authProductos: g(ci.ap), authTarifa: g(ci.at) });
+      }
+      out.reverse(); // más recientes primero
+      setRows(out); setBusy("");
+    }).catch(() => { setRows([]); setBusy(""); setMsg(tr("No se pudo leer la hoja.", "Could not read the sheet.")); });
+  }, []);
+
+  pyUseEffect(() => { if (active && rows === null) load(); }, [active]);
+
+  const startEdit = (r) => { setEditId(r.orderId || r.fecha + r.property_name); setDraft(Object.assign({}, r)); };
+  const cancelEdit = () => { setEditId(null); setDraft({}); };
+  const saveEdit = async () => {
+    if (!window.SpacioWrite || !window.SpacioWrite.enabled()) { setMsg(tr("Conecta el backend (Setup → Conexión de escritura) para editar.", "Connect the backend (Setup → Write connection) to edit.")); return; }
+    if (!draft.orderId) { setMsg(tr("Esta fila no tiene orderId; no se puede editar de forma segura.", "This row has no orderId; can't edit safely.")); return; }
+    setBusy("save");
+    const res = await window.SpacioWrite.post("updateInsumo", { orderId: draft.orderId, property_name: draft.property_name, valor: P.numQ(draft.valor), categoria: draft.categoria, Comentario: draft.comentario, tag: draft.tag, orderUrl: draft.orderUrl });
+    setBusy("");
+    if (res && res.ok) { setRows(rs => rs.map(x => x.orderId === draft.orderId ? Object.assign({}, x, draft) : x)); cancelEdit(); setMsg(tr("Cambios guardados.", "Changes saved.")); }
+    else setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión"), "Could not save: " + ((res && res.error) || "offline")));
+  };
+  const del = async (r) => {
+    if (!window.SpacioWrite || !window.SpacioWrite.enabled()) { setMsg(tr("Conecta el backend para eliminar.", "Connect the backend to delete.")); return; }
+    if (!r.orderId) { setMsg(tr("Esta fila no tiene orderId; elimínala manualmente en la hoja.", "This row has no orderId; delete it manually in the sheet.")); return; }
+    if (!window.confirm(tr("¿Eliminar este gasto de la hoja? No se puede deshacer.", "Delete this expense from the sheet? This can't be undone."))) return;
+    setBusy("del-" + r.orderId);
+    const res = await window.SpacioWrite.post("deleteInsumo", { orderId: r.orderId });
+    setBusy("");
+    if (res && res.ok) { setRows(rs => rs.filter(x => x.orderId !== r.orderId)); setMsg(tr("Gasto eliminado.", "Expense deleted.")); }
+    else setMsg(tr("No se pudo eliminar: " + ((res && res.error) || "sin conexión"), "Could not delete: " + ((res && res.error) || "offline")));
+  };
+  const ymOfRow = (r) => {
+    const s = (r.fecha || "").trim();
+    let m = s.match(/(\d{4})-(\d{1,2})/); if (m) return m[1] + "-" + String(+m[2]).padStart(2, "0");
+    m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/); if (m) return m[3] + "-" + String(+m[2]).padStart(2, "0");
+    return "";
+  };
+  const uploadFactura = async (r, file) => {
+    if (!window.SpacioFiles) return;
+    setBusy("up-" + r.orderId);
+    await window.SpacioFiles.upload({ kind: "soporte", scope: "property", property_name: r.property_name, ym: ymOfRow(r) || (r.mes || ""), file });
+    setBusy(""); setMsg(tr("Factura adjuntada al gasto.", "Invoice attached to the expense."));
+  };
+
+  const visible = (rows || []).filter(r => {
+    const s = q.trim().toLowerCase(); if (!s) return true;
+    return [r.property_name, r.fecha, r.valor, r.categoria, r.tag, r.comentario].filter(Boolean).join(" ").toLowerCase().indexOf(s) > -1;
+  });
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
+        <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--earth)" /></span>
+          <input className="pya-input" style={{ paddingLeft: 36 }} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Buscar propiedad, fecha, monto…", "Search property, date, amount…")} />
+        </div>
+        <button className="pya-btn pya-btn-ghost" onClick={load} disabled={busy === "load"}>
+          {busy === "load" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="arrowUpRight" size={14} stroke="var(--earth)" />}
+          {tr("Actualizar", "Refresh")}
+        </button>
+      </div>
+
+      {rows === null
+        ? <div className="pya-empty">{tr("Cargando gastos guardados…", "Loading saved expenses…")}</div>
+        : visible.length === 0
+        ? <div className="pya-empty">{q ? tr("Sin resultados.", "No results.") : tr("Aún no hay gastos guardados en la hoja.", "No saved expenses in the sheet yet.")}</div>
+        : (
+          <div className="pya-saved">
+            {visible.map((r, i) => {
+              const id = r.orderId || (r.fecha + r.property_name);
+              const editing = editId === id;
+              return (
+                <div className={"pya-saved-row" + (editing ? " editing" : "")} key={id + i}>
+                  {editing ? (
+                    <div className="pya-saved-edit">
+                      <div className="pya-saved-edit-grid">
+                        <div className="pya-field"><label>{tr("Propiedad", "Property")}</label><PyaMini value={draft.property_name} options={propOptions} onChange={v => setDraft(d => Object.assign({}, d, { property_name: v }))} search /></div>
+                        <div className="pya-field"><label>{tr("Monto (GTQ)", "Amount (GTQ)")}</label><input className="pya-input" value={draft.valor} onChange={e => setDraft(d => Object.assign({}, d, { valor: e.target.value }))} inputMode="decimal" /></div>
+                        <div className="pya-field"><label>{tr("Categoría", "Category")}</label><PyaMini value={draft.categoria} options={catOptions} onChange={v => setDraft(d => Object.assign({}, d, { categoria: v }))} /></div>
+                        <div className="pya-field"><label>Tag</label><PyaMini value={draft.tag} options={tagOptions} onChange={v => setDraft(d => Object.assign({}, d, { tag: v }))} /></div>
+                      </div>
+                      <div className="pya-field"><label>{tr("Comentario", "Comment")}</label><input className="pya-input" value={draft.comentario} onChange={e => setDraft(d => Object.assign({}, d, { comentario: e.target.value }))} /></div>
+                      <div className="pya-field"><label>{tr("URL del pedido", "Order URL")}</label><input className="pya-input" value={draft.orderUrl} onChange={e => setDraft(d => Object.assign({}, d, { orderUrl: e.target.value }))} placeholder="https://…" /></div>
+                      <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                        <button className="pya-btn pya-btn-dark" onClick={saveEdit} disabled={busy === "save"}>{busy === "save" ? "…" : <React.Fragment><Icon name="check" size={14} stroke="var(--alabaster)" />{tr("Guardar", "Save")}</React.Fragment>}</button>
+                        <button className="pya-btn pya-btn-ghost" onClick={cancelEdit}>{tr("Cancelar", "Cancel")}</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <React.Fragment>
+                      <div className="pya-saved-main">
+                        <div className="pya-saved-top">
+                          <span className="pya-saved-prop">{r.property_name || tr("(sin propiedad)", "(no property)")}</span>
+                          <span className="pya-saved-amt">{r.valor ? "Q " + r.valor : ""}</span>
+                        </div>
+                        <div className="pya-saved-meta">
+                          <span>{r.fecha || r.mes}</span>
+                          {r.categoria && <span className="pya-saved-chip">{r.categoria}</span>}
+                          {r.tag && <span className="pya-saved-chip warn">{r.tag}</span>}
+                        </div>
+                        {r.comentario && <div className="pya-saved-com">{r.comentario}</div>}
+                      </div>
+                      <div className="pya-saved-actions">
+                        {(r.authProductos || r.authTarifa || r.orderUrl) && (
+                          <button className="pya-icbtn" title={tr("Ver factura", "View invoice")} onClick={() => setBox({ orderUrl: r.orderUrl, vendor: r.property_name, desc: r.comentario, day: ymOfRow(r), invoices: [r.authProductos && { kind: "productos", auth: r.authProductos }, r.authTarifa && { kind: "tarifa", auth: r.authTarifa }].filter(Boolean) })}><Icon name="eye" size={15} stroke="var(--ink)" /></button>
+                        )}
+                        <label className="pya-icbtn" title={tr("Subir factura", "Upload invoice")} style={{ cursor: "pointer" }}>
+                          {busy === "up-" + r.orderId ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="upload" size={15} stroke="var(--ink)" />}
+                          <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={e => { const f = e.target.files[0]; if (f) uploadFactura(r, f); e.target.value = ""; }} />
+                        </label>
+                        <button className="pya-icbtn" title={tr("Editar", "Edit")} onClick={() => startEdit(r)}><Icon name="pencil" size={15} stroke="var(--ink)" /></button>
+                        <button className="pya-icbtn danger" title={tr("Eliminar", "Delete")} onClick={() => del(r)} disabled={busy === "del-" + r.orderId}><Icon name="trash" size={15} stroke="var(--peach)" /></button>
+                      </div>
+                    </React.Fragment>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+      {msg && <div style={{ marginTop: 14, fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", color: "var(--ink)" }}>{msg}</div>}
+      {box && <InvoiceViewBox data={box} lang={lang} onClose={() => setBox(null)} />}
+    </div>
+  );
+}
+
+Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel, PyaManagePanel });

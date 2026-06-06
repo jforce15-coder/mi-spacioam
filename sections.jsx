@@ -768,6 +768,139 @@ const PendingInvoicesAlert = ({ activeProps, owner, isAdmin, isAll, lang, t, set
   );
 };
 
+// Cargador OCR de Tesseract (compartido). Carga perezosa desde CDN.
+let _saTessP = null;
+function saEnsureTesseract() {
+  if (window.Tesseract) return Promise.resolve(window.Tesseract);
+  if (_saTessP) return _saTessP;
+  _saTessP = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js";
+    s.onload = () => res(window.Tesseract); s.onerror = rej;
+    document.head.appendChild(s);
+  });
+  return _saTessP;
+}
+
+// ---- Admin: batch upload de comprobantes de depósito (OCR + auto-asignación) ----
+// Igual que el panel de Depósitos en Gastos: arrastra varias imágenes, leemos
+// fecha + monto y deducimos la propiedad de la descripción; el admin revisa y
+// se suben a Drive como comprobante de cada propiedad/mes.
+function DepositBatchUpload({ allProps, ym, lang, t }) {
+  const SF = window.SpacioFiles, P = window.PedidosYa;
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const [items, setItems] = useState([]);
+  const [busy, setBusy] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [drag, setDrag] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [msg, setMsg] = useState("");
+  const names = allProps.map(p => p.name);
+  if (!SF || !P) return null;
+
+  const onImages = async (files) => {
+    const imgs = [...files].filter(f => /image\//.test(f.type));
+    if (!imgs.length) return;
+    setOpen(true); setBusy("ocr"); setMsg(""); setProgress(0);
+    let T; try { T = await saEnsureTesseract(); } catch (e) { setMsg(tr("No se pudo cargar el lector OCR.", "Could not load the OCR reader.")); setBusy(""); return; }
+    for (let i = 0; i < imgs.length; i++) {
+      const f = imgs[i];
+      const url = URL.createObjectURL(f);
+      let text = "";
+      try { const r = await T.recognize(url, "spa"); text = r.data.text || ""; } catch (e) { text = ""; }
+      const info = P.extractDeposit(text, f.name);
+      const guess = P.matchProperty(text + " " + f.name, names);
+      const rec = { id: "d" + Date.now() + "-" + i, file: f, url, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", cuenta: info.cuenta || "", moneda: info.moneda || "" };
+      setProgress(Math.round(((i + 1) / imgs.length) * 100));
+      setItems(prev => prev.concat(rec));
+    }
+    setBusy("");
+  };
+  const setItem = (id, patch) => setItems(its => its.map(d => d.id === id ? Object.assign({}, d, patch) : d));
+  const removeItem = (id) => setItems(its => its.filter(d => d.id !== id));
+  const ymOfDay = (day) => { const m = String(day || "").match(/(\d{4})-(\d{1,2})/); return m ? m[1] + "-" + String(+m[2]).padStart(2, "0") : ym; };
+  const ready = items.filter(d => d.property_name);
+
+  const saveAll = async () => {
+    if (!ready.length) return;
+    setBusy("save"); setMsg("");
+    let ok = 0, monUpd = 0;
+    for (const d of ready) {
+      const r = await SF.upload({ kind: "deposito", scope: "property", property_name: d.property_name, ym: ymOfDay(d.day), file: d.file });
+      if (r && r.ok) ok++;
+      // registra el depósito (con número de cuenta) en la hoja de depósitos a socios
+      if (window.SpacioWrite && window.SpacioWrite.enabled()) {
+        await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: "", archivo: (r && r.fileName) || d.fileName }] });
+        // actualiza la moneda en SETUP si se detectó
+        if (d.moneda === "USD" || d.moneda === "GTQ") { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda }); if (mr && mr.ok && mr.updated) monUpd++; }
+      }
+    }
+    setItems(its => its.filter(d => !ready.includes(d)));
+    setBusy("");
+    setMsg(tr(ok + " comprobante(s) asignados" + (monUpd ? " · " + monUpd + " moneda(s) actualizada(s) en Setup" : "") + ".", ok + " receipt(s) assigned" + (monUpd ? " · " + monUpd + " currency(ies) updated in Setup" : "") + "."));
+  };
+
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <label className="sa-dep-drop" style={{ borderColor: drag ? "var(--ink)" : "var(--warm-grey)" }}
+        onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+        onDrop={e => { e.preventDefault(); setDrag(false); onImages(e.dataTransfer.files); }}>
+        <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={e => onImages(e.target.files)} />
+        <span className="sa-dep-drop-ic"><Icon name="upload" size={18} stroke="var(--ink)" /></span>
+        <span>
+          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink)" }}>{tr("Subir comprobantes en lote", "Batch-upload receipts")}</span>
+          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", color: "var(--earth)", marginTop: 3, maxWidth: 460, lineHeight: 1.5, textWrap: "pretty" }}>{tr("Arrastra una o varias imágenes de depósitos. Leemos fecha y monto, y deducimos la propiedad por la descripción. Tú revisas antes de asignar.", "Drop one or many deposit images. We read date and amount, and guess the property from the description. You review before assigning.")}</span>
+          {busy === "ocr" && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6, fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("Leyendo imágenes…", "Reading images…")} {progress}%</span>}
+        </span>
+      </label>
+
+      {open && items.length > 0 && (
+        <React.Fragment>
+          <div className="sa-dep-grid">
+            {items.map(d => (
+              <div className="sa-dep-card" key={d.id}>
+                <img src={d.url} alt="" className="sa-dep-card-thumb" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0, flex: 1 }}>
+                  <select className="sa-dep-select" value={d.property_name} onChange={e => setItem(d.id, { property_name: e.target.value })}>
+                    <option value="">{tr("— asignar propiedad —", "— assign property —")}</option>
+                    {names.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input className="sa-dep-input" value={d.day} onChange={e => setItem(d.id, { day: e.target.value })} placeholder="2026-05-01" style={{ flex: 1 }} />
+                    <input className="sa-dep-input" value={d.amount} onChange={e => setItem(d.id, { amount: e.target.value })} placeholder="Q 0.00" style={{ width: 84 }} inputMode="decimal" />
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input className="sa-dep-input" value={d.cuenta} onChange={e => setItem(d.id, { cuenta: e.target.value })} placeholder={tr("Nº de cuenta", "Account no.")} style={{ flex: 1 }} inputMode="numeric" />
+                    <select className="sa-dep-select" value={d.moneda} onChange={e => setItem(d.id, { moneda: e.target.value })} style={{ width: 96 }}>
+                      <option value="">{tr("moneda", "currency")}</option>
+                      <option value="GTQ">GTQ</option>
+                      <option value="USD">USD</option>
+                    </select>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: d.property_name ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      <Icon name={d.property_name ? "check" : "info"} size={11} stroke={d.property_name ? "#5B8A6B" : "var(--peach)"} />{d.property_name ? tr("propiedad deducida", "property guessed") : tr("asigna la propiedad", "assign property")}
+                    </span>
+                    <button onClick={() => removeItem(d.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={11} stroke="currentColor" />{tr("quitar", "remove")}</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--earth)", maxWidth: 420, lineHeight: 1.5 }}>{msg || tr("Cada comprobante se sube a la propiedad y mes que le asignes. El socio lo verá como descarga en su liquidación.", "Each receipt uploads to the property and month you assign. The owner sees it as a download in their settlement.")}</span>
+            <button className="sa-file-btn dark" onClick={saveAll} disabled={!ready.length || busy === "save"}>
+              {busy === "save" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
+              {tr("Asignar comprobantes", "Assign receipts")}{ready.length ? " · " + ready.length : ""}
+            </button>
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
 // ---- Admin: Owner deposits — one table per currency, by owner or by property ----
 const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   const [view, setView] = useState("owner");
@@ -828,6 +961,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
       <SectionHead eyebrow={t("admin_badge")} title={t("dep_title")} sub={t("dep_sub")}
         right={<Segmented size="sm" value={view} onChange={setView}
           options={[{ value: "owner", label: t("dep_by_owner") }, { value: "prop", label: t("dep_by_prop") }]} />} />
+      <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />
       {monedas.map(mon => {
         const rs = rows.filter(r => r.moneda === mon);
         const groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
@@ -890,4 +1024,4 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   );
 };
 
-Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert });
+Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload });

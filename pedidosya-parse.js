@@ -537,7 +537,27 @@
     const amount = amts.length ? Math.max.apply(null, amts) : 0;
     const dm = (t.match(/(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/) || [])[1];
     const day = parseLooseDate(dm) || parseSpanishDate(t);
-    return { amount: Math.round(amount * 100) / 100, day, raw: t, filename: filename || "" };
+    return { amount: Math.round(amount * 100) / 100, day, cuenta: extractAccount(t), moneda: extractCurrency(t), raw: t, filename: filename || "" };
+  }
+  // número de cuenta acreditada: prioriza el número largo que sigue a "acreditar"
+  function extractAccount(t) {
+    const s = String(t || "");
+    const grab = (chunk) => { const mm = chunk.match(/(\d[\d\s-]{5,20}\d)/); return mm ? mm[1].replace(/[\s-]/g, "") : ""; };
+    const idx = s.toLowerCase().indexOf("acredit");
+    let acc = idx > -1 ? grab(s.slice(idx, idx + 140)) : "";
+    if (!acc || acc.length < 7) {
+      // el número de 7–16 dígitos más largo (descarta montos con decimales y fechas)
+      const all = (s.match(/\d[\d\s-]{5,20}\d/g) || []).map(x => x.replace(/[\s-]/g, "")).filter(x => x.length >= 7 && x.length <= 16);
+      acc = all.sort((a, b) => b.length - a.length)[0] || "";
+    }
+    return acc;
+  }
+  // moneda del depósito: USD o GTQ a partir del texto del comprobante
+  function extractCurrency(t) {
+    const s = String(t || "").toLowerCase();
+    if (/\b(usd|us\$|d[oó]lar(?:es)?)\b/.test(s)) return "USD";
+    if (/\b(gtq|q\.?\s*\d|quetzal(?:es)?)\b/.test(s) || /monetaria\s*gtq/.test(s)) return "GTQ";
+    return "";
   }
   // intenta deducir la propiedad por edificio + número de apto en un texto libre
   function matchProperty(hint, names) {

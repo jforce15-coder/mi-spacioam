@@ -167,6 +167,26 @@ textarea.pya-input { resize: vertical; min-height: 64px; }
 .pya-cal-day:hover { background: var(--beige-soft); }
 .pya-cal-day.today { box-shadow: inset 0 0 0 1px var(--warm-grey); }
 .pya-cal-day.sel { background: var(--ink); color: var(--alabaster); }
+
+/* ---- saved expenses manager ---- */
+.pya-saved { display: flex; flex-direction: column; gap: 10px; }
+.pya-saved-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; background: var(--beige-soft); border: 1px solid var(--ink-08); border-radius: 16px; padding: 14px 16px; }
+.pya-saved-row.editing { display: block; background: var(--alabaster); border-color: var(--warm-grey); box-shadow: var(--shadow-sm); }
+.pya-saved-main { min-width: 0; flex: 1; }
+.pya-saved-top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.pya-saved-prop { font-family: var(--serif); font-size: 17px; color: var(--ink); }
+.pya-saved-amt { font-family: var(--sans); font-weight: 600; font-size: 14px; color: var(--ink); margin-left: auto; }
+.pya-saved-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-family: var(--sans); font-size: 11px; letter-spacing: 0.03em; color: var(--earth); }
+.pya-saved-chip { background: var(--alabaster); border: 1px solid var(--warm-grey); border-radius: 999px; padding: 3px 9px; font-size: 10px; letter-spacing: 0.04em; color: var(--ink); }
+.pya-saved-chip.warn { border-color: var(--peach); color: var(--peach); }
+.pya-saved-com { margin-top: 8px; font-family: var(--sans); font-size: 12px; line-height: 1.5; color: var(--earth); text-wrap: pretty; }
+.pya-saved-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.pya-icbtn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--warm-grey); background: var(--alabaster); border-radius: 10px; cursor: pointer; transition: all .14s var(--ease); }
+.pya-icbtn:hover { border-color: var(--ink); transform: translateY(-1px); }
+.pya-icbtn.danger:hover { border-color: var(--peach); background: var(--peach-12); }
+.pya-saved-edit { display: flex; flex-direction: column; gap: 12px; }
+.pya-saved-edit-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+@media (min-width: 640px) { .pya-saved-edit-grid { grid-template-columns: repeat(2, 1fr); } }
 `;
 
 // ---- compact searchable dropdown (property / categoría / tag) ----

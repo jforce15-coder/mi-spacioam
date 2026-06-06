@@ -421,13 +421,59 @@
   window.SpacioSetup = SpacioSetup;
 
   // ---------- write-back client (Apps Script web app) ----------
-  // Configure URL + token in Setup → "Conexión de escritura". When set,
-  // edits are POSTed to the Apps Script that writes directly to the sheet.
+  // CONEXIÓN PERSISTENTE: el admin la introduce UNA vez en Setup → "Conexión de
+  // escritura" y queda guardada de forma redundante (localStorage + cookie de
+  // ~400 días + IndexedDB). En cada carga se re-sella en los tres almacenes, así
+  // Safari/iOS no la borra mientras se use el dashboard con regularidad, y si un
+  // almacén se limpia, se restaura desde otro. Solo cambia si el admin la cambia.
+  const SA_WK = "sa-writeapi-url", SA_TK = "sa-writeapi-token";
+  function saCookieGet(k) {
+    try { const m = document.cookie.match("(?:^|; )" + k.replace(/[-]/g, "\\$&") + "=([^;]*)"); return m ? decodeURIComponent(m[1]) : ""; } catch (e) { return ""; }
+  }
+  function saCookieSet(k, v) {
+    try { document.cookie = k + "=" + encodeURIComponent(v || "") + ";path=/;max-age=" + (60 * 60 * 24 * 400) + ";SameSite=Lax"; } catch (e) {}
+  }
+  // IndexedDB (respaldo más resistente)
+  function saIdb(mode, vals) {
+    return new Promise((res) => {
+      try {
+        const req = indexedDB.open("spacio-cfg", 1);
+        req.onupgradeneeded = () => { req.result.createObjectStore("kv"); };
+        req.onerror = () => res(null);
+        req.onsuccess = () => {
+          const db = req.result;
+          try {
+            const tx = db.transaction("kv", mode === "set" ? "readwrite" : "readonly");
+            const st = tx.objectStore("kv");
+            if (mode === "set") { st.put(vals.url, SA_WK); st.put(vals.token, SA_TK); tx.oncomplete = () => res(true); }
+            else { const o = {}; const a = st.get(SA_WK), b = st.get(SA_TK); a.onsuccess = () => { o.url = a.result || ""; }; b.onsuccess = () => { o.token = b.result || ""; }; tx.oncomplete = () => res(o); }
+          } catch (e) { res(null); }
+        };
+      } catch (e) { res(null); }
+    });
+  }
+  function saLocalGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function saLocalSet(k, v) { try { localStorage.setItem(k, v || ""); } catch (e) {} }
+
   const SpacioWrite = {
-    urlKey: "sa-writeapi-url", tokenKey: "sa-writeapi-token",
-    url() { return localStorage.getItem(this.urlKey) || ""; },
-    token() { return localStorage.getItem(this.tokenKey) || ""; },
-    setConfig(url, token) { localStorage.setItem(this.urlKey, (url || "").trim()); localStorage.setItem(this.tokenKey, (token || "").trim()); },
+    urlKey: SA_WK, tokenKey: SA_TK,
+    // lee de localStorage; si está vacío, cae a la cookie (sincrónico)
+    url() { return (saLocalGet(SA_WK) || saCookieGet(SA_WK) || "").trim(); },
+    token() { return (saLocalGet(SA_TK) || saCookieGet(SA_TK) || "").trim(); },
+    // escribe en los TRES almacenes
+    setConfig(url, token) {
+      url = (url || "").trim(); token = (token || "").trim();
+      saLocalSet(SA_WK, url); saLocalSet(SA_TK, token);
+      saCookieSet(SA_WK, url); saCookieSet(SA_TK, token);
+      saIdb("set", { url: url, token: token });
+    },
+    // al cargar: restaura desde el almacén que sobreviva y re-sella todo
+    async hydrate() {
+      let url = this.url(), token = this.token();
+      if (!url) { const o = await saIdb("get"); if (o && o.url) { url = o.url; token = o.token || token; } }
+      if (url) this.setConfig(url, token); // re-sella (refresca el temporizador de Safari)
+      return !!url;
+    },
     enabled() { return !!this.url(); },
     async post(action, payload) {
       if (!this.url()) return { ok: false, offline: true };
@@ -444,6 +490,8 @@
     ping() { return this.post("ping", {}); },
   };
   window.SpacioWrite = SpacioWrite;
+  // Restaura/re-sella la conexión en cada carga (localStorage ↔ cookie ↔ IndexedDB).
+  SpacioWrite.hydrate();
 
   // expense date: prefer a real date in "Fecha de pedido"; else month heuristic.
   // `resolveYear(m)` (optional) picks a year that actually exists in the report
