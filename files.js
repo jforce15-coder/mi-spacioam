@@ -61,6 +61,31 @@
       return byProp || byOwner || null; // a nivel propiedad, el del socio también cubre
     },
 
+    // como coverage pero, si no hay archivo para ese mes exacto, devuelve el más
+    // reciente de esa propiedad/socio (para que el comprobante siempre sea visible
+    // aunque el admin esté viendo otro período).
+    coverageLatest: function (kind, opts) {
+      var exact = this.coverage(kind, opts);
+      if (exact) return exact;
+      var ownerN = norm(opts.owner), propN = norm(opts.property_name);
+      var best = null;
+      this.records().forEach(function (r) {
+        if (r.tipo !== kind) return;
+        var hit = (r.scope === "owner" && ownerN && norm(r.owner) === ownerN) ||
+                  (r.scope === "property" && propN && norm(r.property_name) === propN);
+        if (!hit) return;
+        if (!best || String(r.ym) > String(best.ym)) best = r;
+      });
+      return best;
+    },
+
+    // lista todos los archivos de un tipo (p.ej. "deposito"), ordenados por mes desc.
+    list: function (kind) {
+      return this.records()
+        .filter(function (r) { return r.tipo === kind; })
+        .sort(function (a, b) { return String(b.ym).localeCompare(String(a.ym)); });
+    },
+
     // sube un archivo; resuelve con el registro creado
     upload: async function (params) {
       // params: { kind, scope, owner, property_name, ym, file }
@@ -68,6 +93,8 @@
         tipo: params.kind, scope: params.scope || "property",
         owner: params.owner || "", property_name: params.scope === "owner" ? "" : (params.property_name || ""),
         ym: params.ym, archivo: "", url: "", local: true, ts: Date.now(),
+        // metadatos opcionales para mostrar en listas (depósitos: monto, cuenta, fecha)
+        monto: params.monto != null ? params.monto : "", cuenta: params.cuenta || "", fecha: params.fecha || "",
       };
       var backend = window.SpacioWrite && window.SpacioWrite.enabled && window.SpacioWrite.enabled();
       if (backend) {

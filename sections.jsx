@@ -827,7 +827,7 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
     setBusy("save"); setMsg("");
     let ok = 0, monUpd = 0;
     for (const d of ready) {
-      const r = await SF.upload({ kind: "deposito", scope: "property", property_name: d.property_name, ym: ymOfDay(d.day), file: d.file });
+      const r = await SF.upload({ kind: "deposito", scope: "property", property_name: d.property_name, ym: ymOfDay(d.day), file: d.file, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day });
       if (r && r.ok) ok++;
       // registra el depósito (con número de cuenta) en la hoja de depósitos a socios
       if (window.SpacioWrite && window.SpacioWrite.enabled()) {
@@ -901,6 +901,41 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
   );
 }
 
+// ---- Admin: lista visible de TODOS los comprobantes de depósito cargados ----
+// Independiente del período y de la liquidación, para que siempre se puedan ver
+// y descargar (incluye los subidos en lote). Lee de SpacioFiles.list("deposito").
+function UploadedDepositsList({ lang, t }) {
+  useFilesTick();
+  const SF = window.SpacioFiles;
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const deps = SF ? SF.list("deposito") : [];
+  if (!deps.length) return null;
+  const monthLabel = (ym) => { const m = String(ym || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (ym || ""); };
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Comprobantes cargados", "Uploaded receipts")}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}>· {deps.length}</span>
+      </div>
+      <div className="sa-uplist">
+        {deps.map((r, i) => (
+          <div className="sa-uplist-row" key={i}>
+            <span className="sa-uplist-ic"><Icon name="file" size={15} stroke="var(--ink)" /></span>
+            <div className="sa-uplist-main">
+              <span className="sa-uplist-prop">{r.property_name || (r.owner ? (tr("Socio: ", "Owner: ") + r.owner) : tr("(sin propiedad)", "(no property)"))}</span>
+              <span className="sa-uplist-meta">{monthLabel(r.ym)}{r.monto ? " · " + (r.cuenta ? "" : "") + "Q " + Number(r.monto).toLocaleString("en-US") : ""}{r.cuenta ? " · " + tr("cta. ", "acct. ") + r.cuenta : ""}</span>
+            </div>
+            {r.url
+              ? <a className="sa-file-btn ghost" style={{ padding: "7px 13px", fontSize: 11 }} href={r.url} target="_blank" rel="noreferrer"><Icon name="download" size={13} stroke="var(--ink)" />{tr("Ver", "View")}</a>
+              : <span className="sa-uplist-pending">{r.sessionOnly ? tr("solo esta sesión", "this session only") : tr("sin enlace", "no link")}</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ---- Admin: Owner deposits — one table per currency, by owner or by property ----
 const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   const [view, setView] = useState("owner");
@@ -924,7 +959,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     const scope = view === "owner" ? "owner" : "property";
     const acc = (SpacioData.owners || []).find(o => o.code === g.owner || (o.codes && o.codes.includes(g.owner)));
     const ownerLabel = acc ? (acc.name || acc.code) : g.owner;
-    return SF.coverage("deposito", { scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym });
+    return SF.coverageLatest("deposito", { scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym });
   };
   // currency conversion to the property's OWN moneda
   const conv = (usd, moneda) => moneda === "GTQ" ? usd * SpacioI18n.GTQ_RATE : usd;
@@ -962,6 +997,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
         right={<Segmented size="sm" value={view} onChange={setView}
           options={[{ value: "owner", label: t("dep_by_owner") }, { value: "prop", label: t("dep_by_prop") }]} />} />
       <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />
+      <UploadedDepositsList lang={lang} t={t} />
       {monedas.map(mon => {
         const rs = rows.filter(r => r.moneda === mon);
         const groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
@@ -1024,4 +1060,4 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   );
 };
 
-Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload });
+Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList });
