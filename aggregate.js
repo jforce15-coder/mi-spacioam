@@ -26,6 +26,7 @@
 
   // combine several properties into one synthetic monthly series (aligned by index)
   function combineMonths(props) {
+    if (!props || !props.length) return [];
     const n = props[0].months.length;
     const out = [];
     for (let i = 0; i < n; i++) {

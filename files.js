@@ -155,6 +155,10 @@
         tipo: params.kind, scope: params.scope || "property",
         owner: params.owner || "", property_name: params.scope === "owner" ? "" : (params.property_name || ""),
         ym: params.ym, archivo: "", url: "", local: true, ts: Date.now(),
+        // gasto específico al que pertenece la factura (orderId de insumos & gastos)
+        orderId: params.orderId || "",
+        // cuenta bancaria (estados de cuenta de Contabilidad)
+        account: params.account || "",
         // metadatos opcionales para mostrar en listas (depósitos: monto, cuenta, fecha)
         monto: params.monto != null ? params.monto : "", cuenta: params.cuenta || "", fecha: params.fecha || "",
       };
@@ -164,6 +168,7 @@
         var res = await window.SpacioWrite.post("uploadFile", {
           kind: params.kind, scope: rec.scope, owner: rec.owner,
           property_name: params.property_name || "", mes: params.ym, multiple: multiple, fid: fid,
+          orderId: params.orderId || "", account: params.account || "",
           fileName: params.file.name, mimeType: params.file.type, dataBase64: b64,
         });
         if (res && res.ok) {

@@ -3,7 +3,7 @@
 // ============================================================
 
 // ---- Top bar ----
-const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, invoiceAlert, onAlertClick, onLogout, t }) => {
+const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t }) => {
   const [menu, setMenu] = useState(false);
   const mref = useRef(null);
   useEffect(() => {
@@ -21,7 +21,7 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
           {!hidePropSelect && propOptions.length > 1 && (
             <Select icon="home" value={selProp} onChange={setSelProp} options={propOptions} minWidth={220} />
           )}
-          <PeriodPicker period={period} setPeriod={setPeriod} months={months} periodText={periodText} t={t} lang={lang} />
+          <PeriodPicker period={period} setPeriod={setPeriod} months={months} periodText={periodText} t={t} lang={lang} hide={hidePeriod} />
           {invoiceAlert && invoiceAlert.level >= 3 && (
             <button className="sa-topalert" onClick={onAlertClick} title={t("liq_overdue_3")}>
               <Icon name="alert" size={14} stroke="var(--alabaster)" />
@@ -257,7 +257,8 @@ const Row = ({ k, v }) => (
 );
 
 // ---- Period picker: "Vista rápida" presets vs "Mes específico" (mes + año) ----
-const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang }) => {
+const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang, hide }) => {
+  if (hide) return null;
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {

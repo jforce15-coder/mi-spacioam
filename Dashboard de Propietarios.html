@@ -350,6 +350,19 @@
     .sa-topbar-controls > div > button { width: 100%; justify-content: space-between; }
   }
   @media (min-width: 760px) { .sa-only-mobile { display: none; } }
+
+  /* ---------- Contabilidad ---------- */
+  .conta-table { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 12.5px; }
+  .conta-table th { text-align: left; text-transform: uppercase; letter-spacing: 0.1em; font-size: 9.5px; font-weight: 600;
+    color: var(--earth); padding: 11px 14px; border-bottom: 1px solid var(--warm-grey); white-space: nowrap; background: var(--alabaster); }
+  .conta-table td { padding: 9px 14px; border-bottom: 1px solid var(--ink-08); color: var(--ink); vertical-align: middle; letter-spacing: 0.01em; }
+  .conta-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .conta-table tbody tr:hover { background: var(--beige-soft); }
+  .conta-table tr.pend td { background: var(--peach-12); }
+  .conta-table tr.pend:hover td { background: rgba(233,130,106,0.18); }
+  .conta-dl-item { display: flex; align-items: center; gap: 10px; width: 100%; border: none; background: transparent; cursor: pointer;
+    padding: 13px 16px; font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.03em; color: var(--ink); text-align: left; transition: background .14s var(--ease); }
+  .conta-dl-item:hover { background: var(--beige-soft); }
 </style>
 </head>
 <body>
@@ -371,6 +384,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }</script>
   <script src="pedidosya-parse.js"></script>
+  <script src="conta-data.js"></script>
+  <script src="conta-parse.js"></script>
+  <script src="conta-store.js"></script>
+  <script src="conta-export.js"></script>
+  <script src="conta-sample.js"></script>
+  <script src="conta-pdfs.js"></script>
   <script type="text/babel" src="ui.jsx"></script>
   <script type="text/babel" src="charts.jsx"></script>
   <script type="text/babel" src="login.jsx"></script>
@@ -378,6 +397,7 @@
   <script type="text/babel" src="pedidosya.jsx"></script>
   <script type="text/babel" src="dashboard.jsx"></script>
   <script type="text/babel" src="sections.jsx"></script>
+  <script type="text/babel" src="conta.jsx"></script>
 
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
@@ -386,6 +406,7 @@
 
     function Dashboard({ owner, lang, setLang, currency, setCurrency, onLogout, onUpdateOwner }) {
       const isAdmin = !!owner.isAdmin;
+      const isContador = !!owner.isContador;
       const allOwnerProps = SpacioData.ownerProps(owner);
       const [adminZona, setAdminZona] = useState("all");
       const [adminEdificio, setAdminEdificio] = useState("all");
@@ -399,7 +420,7 @@
       const single = props.length === 1;
       const [selProp, setSelProp] = useState(single ? props[0].id : "all");
       const [period, setPeriod] = useState("current");
-      const [tab, setTab] = useState(() => { try { return new URLSearchParams(location.search).get("tab") || "dashboard"; } catch (e) { return "dashboard"; } });
+      const [tab, setTab] = useState(() => { if (owner.isContador) return "conta"; try { return new URLSearchParams(location.search).get("tab") || "dashboard"; } catch (e) { return "dashboard"; } });
 
       const t = (k) => SpacioI18n.t(lang, k);
       const fmt = {
@@ -460,11 +481,14 @@
         { value: "m12", label: t("p_12m") },
       ].concat(monthOpts);
 
-      const tabs = isAdmin ? [
+      const tabs = isContador ? [
+        { id: "conta", icon: "bank", label: t("nav_conta") },
+      ] : isAdmin ? [
         { id: "dashboard", icon: "home", label: t("nav_dashboard") },
         { id: "expenses", icon: "coins", label: t("nav_expenses") },
         { id: "report", icon: "file", label: t("nav_report") },
         { id: "deposits", icon: "coins", label: t("nav_deposits") },
+        { id: "conta", icon: "bank", label: t("nav_conta") },
         { id: "setup", icon: "grid", label: t("nav_setup") },
       ] : [
         { id: "dashboard", icon: "home", label: t("nav_dashboard") },
@@ -478,8 +502,8 @@
         <div>
           <TopBar owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency}
             propOptions={propOptions} selProp={effSelProp} setSelProp={setSelProp} period={period} setPeriod={setPeriod}
-            months={months} periodText={periodText} hidePropSelect={isAdmin}
-            invoiceAlert={(tab === "dashboard" && !isAdmin) ? invAlert : null} onAlertClick={scrollToLiq}
+            months={months} periodText={periodText} hidePropSelect={isAdmin || isContador} hidePeriod={isContador}
+            invoiceAlert={(tab === "dashboard" && !isAdmin && !isContador) ? invAlert : null} onAlertClick={scrollToLiq}
             onLogout={onLogout} t={t} />
 
           <div className="sa-tabs-bar">
@@ -493,17 +517,17 @@
           </div>
 
           <div className="sa-wrap">
-            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && (
+            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && (
               <AdminFilters allProps={allOwnerProps} owner={adminOwner} setOwner={setAdminOwner} zona={adminZona} setZona={setAdminZona}
                 edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={effSelProp} setSelProp={setSelProp} t={t} lang={lang} />
             )}
             <div className="sa-pagehead">
               <div>
-                <Eyebrow style={{ marginBottom: 12 }}>{isAdmin ? t("admin_badge") : t("greeting") + ", " + owner.name}</Eyebrow>
+                <Eyebrow style={{ marginBottom: 12 }}>{isContador ? t("conta_badge") : isAdmin ? t("admin_badge") : t("greeting") + ", " + owner.name}</Eyebrow>
                 <h1 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "clamp(28px,4.4vw,46px)", letterSpacing: "-0.015em", lineHeight: 1.04, margin: 0, color: "var(--ink)" }}>
-                  {isAll ? (isAdmin ? "Spacio AM" : (lang === "es" ? "Tu portafolio" : "Your portfolio")) : property.name}
+                  {isContador ? "Contabilidad" : isAll ? (isAdmin ? "Spacio AM" : (lang === "es" ? "Tu portafolio" : "Your portfolio")) : property.name}
                 </h1>
-                {tab !== "account" && (
+                {tab !== "account" && !isContador && (
                   <div className="sa-period-chip">
                     <Icon name="calendar" size={13} stroke="var(--earth)" />
                     <span>{t("period_showing")}</span><strong>{periodText}</strong>
@@ -559,6 +583,10 @@
 
             {tab === "deposits" && isAdmin && (
               <DepositsSection allProps={allOwnerProps} pdata={pdata} period={period} fmt={fmt} t={t} lang={lang} />
+            )}
+
+            {tab === "conta" && (isAdmin || isContador) && (
+              <ContabilidadSection owner={owner} isAdmin={isAdmin} isContador={isContador} lang={lang} t={t} />
             )}
 
             <footer style={{ marginTop: 64, paddingTop: 26, borderTop: "1px solid var(--warm-grey)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
@@ -625,9 +653,10 @@
       const SESSION_KEY = "sa-session";
       const SESSION_TTL = 30 * 24 * 60 * 60 * 1000; // 30 días
       const saveSession = (o) => {
-        try { localStorage.setItem(SESSION_KEY, JSON.stringify({ code: o.code, isAdmin: !!o.isAdmin, ts: Date.now() })); } catch (e) {}
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify({ code: o.code, isAdmin: !!o.isAdmin, isContador: !!o.isContador, ts: Date.now() })); } catch (e) {}
       };
-      const resolveOwner = (code, isAdmin) => {
+      const resolveOwner = (code, isAdmin, isContador) => {
+        if (isContador && SpacioData.contador) return Object.assign({}, SpacioData.contador);
         if (isAdmin && SpacioData.admin) return Object.assign({}, SpacioData.admin);
         const acc = SpacioData.owners.find(x => x.code === code || (x.codes && x.codes.includes(code)));
         return acc ? Object.assign({}, acc, SpacioData.effCreds(acc)) : null;
@@ -648,6 +677,7 @@
               let o = SpacioData.auth(u, "spacioam") || SpacioData.auth(u, "Valencia2026!");
               if (!o) { const acc = SpacioData.owners.find(x => (x.codes && x.codes.includes(u)) || x.code === u); if (acc) o = Object.assign({}, acc, SpacioData.effCreds(acc)); }
               if (!o && (u === "admin" || /spacioam@gmail/i.test(u))) o = Object.assign({}, SpacioData.admin);
+              if (!o && (u === "contador" || u === "contabilidad")) o = Object.assign({}, SpacioData.contador);
               if (o) { setOwner(o); return; }
             }
             // 2) restore a saved session (until logout / expiry)
@@ -655,7 +685,7 @@
             if (raw) {
               const s = JSON.parse(raw);
               if (s && s.ts && (Date.now() - s.ts) < SESSION_TTL) {
-                const o = resolveOwner(s.code, s.isAdmin);
+                const o = resolveOwner(s.code, s.isAdmin, s.isContador);
                 if (o) { setOwnerState(o); saveSession(o); }
               } else { localStorage.removeItem(SESSION_KEY); }
             }

@@ -519,7 +519,7 @@ function PyaDepositPanel({ lang, propOptions }) {
       try { const r = await T.recognize(url, "spa"); text = r.data.text || ""; } catch (e) { text = ""; }
       const info = P.extractDeposit(text, f.name);
       const guess = P.matchProperty(text + " " + f.name, names);
-      const rec = { id: "d" + Date.now() + "-" + i, sig, url, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "Depósito a socio", comentario: "" };
+      const rec = { id: "d" + Date.now() + "-" + i, sig, url, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "Depósito a socio", comentario: "", cuenta: info.cuenta || "", moneda: info.moneda || "" };
       setProgress(Math.round(((i + 1) / imgs.length) * 100));
       setDeps(prev => prev.concat(rec));
     }
@@ -534,13 +534,15 @@ function PyaDepositPanel({ lang, propOptions }) {
   const save = async () => {
     if (!ready.length) return;
     setBusy("save"); setMsg("");
-    const rows = ready.map(d => ({ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, categoria: d.categoria || "Depósito a socio", Comentario: d.comentario || (es ? "Depósito bancario" : "Bank deposit"), archivo: d.fileName }));
+    const rows = ready.map(d => ({ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: d.categoria || "Depósito a socio", Comentario: d.comentario || (es ? "Depósito bancario" : "Bank deposit"), archivo: d.fileName }));
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
       const res = await window.SpacioWrite.post("appendDeposito", { rows });
+      // actualiza moneda en SETUP para las que se detectó
+      for (const d of ready) { if ((d.moneda === "USD" || d.moneda === "GTQ") && d.property_name) { try { await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda }); } catch (e) {} } }
       if (res && res.ok) { pyaDepAdd(ready.map(d => d.sig)); setMsg(tr("Listo · " + (res.added != null ? res.added : rows.length) + " depósitos registrados." + (res.skipped ? " " + res.skipped + " ya existían." : ""), "Done · " + (res.added != null ? res.added : rows.length) + " deposits recorded." + (res.skipped ? " " + res.skipped + " already existed." : ""))); setDeps(ds => ds.filter(d => !ready.includes(d))); }
       else setMsg(tr("No se pudo escribir: " + ((res && res.error) || "sin conexión") + ".", "Could not write: " + ((res && res.error) || "offline") + "."));
     } else {
-      const header = ["Fecha", "monto", "property_name", "categoria", "Comentario", "archivo"];
+      const header = ["Fecha", "monto", "property_name", "cuenta", "categoria", "Comentario", "archivo"];
       const lines2 = [header.join("\t")].concat(rows.map(o => header.map(h => o[h]).join("\t")));
       const blob = new Blob([lines2.join("\n")], { type: "text/tab-separated-values" });
       const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "depositos.tsv"; a.click();
@@ -689,14 +691,30 @@ function PyaManagePanel({ lang, propOptions, active }) {
   const uploadFactura = async (r, file) => {
     if (!window.SpacioFiles) return;
     setBusy("up-" + r.orderId);
-    await window.SpacioFiles.upload({ kind: "soporte", scope: "property", property_name: r.property_name, ym: ymOfRow(r) || (r.mes || ""), file });
-    setBusy(""); setMsg(tr("Factura adjuntada al gasto.", "Invoice attached to the expense."));
+    await window.SpacioFiles.upload({ kind: "soporte", scope: "property", property_name: r.property_name, ym: ymOfRow(r) || (r.mes || ""), file, orderId: r.orderId || "", multiple: true });
+    setBusy(""); setMsg(tr("Factura adjuntada al gasto. El socio ya puede verla en Gastos e inversiones.", "Invoice attached to the expense. The owner can now see it under Expenses."));
   };
 
   const visible = (rows || []).filter(r => {
     const s = q.trim().toLowerCase(); if (!s) return true;
     return [r.property_name, r.fecha, r.valor, r.categoria, r.tag, r.comentario].filter(Boolean).join(" ").toLowerCase().indexOf(s) > -1;
   });
+
+  // limpieza one-shot: quita el sufijo "· (aplicado a N)" de comentarios ya guardados
+  const APLICADO_RE = /\s*[·\-–—]?\s*\(aplicado a \d+\)\s*$/i;
+  const dirty = (rows || []).filter(r => r.orderId && APLICADO_RE.test(r.comentario || ""));
+  const cleanAplicado = async () => {
+    if (!window.SpacioWrite || !window.SpacioWrite.enabled()) { setMsg(tr("Conecta el backend (Setup → Conexión de escritura) para limpiar los comentarios.", "Connect the backend (Setup → Write connection) to clean the comments.")); return; }
+    if (!window.confirm(tr("¿Quitar “(aplicado a N)” de " + dirty.length + " comentarios guardados? No se puede deshacer.", "Remove “(applied to N)” from " + dirty.length + " saved comments? This can't be undone."))) return;
+    setBusy("clean");
+    let n = 0;
+    for (const r of dirty) {
+      const clean = (r.comentario || "").replace(APLICADO_RE, "").trim();
+      const res = await window.SpacioWrite.post("updateInsumo", { orderId: r.orderId, Comentario: clean });
+      if (res && res.ok) { n++; setRows(rs => rs.map(x => x.orderId === r.orderId ? Object.assign({}, x, { comentario: clean }) : x)); }
+    }
+    setBusy(""); setMsg(tr(n + " comentario(s) limpiado(s) en la hoja.", n + " comment(s) cleaned in the sheet."));
+  };
 
   return (
     <div style={{ marginTop: 20 }}>
@@ -709,6 +727,12 @@ function PyaManagePanel({ lang, propOptions, active }) {
           {busy === "load" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="arrowUpRight" size={14} stroke="var(--earth)" />}
           {tr("Actualizar", "Refresh")}
         </button>
+        {dirty.length > 0 && (
+          <button className="pya-btn pya-btn-ghost" onClick={cleanAplicado} disabled={busy === "clean"} title={tr("Quita el sufijo “(aplicado a N)” del comentario de los gastos ya guardados", "Removes the “(applied to N)” suffix from saved expense comments")}>
+            {busy === "clean" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="pencil" size={14} stroke="var(--earth)" />}
+            {tr("Limpiar “(aplicado a…)” · " + dirty.length, "Clean “(applied to…)” · " + dirty.length)}
+          </button>
+        )}
       </div>
 
       {rows === null

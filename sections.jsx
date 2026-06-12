@@ -190,6 +190,17 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const [editExp, setEditExp] = useState(null);   // expense being edited (admin)
   const [expMsg, setExpMsg] = useState("");
   const [localPatch, setLocalPatch] = useState({}); // orderId -> {field overrides} | "__deleted__"
+  // facturas adjuntadas a mano (tipo "soporte" en Archivos cargados) → botón "Ver factura"
+  useFilesTick();
+  const soportes = (window.SpacioFiles ? window.SpacioFiles.records() : []).filter(f => f.tipo === "soporte" && f.url);
+  const normProp = (s) => String(s || "").toLowerCase().replace(/\s+/g, "").replace(/[–—]/g, "-");
+  const soporteFor = (r) => {
+    if (!soportes.length) return null;
+    if (r.orderId) { const exact = soportes.find(f => f.orderId && String(f.orderId) === String(r.orderId)); if (exact) return exact; }
+    if (r.y == null || r.m == null) return null;
+    const ym = r.y + "-" + String(r.m + 1).padStart(2, "0");
+    return soportes.find(f => !f.orderId && f.ym === ym && normProp(f.property_name) === normProp(r._prop)) || null;
+  };
   const sliceMonths = pdata.slice.length ? pdata.slice : pdata.hist.months.slice(-3);
   const allRowsRaw = SpacioAgg.collectRows(activeProps, sliceMonths, "expenses");
   // aplica ediciones/eliminaciones locales (optimista; la hoja se relee al refrescar)
@@ -263,12 +274,18 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
       triggerRecalc();
     } else setExpMsg(lang === "es" ? "Eliminado localmente (conecta el backend)." : "Deleted locally (connect backend).");
   };
-  // group line items by their real category string
-  const groups = {};
-  rows.forEach(r => { const k = r.category || "Otros"; (groups[k] = groups[k] || []).push(r); });
-  const groupKeys = Object.keys(groups).sort((a, b) => groups[b].reduce((s, r) => s + r.amount, 0) - groups[a].reduce((s, r) => s + r.amount, 0));
+  // agrupación: por propiedad (si hay varias) y por categoría adentro
   const iconFor = (k) => /repar|manten/i.test(k) ? "wrench" : /invers|mejora|mueble/i.test(k) ? "sofa" : "coins";
   const monthName = (r) => SpacioI18n.monthLong(lang, r.m);
+  const catGroups = (rs) => {
+    const g = {};
+    rs.forEach(r => { const k = r.category || "Otros"; (g[k] = g[k] || []).push(r); });
+    return Object.keys(g).sort((a, b) => g[b].reduce((s, r) => s + r.amount, 0) - g[a].reduce((s, r) => s + r.amount, 0)).map(k => [k, g[k]]);
+  };
+  const byProp = {};
+  rows.forEach(r => { const k = r._prop || "\u2014"; (byProp[k] = byProp[k] || []).push(r); });
+  const propKeys = Object.keys(byProp).sort((a, b) => byProp[b].reduce((s, r) => s + r.amount, 0) - byProp[a].reduce((s, r) => s + r.amount, 0));
+  const multiProp = activeProps.length > 1 && propKeys.length > 1;
   return (
     <section id="sec-expenses" className="sa-section">
       <SectionHead eyebrow={t("sec_expenses")} title={t("exp_title")} sub={t("exp_sub")}
@@ -284,16 +301,27 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
         </p>
       )}
       <Card pad={0}>
-        {groupKeys.length === 0 && (
+        {rows.length === 0 && (
           <div style={{ padding: "40px 24px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.04em", color: "var(--earth)" }}>
             {lang === "es" ? "No hay gastos registrados en este período." : "No expenses recorded for this period."}
           </div>
         )}
-        {groupKeys.map((k, gi) => {
-          const items = groups[k].sort((a, b) => (b.y - a.y) || (b.m - a.m) || (b.day - a.day));
+        {propKeys.map((pk, pi) => (
+          <div key={pk}>
+            {multiProp && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "16px 20px", background: "var(--beige-soft)", borderTop: pi ? "1px solid var(--warm-grey)" : "none" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--peach)" }}></span>
+                  <span style={{ fontFamily: "var(--serif)", fontSize: 16.5, color: "var(--ink)" }}>{pk}</span>
+                </span>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{money(byProp[pk].reduce((s, r) => s + r.amount, 0))}</span>
+              </div>
+            )}
+            {catGroups(byProp[pk]).map(([k, items0], gi) => {
+          const items = items0.slice().sort((a, b) => (b.y - a.y) || (b.m - a.m) || (b.day - a.day));
           const sub = items.reduce((a, r) => a + r.amount, 0);
           return (
-            <div key={k} style={{ borderTop: gi ? "1px solid var(--warm-grey)" : "none" }}>
+            <div key={k} style={{ borderTop: (gi || pi || multiProp) ? "1px solid var(--warm-grey)" : "none" }}>
               <div className="sa-exp-grouphead">
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 11 }}>
                   <span className="sa-exp-ic"><Icon name={iconFor(k)} size={16} stroke="var(--ink)" /></span>
@@ -306,14 +334,19 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                   <span className="sa-exp-date">{r.day} {monthName(r).slice(0, 3)}</span>
                   <span className="sa-exp-desc">
                     {r.desc}
-                    {activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--earth)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
+                    {!multiProp && activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--earth)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
                     {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--peach)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
-                    {(r.orderUrl || r.authProductos || r.authTarifa) && (
+                    {(r.orderUrl || r.authProductos || r.authTarifa) ? (
                       <button onClick={() => setInvBox({ orderUrl: r.orderUrl, authProductos: r.authProductos, authTarifa: r.authTarifa, desc: r.desc, vendor: r.desc })}
                         style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle" }}>
                         <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver factura" : "View invoice"}
                       </button>
-                    )}
+                    ) : (soporteFor(r) ? (
+                      <a href={soporteFor(r).url} target="_blank" rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle", textDecoration: "none" }}>
+                        <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver factura" : "View invoice"}
+                      </a>
+                    ) : null)}
                     {isAdmin && (
                       <span style={{ display: "inline-flex", gap: 4, marginLeft: 8, verticalAlign: "middle" }}>
                         <button title={lang === "es" ? "Editar" : "Edit"} onClick={() => setEditExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--earth)" }}><Icon name="pencil" size={12} stroke="currentColor" /></button>
@@ -326,7 +359,9 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
               ))}
             </div>
           );
-        })}
+            })}
+          </div>
+        ))}
         {expMsg && (
           <div style={{ padding: "12px 20px", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", borderTop: "1px solid var(--warm-grey)" }}>{expMsg}</div>
         )}
@@ -360,7 +395,8 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
   const sum = (k) => reservations.reduce((a, r) => a + (r[k] || 0), 0);
   const totalNights = sum("nights");
 
-  if (!reservations.length) {
+  const hasSummary = !!(monthObj && monthObj.present);
+  if (!reservations.length && !hasSummary) {
     return (
       <Card pad={28} style={{ marginBottom: 18 }}>
         <ReporteHead property={property} ymLabel={ymLabel} lang={lang} />
@@ -379,7 +415,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
       </div>
     );
   };
-  const ptCleaning = sum("cleaningFee"), ptIva = M.ivaTotal || sum("iva");
+  const ptCleaning = reservations.length ? sum("cleaningFee") : (M.cleaningFee || 0), ptIva = M.ivaTotal || sum("iva");
 
   return (
     <Card pad={0} style={{ marginBottom: 18, overflow: "hidden" }}>
@@ -391,15 +427,26 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
             <span className="sa-rf-lbl">{t("col_dates")}</span><span className="sa-rf-n">{t("col_nights")}</span>
             <span className="sa-rf-v">USD</span><span className="sa-rf-v">GTQ</span>
           </div>
-          {perStay(t("row_ingresos"), "ingresos", { nights: true })}
-          {perStay(t("row_fee_plat"), "feePlataforma")}
-          {perStay(t("row_ingreso_bruto"), "ingresoBruto", { bold: true })}
+          {reservations.length ? (
+            <React.Fragment>
+              {perStay(t("row_ingresos"), "ingresos", { nights: true })}
+              {perStay(t("row_fee_plat"), "feePlataforma")}
+              {perStay(t("row_ingreso_bruto"), "ingresoBruto", { bold: true })}
+            </React.Fragment>
+          ) : (
+            <div className="sa-rf-block">
+              <StatementRow label={t("row_ingreso_bruto")} nights={M.nochesReservadas || null} usd={M.ingresoBruto} n2={n2} rate={rate} kind="strong" />
+              <p style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "10px 0 0" }}>
+                {lang === "es" ? "El detalle por estadía de este mes aún no está disponible; mostramos el consolidado oficial." : "Per-stay detail isn't available for this month yet; showing the official consolidated figures."}
+              </p>
+            </div>
+          )}
           {/* consolidated deductions (from Resumenconsolidado) */}
           <div className="sa-rf-block">
             <StatementRow label={t("row_fee_spacio")} usd={M.fee} n2={n2} rate={rate} kind="line" />
             <StatementRow label={t("row_insumos")} usd={M.insumos} n2={n2} rate={rate} kind="line" />
             <StatementRow label={t("row_reparaciones")} usd={M.reparaciones} n2={n2} rate={rate} kind="line" />
-            {property.flagOtroIngreso && <StatementRow label={t("row_otros")} usd={M.otrosIngresos2} n2={n2} rate={rate} kind="line" />}
+            {(property.flagOtroIngreso || Math.abs(M.otrosIngresos2 || 0) > 0.005) && <StatementRow label={t("row_otros")} usd={M.otrosIngresos2} n2={n2} rate={rate} kind="line" />}
             {property.flagIva && <StatementRow label={t("row_iva_socio")} usd={M.ivaSocios} n2={n2} rate={rate} kind="line" />}
             <StatementRow label={t("row_ingreso_neto")} usd={M.ingresoNeto} n2={n2} rate={rate} kind="strong" />
             {property.flagRetencion && <StatementRow label={t("row_retencion")} usd={M.retencion} n2={n2} rate={rate} kind="line" />}
@@ -412,14 +459,16 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
               <Icon name="info" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} />
               <p>{t("passthrough_note")}</p>
             </div>
-            <button className="sa-rf-pt-toggle" onClick={() => setShowPT(s => !s)}>
-              <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>{t("passthrough_title")}</span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", color: "var(--ink)" }}>
-                {showPT ? t("hide_detail") : t("show_detail")}
-                <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: showPT ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
-              </span>
-            </button>
-            {showPT ? (
+            {reservations.length > 0 && (
+              <button className="sa-rf-pt-toggle" onClick={() => setShowPT(s => !s)}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>{t("passthrough_title")}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", color: "var(--ink)" }}>
+                  {showPT ? t("hide_detail") : t("show_detail")}
+                  <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: showPT ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
+                </span>
+              </button>
+            )}
+            {showPT && reservations.length > 0 ? (
               <React.Fragment>
                 {perStay(t("row_cleaning"), "cleaningFee")}
                 {perStay(t("row_iva"), "iva")}
@@ -445,7 +494,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
           </div>
           <div className="sa-rf-sidecard sa-rf-sidecard-soft">
             <div className="sa-rf-side-lbl">{t("kpi_stays")}</div>
-            <div className="sa-rf-side-val">{reservations.length}</div>
+            <div className="sa-rf-side-val">{reservations.length || M.estadias || 0}</div>
             <div className="sa-rf-side-sub">{totalNights} {t("nights_unit")}</div>
           </div>
         </div>

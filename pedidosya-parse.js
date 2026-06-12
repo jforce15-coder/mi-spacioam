@@ -517,7 +517,7 @@
       property_name: name,
       valor: each,
       categoria: entry.categoria || "Reparaciones o inversión",
-      Comentario: (entry.comentario || "") + (ps.length > 1 ? (split ? " · (compartido ÷" + ps.length + ")" : " · (aplicado a " + ps.length + ")") : ""),
+      Comentario: (entry.comentario || "") + (ps.length > 1 && split ? " · (compartido ÷" + ps.length + ")" : ""),
       tag: entry.tag || "",
       orderId: "MAN-" + (entry.day || "") + "-" + Math.random().toString(36).slice(2, 7) + "-" + i,
       orderUrl: "", authProductos: "", authTarifa: "",

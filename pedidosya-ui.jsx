@@ -193,21 +193,40 @@ textarea.pya-input { resize: vertical; min-height: 64px; }
 function PyaMini({ value, options, onChange, placeholder, search }) {
   const [open, setOpen] = pyaUseState(false);
   const [q, setQ] = pyaUseState("");
+  const [pos, setPos] = pyaUseState(null); // {left, top, width} en coords de viewport
   const ref = pyaUseRef(null);
+  const btnRef = pyaUseRef(null);
   pyaUseEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, []);
+  // ancla el popup al botón con position:fixed para escapar del overflow del scroll
+  const place = () => {
+    const b = btnRef.current; if (!b) return;
+    const r = b.getBoundingClientRect();
+    const W = Math.max(r.width, 200);
+    const spaceBelow = window.innerHeight - r.bottom;
+    const openUp = spaceBelow < 240 && r.top > spaceBelow;
+    let left = r.left; if (left + W > window.innerWidth - 8) left = window.innerWidth - 8 - W;
+    setPos({ left: Math.max(8, left), top: openUp ? null : r.bottom + 5, bottom: openUp ? (window.innerHeight - r.top + 5) : null, width: W });
+  };
+  pyaUseEffect(() => {
+    if (!open) return;
+    place();
+    const onScroll = () => place();
+    window.addEventListener("scroll", onScroll, true); window.addEventListener("resize", onScroll);
+    return () => { window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", onScroll); };
+  }, [open]);
   const cur = options.find(o => o.value === value);
   const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options;
   return (
     <div className="pya-mini" ref={ref}>
-      <button className={"pya-mini-btn" + (cur ? "" : " empty")} onClick={() => setOpen(o => !o)}>
+      <button ref={btnRef} className={"pya-mini-btn" + (cur ? "" : " empty")} onClick={() => setOpen(o => !o)}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cur ? cur.label : (placeholder || "—")}</span>
         <Icon name="chevronDown" size={13} stroke="var(--earth)" style={{ flexShrink: 0, transform: open ? "rotate(180deg)" : "none", transition: "transform .16s var(--ease)" }} />
       </button>
-      {open && (
-        <div className="pya-mini-pop">
+      {open && pos && (
+        <div className="pya-mini-pop" style={{ position: "fixed", left: pos.left, top: pos.top != null ? pos.top : "auto", bottom: pos.bottom != null ? pos.bottom : "auto", width: pos.width, minWidth: pos.width }}>
           {search && <input className="pya-mini-search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar…" />}
           {filtered.map(o => (
             <button key={o.value} className={"pya-mini-opt" + (o.value === value ? " on" : "")}

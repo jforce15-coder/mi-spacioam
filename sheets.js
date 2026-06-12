@@ -12,6 +12,14 @@
   const DEMO_PASS = "spacioam";     // contraseña demo única (auth real vive en EPI)
   const ADMIN_EMAIL = "spacioam@gmail.com";
   const ADMIN_PASS = "Valencia2026!";
+  // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad)
+  const CONTADOR_EMAILS = [
+    "pruano@minerva.com.gt",
+    "anasimon@minerva.com.gt",
+    "andreasimon@minerva.com.gt",
+    "",   // 4º correo (futuro): escribe el correo entre las comillas y guarda
+  ].filter(e => e && e.trim());
+  const CONTADOR_PASS = "Contabilidad2026!";
 
   const MONTHS_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -240,13 +248,12 @@
       acc.ocupacionAjustada = acc.available ? acc.nochesReservadas / acc.available : 0;
       acc.ocupacionTotal = acc.totalDays ? acc.nochesReservadas / acc.totalDays : 0;
       acc.otrosDescuentos = Math.max(0, acc.ingresoBruto - acc.ingresoNeto - acc.fee - acc.insumos - acc.reparaciones);
-      // retención (5% sobre base sin IVA) + depósito = neto − retención (solo si la propiedad tiene retención)
-      if (p.flagRetencion) {
-        acc.retencion = (acc.ingresoNeto / 1.12) * 0.05;
-        acc.deposito = acc.netoSheet2 > 0 ? acc.netoSheet2 : (acc.ingresoNeto - acc.retencion);
-      } else {
-        acc.retencion = 0; acc.deposito = acc.netoSheet2 > 0 ? acc.netoSheet2 : acc.ingresoNeto;
-      }
+      // retención: 5% sobre la base sin IVA del neto (solo si la propiedad tiene retención)
+      acc.retencion = p.flagRetencion ? (acc.ingresoNeto / 1.12) * 0.05 : 0;
+      // depósito = lo que realmente se transfiere al socio: (neto − retención) + IVA.
+      // "Ingreso Neto 2" de la hoja (cuando existe) ya es neto − retención.
+      const baseDep = acc.netoSheet2 > 0 ? acc.netoSheet2 : (acc.ingresoNeto - acc.retencion);
+      acc.deposito = baseDep + (acc.ivaSocios || 0);
       p.months[idx] = acc;
     });
 
@@ -307,10 +314,12 @@
       // insumos & gastos line items are recorded in GTQ → convert to USD with TC (property+month)
       const valorGTQ = num(r["valor"]);
       const rate = rateFor(norm(p.name), ed.y, ed.m);
+      // limpia sufijos técnicos del comentario (p.ej. "· (aplicado a 33)")
+      const descClean = ((r["Comentario"] || catRaw).trim() || catRaw || "—").replace(/\s*[·\-–—]?\s*\(aplicado a \d+\)\s*$/i, "").trim();
       p.expenses.push({
         y: ed.y, m: ed.m, day: ed.day,
         catKey: catKey || "otros", category: catRaw || "Otros", billable, tag: tagRaw, adminOnly,
-        desc: (r["Comentario"] || catRaw).trim() || catRaw || "—",
+        desc: descClean || catRaw || "—",
         amount: rate ? valorGTQ / rate : valorGTQ, amountGTQ: valorGTQ, tc: rate,
         orderId: (r["orderId"] || "").trim(), orderUrl: (r["orderUrl"] || "").trim(),
         authProductos: (r["authProductos"] || "").trim(), authTarifa: (r["authTarifa"] || "").trim(),
@@ -353,6 +362,11 @@
       code: "__admin__", codes: ["__admin__"], name: "Spacio AM", isAdmin: true,
       email: ADMIN_EMAIL, pass: ADMIN_PASS, secondaryEmail: "", props: allProps,
     };
+    // cuenta del contador (solo lectura de Contabilidad; 4 correos alternativos)
+    const contador = {
+      code: "__contador__", codes: ["__contador__"], name: "Contador", isContador: true,
+      email: CONTADOR_EMAILS[0], emails: CONTADOR_EMAILS.slice(), pass: CONTADOR_PASS, secondaryEmail: "", props: [],
+    };
 
     // effective credentials apply any locally-saved profile edits (demo persistence)
     function eff(o) {
@@ -368,11 +382,12 @@
 
     return {
       live: true, rate: GTQ_RATE, monthKeys, MONTHS_ES, MONTHS_EN, setupHead: setup.head || [],
-      properties: byId, propertyList: Object.values(propByName), owners, admin,
+      properties: byId, propertyList: Object.values(propByName), owners, admin, contador,
       effCreds: eff,
       auth(login, pass) {
         const L = String(login || "").trim().toLowerCase();
         if (L === ADMIN_EMAIL.toLowerCase() && pass === ADMIN_PASS) return Object.assign({}, admin);
+        if (CONTADOR_EMAILS.some(e => e.toLowerCase() === L) && pass === CONTADOR_PASS) return Object.assign({}, contador);
         for (const o of owners) {
           const e = eff(o);
           const email = (e.email || "").toLowerCase();
@@ -384,6 +399,7 @@
         return null;
       },
       ownerProps(owner) {
+        if (owner && owner.isContador) return [];
         if (owner && owner.isAdmin) return (owner.props || allProps).map(id => byId[id]).filter(Boolean);
         return owner.props.map(id => byId[id]).filter(Boolean);
       },
@@ -550,6 +566,8 @@
         archivo: (r["archivo"] || "").trim(),
         url: (r["url"] || "").trim(),
         cargado: (r["cargado"] || "").trim(),
+        orderId: (r["orderId"] || "").trim(),
+        account: (r["account"] || "").trim(),
       })).filter(r => r.tipo && r.ym);
     } catch (e) { data.files = []; }
     // depósitos registrados en "Depositos cargados" (respaldo visible aunque no
@@ -566,6 +584,19 @@
         archivo: (r["archivo"] || "").trim(),
       })).filter(r => r.property_name && (r.monto || r.fecha));
     } catch (e) { data.depositos = []; }
+    // Contabilidad: movimientos clasificados de estados de cuenta (best effort)
+    try {
+      const conT = await fetchTab("Contabilidad");
+      data.conta = (conT.items || []).map(r => ({
+        ym: (r["ym"] || "").trim(), account: (r["account"] || "").trim(), currency: (r["currency"] || "").trim(),
+        date: (r["date"] || "").trim(), doc: (r["doc"] || "").trim(), desc: (r["desc"] || "").trim(),
+        debit: parseFloat(String(r["debe"] || "").replace(/[^0-9.\-]/g, "")) || 0,
+        credit: parseFloat(String(r["haber"] || "").replace(/[^0-9.\-]/g, "")) || 0,
+        saldo: parseFloat(String(r["saldo"] || "").replace(/[^0-9.\-]/g, "")) || 0,
+        tt: (r["tt"] || "").trim(), tag: (r["tag"] || "").trim(), category: (r["categoria"] || "").trim(),
+        pdfUrl: (r["pdf_url"] || "").trim(), savedAt: (r["savedAt"] || "").trim(),
+      })).filter(r => r.ym && r.account);
+    } catch (e) { data.conta = []; }
     window.SpacioData = data;
     window.__sheets = { setup: setup.items.length, resumen: resumen.items.length, db: dbT.items.length, exp: expT.items.length, tc: tcT.items.length, accounts: data.owners.length, files: (data.files || []).length };
     return data;
