@@ -17,6 +17,9 @@
 
   function getStatement(ym, accId) {
     try { const raw = localStorage.getItem(PREFIX + key(ym, accId)); if (raw) return JSON.parse(raw); } catch (e) {}
+    // clasificación en vivo desde los Google Sheets mensuales (2026)
+    const live = window.SpacioContaLive && window.SpacioContaLive.getStatement(ym, accId);
+    if (live) return live;
     return backendStatement(ym, accId);
   }
 
@@ -36,7 +39,9 @@
     const set = {}; backendRows().forEach(r => { set[r.ym + "|" + r.account] = 1; }); return Object.keys(set);
   }
   function allKeys() {
-    const set = {}; readIndex().forEach(k => set[k] = 1); backendKeys().forEach(k => set[k] = 1); return Object.keys(set);
+    const set = {}; readIndex().forEach(k => set[k] = 1); backendKeys().forEach(k => set[k] = 1);
+    if (window.SpacioContaLive) window.SpacioContaLive.keys().forEach(k => set[k] = 1);
+    return Object.keys(set);
   }
 
   function saveStatement(stmt) {

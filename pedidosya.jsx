@@ -30,6 +30,16 @@ const PYA_LOCAL_KEY = "sa-pya-imported";
 function pyaLocalImported() { try { return new Set(JSON.parse(localStorage.getItem(PYA_LOCAL_KEY)) || []); } catch (e) { return new Set(); } }
 function pyaLocalAdd(ids) { const s = pyaLocalImported(); ids.forEach(id => s.add(String(id))); localStorage.setItem(PYA_LOCAL_KEY, JSON.stringify([...s])); }
 
+// normaliza fechas de la hoja a "yyyy-mm-dd" (acepta dd/mm/yyyy y yyyy-mm-dd)
+function pyaNormFecha(v) {
+  const s = String(v || "").trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+  return s;
+}
+
 // memoria local de depósitos ya guardados (firma archivo|tamaño) para no re-cargarlos
 const PYA_DEP_KEY = "sa-pya-deposits";
 function pyaDepSaved() { try { return new Set(JSON.parse(localStorage.getItem(PYA_DEP_KEY)) || []); } catch (e) { return new Set(); } }
@@ -57,6 +67,7 @@ const PedidosYaImport = ({ lang }) => {
   const tr = (a, b) => (es ? a : b);
   const [mode, setMode] = pyUseState("sat");
   const [imported, setImported] = pyUseState(() => pyaLocalImported());
+  const [sheetExpenses, setSheetExpenses] = pyUseState([]);
 
   pyUseEffect(() => {
     if (!document.getElementById("pya-styles")) {
@@ -74,11 +85,21 @@ const PedidosYaImport = ({ lang }) => {
       const oidCol = head.findIndex(h => h === "orderid" || h === "order id");
       const apCol = head.findIndex(h => h === "authproductos");
       const atCol = head.findIndex(h => h === "authtarifa");
-      const ids = new Set();
+      const fCol = head.findIndex(h => h === "fecha de pedido");
+      const vCol = head.findIndex(h => h === "valor");
+      const cCol = head.findIndex(h => h === "comentario");
+      const ids = new Set(), rows = [];
       for (let i = 1; i < parsed.length; i++) {
         const r = parsed[i];
         [oidCol, apCol, atCol].forEach(c => { if (c > -1 && r[c] && String(r[c]).trim()) ids.add(String(r[c]).trim()); });
+        const hasAuth = (apCol > -1 && String(r[apCol] || "").trim()) || (atCol > -1 && String(r[atCol] || "").trim());
+        const fecha = fCol > -1 ? pyaNormFecha(r[fCol]) : "";
+        const valor = vCol > -1 ? (parseFloat(String(r[vCol]).replace(/[^0-9.\-]/g, "")) || 0) : 0;
+        const cm = cCol > -1 ? String(r[cCol] || "") : "";
+        const mm = cm.match(/\(compartido ÷(\d+)\)/);
+        if (fecha && valor) rows.push({ fecha, valor, mult: mm ? parseInt(mm[1], 10) : 1, hasAuth: !!hasAuth });
       }
+      setSheetExpenses(rows);
       if (ids.size) setImported(prev => { const n = new Set(prev); ids.forEach(x => n.add(x)); return n; });
     }).catch(() => {});
   }, []);
@@ -123,7 +144,7 @@ const PedidosYaImport = ({ lang }) => {
           {/* Los tres paneles se mantienen montados: cambiar de pestaña ya no
               borra el trabajo en curso (issue 3). Solo se oculta el inactivo. */}
           <div style={{ display: mode === "sat" ? "block" : "none" }}>
-            <PyaSatPanel lang={lang} imported={imported} addImported={addImported} propOptions={propOptions} />
+            <PyaSatPanel lang={lang} imported={imported} addImported={addImported} propOptions={propOptions} sheetExpenses={sheetExpenses} />
           </div>
           <div style={{ display: mode === "manual" ? "block" : "none" }}>
             <PyaManualPanel lang={lang} addImported={addImported} propOptions={propOptions} />
@@ -143,7 +164,7 @@ const PedidosYaImport = ({ lang }) => {
 // ============================================================
 // 1) Panel SAT
 // ============================================================
-function PyaSatPanel({ lang, imported, addImported, propOptions }) {
+function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }) {
   const P = window.PedidosYa;
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
@@ -216,6 +237,37 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
     const lines2 = [header.join("\t")].concat(rows.map(o => header.map(h => o[h]).join("\t")));
     const blob = new Blob([lines2.join("\n")], { type: "text/tab-separated-values" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "insumos-sat.tsv"; a.click();
+  };
+
+  // vinculación automática: empareja por FECHA + MONTO las facturas del SAT con
+  // los gastos ya guardados en la hoja que aún no tienen factura. Sin trabajo manual.
+  const autoCand = pyUseMemo(() => {
+    if (!sheetExpenses || !sheetExpenses.length) return [];
+    const byF = {};
+    sheetExpenses.forEach(x => { if (!x.hasAuth && x.fecha) (byF[x.fecha] = byF[x.fecha] || []).push(x); });
+    return lines.filter(l => {
+      if (!((l.prod && l.prod.auth) || (l.tar && l.tar.auth))) return false;
+      const cands = byF[l.day] || [];
+      return cands.some(x => Math.abs(x.valor - l.consolidated) < 0.025 || (x.mult > 1 && Math.abs(x.valor * x.mult - l.consolidated) < 0.06));
+    });
+  }, [lines, sheetExpenses]);
+  const autoLink = async () => {
+    if (!autoCand.length) return;
+    if (!(window.SpacioWrite && window.SpacioWrite.enabled())) { setSaveMsg(tr("Conecta el backend (Setup → Conexión de escritura) para vincular las facturas.", "Connect the backend (Setup → Write connection) to link the invoices.")); return; }
+    setBusy("fill"); setSaveMsg("");
+    const links = autoCand.map(l => ({
+      fecha: l.day, total: l.consolidated,
+      orderId: (l.prod && l.prod.auth) || (l.tar && l.tar.auth) || "",
+      orderUrl: l.orderUrl || "",
+      authProductos: l.prod ? l.prod.auth : "",
+      authTarifa: l.tar ? l.tar.auth : "",
+    }));
+    const res = await window.SpacioWrite.post("linkFacturas", { links });
+    if (res && res.ok) {
+      if (res.rows != null) setSaveMsg(tr("Listo · " + res.links + " factura(s) vinculada(s) automáticamente a " + res.rows + " gasto(s) guardado(s) por fecha y monto. El socio ya puede verlas en Gastos e inversiones.", "Done · " + res.links + " invoice(s) auto-linked to " + res.rows + " saved expense(s) by date and amount."));
+      else setSaveMsg(tr("El Apps Script desplegado es una versión anterior: actualízalo desde la página “Copiar Apps Script” (nueva versión) y vuelve a intentar.", "The deployed Apps Script is an older version: update it from the “Copiar Apps Script” page (new version) and try again."));
+    } else setSaveMsg(tr("No se pudo escribir: " + ((res && res.error) || "sin conexión") + ".", "Could not write: " + ((res && res.error) || "offline") + "."));
+    setBusy("");
   };
 
   const save = async () => {
@@ -347,6 +399,12 @@ function PyaSatPanel({ lang, imported, addImported, propOptions }) {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Borrar el archivo cargado y empezar de cero?", "Clear the loaded file and start over?"))) { setInvoices(null); setLines([]); setSatStats(null); setWarnings([]); setSaveMsg(""); } }} disabled={!lines.length}><Icon name="x" size={14} stroke="var(--earth)" />{tr("Limpiar", "Clear")}</button>
               <button className="pya-btn pya-btn-ghost" onClick={downloadTSV} disabled={!selectedRows.length}><Icon name="arrowUpRight" size={14} stroke="var(--earth)" />TSV</button>
+              {autoCand.length > 0 && (
+                <button className="pya-btn" onClick={autoLink} disabled={busy === "fill"} title={tr("Empareja automáticamente cada factura del SAT con el gasto guardado que coincide en fecha y monto, y le agrega su factura (no duplica nada).", "Automatically pairs each SAT invoice with the saved expense matching date and amount (nothing is duplicated).")}>
+                  {busy === "fill" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="eye" size={14} stroke="var(--earth)" />}
+                  {tr("Vincular facturas automáticamente", "Auto-link invoices")} · {autoCand.length}
+                </button>
+              )}
               <button className="pya-btn pya-btn-dark" onClick={save} disabled={!selectedRows.length || busy === "save"}>
                 {busy === "save" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
                 {tr("Guardar en insumos & gastos", "Save to insumos & gastos")} {selectedRows.length ? "· " + selectedRows.length : ""}

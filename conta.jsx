@@ -313,15 +313,23 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
   const tr = (es, en) => (lang === "es" ? es : en);
   const [tick, setTick] = useState(0);
   const reload = () => setTick(x => x + 1);
+  const [liveBusy, setLiveBusy] = useState(false);
+  // trae la clasificación en vivo de los meses 2026 (Google Sheets en Drive)
+  useEffect(() => {
+    if (!window.SpacioContaLive) return;
+    setLiveBusy(true);
+    window.SpacioContaLive.load(() => { setTick(x => x + 1); }).then(() => setLiveBusy(false)).catch(() => setLiveBusy(false));
+  }, []);
   const months = useMemo(() => {
     const set = {};
     window.SpacioContaStore.listMonths().forEach(m => set[m] = 1);
     (window.SpacioContaPdfs ? window.SpacioContaPdfs.months() : []).forEach(m => set[m] = 1);
+    (window.SpacioContaArchive ? window.SpacioContaArchive.months() : []).forEach(m => set[m] = 1);
     ["2026-06", "2026-05", "2026-04", "2026-03", "2026-02", "2026-01"].forEach(m => set[m] = 1);
     return Object.keys(set).sort().reverse();
   }, [tick]);
   const monthsWithData = useMemo(() => window.SpacioContaStore.listMonths(), [tick]);
-  const [ym, setYm] = useState(monthsWithData[0] || months[0] || "2026-04");
+  const [ym, setYm] = useState(monthsWithData[0] || "2026-04");
   const [accFilter, setAccFilter] = useState("all");
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
@@ -423,14 +431,23 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
 
       {!hasData ? (
         <div style={{ textAlign: "center", padding: "48px 24px", border: "1px dashed var(--warm-grey)", borderRadius: 20 }}>
+          {liveBusy ? (
+            <React.Fragment>
+              <span className="sa-spin" style={{ width: 22, height: 22, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block", margin: "0 auto 14px" }} />
+              <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--earth)", letterSpacing: "0.04em", margin: 0 }}>{tr("Cargando clasificación del mes…", "Loading this month's classification…")}</p>
+            </React.Fragment>
+          ) : (
+          <React.Fragment>
           <Icon name="file" size={26} stroke="var(--earth)" style={{ margin: "0 auto 14px" }} />
           <p style={{ fontFamily: "var(--serif)", fontSize: 19, color: "var(--ink)", margin: "0 0 6px" }}>{tr("Aún no hay clasificación para ", "Not classified yet — ") + contaMonthLabel(ym)}</p>
           {(() => {
             const pdfs = window.SpacioContaPdfs ? window.SpacioConta.ACCOUNTS.map(a => ({ a, p: window.SpacioContaPdfs.get(ym, a.id) })).filter(x => x.p) : [];
+            const arch = window.SpacioContaArchive ? window.SpacioContaArchive.folders(ym) : [];
+            const hasLinks = pdfs.length || arch.length;
             return (
               <React.Fragment>
                 <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--earth)", letterSpacing: "0.03em", margin: "0 0 18px" }}>
-                  {pdfs.length
+                  {hasLinks
                     ? tr("Descarga los estados de cuenta originales del banco para este mes:", "Download this month's original bank statements:")
                     : (isAdmin ? tr("Sube los PDF del banco arriba.", "Upload the bank PDFs above.") : tr("El administrador aún no ha cargado este mes.", "The admin hasn't uploaded this month yet."))}
                 </p>
@@ -443,12 +460,23 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
                     ))}
                   </div>
                 )}
+                {pdfs.length === 0 && arch.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center", margin: "0 0 22px" }}>
+                    {arch.map((f, i) => (
+                      <a key={i} className="sa-file-btn ghost" href={f.url} target="_blank" rel="noopener noreferrer" style={{ padding: "8px 13px", fontSize: 11 }}>
+                        <Icon name="download" size={13} stroke="currentColor" />{f.label}
+                      </a>
+                    ))}
+                  </div>
+                )}
               </React.Fragment>
             );
           })()}
           {isAdmin && <button className="sa-file-btn ghost" onClick={() => { window.SpacioContaSample && window.SpacioContaSample.load(); reload(); }} style={{ margin: "0 auto" }}>
             <Icon name="sparkles" size={15} stroke="var(--earth)" />{tr("Cargar datos de ejemplo (Abril 2026)", "Load sample (April 2026)")}
           </button>}
+          </React.Fragment>
+          )}
         </div>
       ) : (
         <ContaLedger statements={statements} isAdmin={isAdmin} q={q} status={status} lang={lang} onEditTag={onEditTag} onDeleteStatement={onDeleteStatement} filesTick={tick} />
