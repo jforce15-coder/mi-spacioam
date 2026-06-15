@@ -60,7 +60,7 @@
       const gastosInv = hasExp ? expInv : ((mo.insumos || 0) + (mo.reparaciones || 0));
       const insumos = hasExp ? expInsumos : (mo.insumos || 0);
       return {
-        name: p.name,
+        name: p.name, code: p.code || "",
         neto: mo.ingresoNeto || 0, ret: mo.retencion || 0,
         fee: mo.fee || 0, cleaning: mo.cleaningFee || 0,
         gastosInv: gastosInv, insumos: insumos,
@@ -176,13 +176,28 @@
 
   // ---- vista mensual ----
   function PLMonth({ A, ym, lang, tr, money, currency, reload, tick }) {
+    const FOCUS = "Socio_002";
+    const sociosBlock = (title, rs, defaultOpen) => {
+      const sNeto = rs.reduce((a, r) => a + r.neto, 0), sRet = rs.reduce((a, r) => a + r.ret, 0);
+      return (
+        <PLBlock title={title} total={sNeto - sRet} money={money} tr={tr} defaultOpen={defaultOpen}
+          cols={[tr("Ingreso neto", "Net income"), tr("Retención", "Withholding"), tr("A pagar", "Payable")]}
+          rows={rs.map(r => ({ label: r.name, vals: [r.neto, r.ret, r.neto - r.ret] }))}
+          footer={{ label: tr("Total a pagar a socios", "Total payable to owners"), vals: [sNeto, sRet, sNeto - sRet] }} />
+      );
+    };
+    const focusRows = A.rows.filter(r => r.code === FOCUS);
+    const restRows = A.rows.filter(r => r.code !== FOCUS);
     return (
       <React.Fragment>
         <Eyebrow style={{ marginBottom: 10 }}>{tr("Socios", "Owners")}</Eyebrow>
-        <PLBlock title={tr("Ingreso neto socios y retenciones", "Owner net income & withholdings")} total={A.pagarSocios} money={money} tr={tr}
-          cols={[tr("Ingreso neto", "Net income"), tr("Retención", "Withholding"), tr("A pagar", "Payable")]}
-          rows={A.rows.map(r => ({ label: r.name, vals: [r.neto, r.ret, r.neto - r.ret] }))}
-          footer={{ label: tr("Total a pagar a socios", "Total payable to owners"), vals: [A.neto, A.ret, A.pagarSocios] }} />
+        {sociosBlock(tr("Ingreso neto socios y retenciones", "Owner net income & withholdings"), restRows)}
+        {focusRows.length > 0 && (
+          <React.Fragment>
+            <Eyebrow style={{ margin: "18px 0 10px" }}>{FOCUS}</Eyebrow>
+            {sociosBlock(tr("Ingreso neto y retenciones — " + FOCUS, "Net income & withholdings — " + FOCUS), focusRows)}
+          </React.Fragment>
+        )}
 
         <Eyebrow style={{ margin: "22px 0 10px" }}>{tr("Ingreso bruto Spacio AM", "Spacio AM gross income")}</Eyebrow>
         <PLBlock title={tr("Fee de Spacio AM", "Spacio AM fee")} total={A.fee} money={money} tr={tr}
