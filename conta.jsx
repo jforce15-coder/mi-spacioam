@@ -472,9 +472,6 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
               </React.Fragment>
             );
           })()}
-          {isAdmin && <button className="sa-file-btn ghost" onClick={() => { window.SpacioContaSample && window.SpacioContaSample.load(); reload(); }} style={{ margin: "0 auto" }}>
-            <Icon name="sparkles" size={15} stroke="var(--earth)" />{tr("Cargar datos de ejemplo (Abril 2026)", "Load sample (April 2026)")}
-          </button>}
           </React.Fragment>
           )}
         </div>

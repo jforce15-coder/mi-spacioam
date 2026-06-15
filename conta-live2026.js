@@ -149,8 +149,8 @@
     let idx = [];
     try { idx = JSON.parse(localStorage.getItem(INDEX_KEY) || "[]"); } catch (e) {}
     idx.forEach(k => { try { const raw = localStorage.getItem(CACHE_PREFIX + k); if (raw) cache[k] = JSON.parse(raw); } catch (e) {} });
-    // hornea mayo 2026 (solo si no hay ya una versión cacheada/real de ese mes)
-    try { buildMay2026().forEach(s => { const k = keyOf(s.ym, s.accId); if (!cache[k]) cache[k] = s; }); } catch (e) {}
+    // hornea mayo 2026 (idempotente; solo si no hay ya una versión cacheada/real)
+    ensureMay();
   }
   function persist(stmt) {
     const k = keyOf(stmt.ym, stmt.accId);
@@ -181,9 +181,21 @@
     if (onUpdate) onUpdate();
   }
 
-  function getStatement(ym, accId) { return cache[keyOf(ym, accId)] || null; }
-  function keys() { return Object.keys(cache); }
-  function months() { const s = {}; keys().forEach(k => s[k.split("|")[0]] = 1); return Object.keys(s).sort().reverse(); }
+  function getStatement(ym, accId) { ensureMay(); return cache[keyOf(ym, accId)] || null; }
+  function keys() { ensureMay(); return Object.keys(cache); }
+  function months() { ensureMay(); const s = {}; keys().forEach(k => s[k.split("|")[0]] = 1); return Object.keys(s).sort().reverse(); }
+
+  // Construye/garantiza el detalle horneado de mayo 2026 aunque el timing
+  // de carga de SpacioConta haya cambiado. Idempotente y sin red.
+  let mayBuilt = false;
+  function ensureMay() {
+    if (mayBuilt) return;
+    if (!window.SpacioConta) return;        // aún no está el clasificador; reintenta luego
+    try {
+      buildMay2026().forEach(s => { const k = keyOf(s.ym, s.accId); if (!cache[k]) cache[k] = s; });
+      mayBuilt = true;
+    } catch (e) {}
+  }
 
   hydrate();
   window.SpacioContaLive = { load, getStatement, keys, months, hydrate, parseWorkbook, SHEET_IDS };
