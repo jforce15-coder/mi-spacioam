@@ -309,10 +309,11 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
 }
 
 // ---------- sección principal ----------
-function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
+function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fmt, allProps }) {
   const tr = (es, en) => (lang === "es" ? es : en);
   const [tick, setTick] = useState(0);
   const reload = () => setTick(x => x + 1);
+  const [subtab, setSubtab] = useState("estados");
   const [liveBusy, setLiveBusy] = useState(false);
   // trae la clasificación en vivo de los meses 2026 (Google Sheets en Drive)
   useEffect(() => {
@@ -376,6 +377,23 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
 
   return (
     <div className="sa-section" style={{ marginTop: 28 }}>
+      {isAdmin && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
+          {[{ id: "estados", label: tr("Estados de cuenta", "Bank statements") }, { id: "pl", label: tr("Resumen contable", "Accounting summary") }].map(s => (
+            <button key={s.id} onClick={() => setSubtab(s.id)} style={{
+              border: "1px solid " + (subtab === s.id ? "var(--ink)" : "var(--warm-grey)"), cursor: "pointer",
+              background: subtab === s.id ? "var(--ink)" : "transparent", color: subtab === s.id ? "var(--alabaster)" : "var(--earth)",
+              borderRadius: 999, padding: "9px 18px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", transition: "all .18s var(--ease)",
+            }}>{s.label}</button>
+          ))}
+        </div>
+      )}
+      {isAdmin && subtab === "pl" ? (
+        typeof ContaPLSection !== "undefined"
+          ? <ContaPLSection lang={lang} t={t} currency={currency} fmt={fmt} allProps={allProps || []} />
+          : null
+      ) : (
+      <React.Fragment>
       <SectionHead
         eyebrow={tr("Contabilidad", "Accounting")}
         title={tr("Estados de cuenta", "Bank statements")}
@@ -477,6 +495,8 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t }) {
         </div>
       ) : (
         <ContaLedger statements={statements} isAdmin={isAdmin} q={q} status={status} lang={lang} onEditTag={onEditTag} onDeleteStatement={onDeleteStatement} filesTick={tick} />
+      )}
+      </React.Fragment>
       )}
     </div>
   );

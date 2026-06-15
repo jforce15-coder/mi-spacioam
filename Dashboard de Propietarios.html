@@ -22,7 +22,7 @@
   .sa-spin { animation: sa-spin .7s linear infinite; }
   @keyframes sa-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: no-preference) {
-    .sa-section { animation: sa-rise .5s var(--ease) both; }
+    .sa-section { animation: sa-rise .5s var(--ease) backwards; }
   }
 
   /* ---------- Top bar ---------- */
@@ -315,6 +315,17 @@
   .sa-navbtn.active { color: var(--ink); }
   .sa-navbtn.active .sa-navdot { opacity: 1; }
   .sa-navdot { width: 4px; height: 4px; border-radius: 50%; background: var(--peach); opacity: 0; }
+  /* overflow “+” sheet */
+  .sa-navmore { position: relative; flex: 1; display: flex; }
+  .sa-navmore-backdrop { position: fixed; inset: 0; z-index: 44; background: transparent; }
+  .sa-navmore-sheet { position: absolute; bottom: calc(100% + 12px); right: 0; z-index: 46; min-width: 210px;
+    background: var(--alabaster); border: 1px solid var(--ink-08); border-radius: 20px; box-shadow: var(--shadow-md);
+    padding: 7px; display: flex; flex-direction: column; gap: 2px; animation: sa-fade .18s var(--ease); }
+  .sa-navmore-item { display: flex; align-items: center; gap: 11px; border: none; background: transparent; cursor: pointer;
+    padding: 13px 14px; border-radius: 13px; font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--earth); text-align: left; transition: background .14s var(--ease), color .14s var(--ease); }
+  .sa-navmore-item:hover { background: var(--beige-soft); color: var(--ink); }
+  .sa-navmore-item.active { background: var(--beige-soft); color: var(--ink); }
 
   .sa-only-mobile { display: block; }
   .sa-only-desktop { display: none; }
@@ -375,30 +386,32 @@
   </template>
   <div id="app"></div>
 
-  <script src="sheets.js?v=20260615"></script>
-  <script src="files.js?v=20260615"></script>
-  <script src="i18n.js?v=20260615"></script>
-  <script src="aggregate.js?v=20260615"></script>
-  <script src="insights.js?v=20260615"></script>
+  <script src="sheets.js?v=20260617"></script>
+  <script src="files.js?v=20260617"></script>
+  <script src="i18n.js?v=20260617"></script>
+  <script src="aggregate.js?v=20260617"></script>
+  <script src="insights.js?v=20260617"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }</script>
-  <script src="pedidosya-parse.js?v=20260615"></script>
-  <script src="conta-data.js?v=20260615"></script>
-  <script src="conta-parse.js?v=20260615"></script>
-  <script src="conta-store.js?v=20260615"></script>
-  <script src="conta-live2026.js?v=20260615"></script>
-  <script src="conta-archive.js?v=20260615"></script>
-  <script src="conta-export.js?v=20260615"></script>
-  <script src="conta-pdfs.js?v=20260615"></script>
-  <script type="text/babel" src="ui.jsx?v=20260615"></script>
-  <script type="text/babel" src="charts.jsx?v=20260615"></script>
-  <script type="text/babel" src="login.jsx?v=20260615"></script>
-  <script type="text/babel" src="pedidosya-ui.jsx?v=20260615"></script>
-  <script type="text/babel" src="pedidosya.jsx?v=20260615"></script>
-  <script type="text/babel" src="dashboard.jsx?v=20260615"></script>
-  <script type="text/babel" src="sections.jsx?v=20260615"></script>
-  <script type="text/babel" src="conta.jsx?v=20260615"></script>
+  <script src="pedidosya-parse.js?v=20260617"></script>
+  <script src="conta-data.js?v=20260617"></script>
+  <script src="conta-parse.js?v=20260617"></script>
+  <script src="conta-store.js?v=20260617"></script>
+  <script src="conta-live2026.js?v=20260617"></script>
+  <script src="conta-archive.js?v=20260617"></script>
+  <script src="conta-export.js?v=20260617"></script>
+  <script src="conta-pdfs.js?v=20260617"></script>
+  <script src="conta-opex.js?v=20260617"></script>
+  <script type="text/babel" src="ui.jsx?v=20260617"></script>
+  <script type="text/babel" src="charts.jsx?v=20260617"></script>
+  <script type="text/babel" src="login.jsx?v=20260617"></script>
+  <script type="text/babel" src="pedidosya-ui.jsx?v=20260617"></script>
+  <script type="text/babel" src="pedidosya.jsx?v=20260617"></script>
+  <script type="text/babel" src="dashboard.jsx?v=20260617"></script>
+  <script type="text/babel" src="sections.jsx?v=20260617"></script>
+  <script type="text/babel" src="conta.jsx?v=20260617"></script>
+  <script type="text/babel" src="conta-pl.jsx?v=20260618"></script>
 
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
@@ -422,6 +435,7 @@
       const [selProp, setSelProp] = useState(single ? props[0].id : "all");
       const [period, setPeriod] = useState("current");
       const [tab, setTab] = useState(() => { if (owner.isContador) return "conta"; try { return new URLSearchParams(location.search).get("tab") || "dashboard"; } catch (e) { return "dashboard"; } });
+      const [navMore, setNavMore] = useState(false);
 
       const t = (k) => SpacioI18n.t(lang, k);
       const fmt = {
@@ -497,7 +511,11 @@
         { id: "report", icon: "file", label: t("nav_report") },
         { id: "account", icon: "user", label: t("nav_account") },
       ];
-      const switchTab = (id) => { setTab(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      const switchTab = (id) => { setTab(id); setNavMore(false); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      // Móvil: 3 pestañas principales visibles + “+” con el resto
+      const navPrimary = tabs.slice(0, 3);
+      const navOverflow = tabs.slice(3);
+      const overflowActive = navOverflow.some(tb => tb.id === tab);
 
       return (
         <div>
@@ -587,7 +605,7 @@
             )}
 
             {tab === "conta" && (isAdmin || isContador) && (
-              <ContabilidadSection owner={owner} isAdmin={isAdmin} isContador={isContador} lang={lang} t={t} />
+              <ContabilidadSection owner={owner} isAdmin={isAdmin} isContador={isContador} lang={lang} t={t} currency={currency} fmt={fmt} allProps={SpacioData.propertyList} />
             )}
 
             <footer style={{ marginTop: 64, paddingTop: 26, borderTop: "1px solid var(--warm-grey)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
@@ -598,15 +616,34 @@
 
           <nav className="sa-bottomnav">
             <div className="sa-bottomnav-inner">
-              {tabs.map(tb => (
+              {navPrimary.map(tb => (
                 <button key={tb.id} className={"sa-navbtn" + (tab === tb.id ? " active" : "")} onClick={() => switchTab(tb.id)}>
                   <Icon name={tb.icon} size={19} stroke="currentColor" />
                   <span>{tb.label}</span>
                   <span className="sa-navdot" />
                 </button>
               ))}
+              {navOverflow.length > 0 && (
+                <div className="sa-navmore">
+                  <button className={"sa-navbtn" + (overflowActive || navMore ? " active" : "")} onClick={() => setNavMore(m => !m)} style={{ width: "100%" }} aria-label={t("nav_more")}>
+                    <Icon name={navMore ? "x" : "plus"} size={19} stroke="currentColor" />
+                    <span>{t("nav_more")}</span>
+                    <span className="sa-navdot" />
+                  </button>
+                  {navMore && (
+                    <div className="sa-navmore-sheet">
+                      {navOverflow.map(tb => (
+                        <button key={tb.id} className={"sa-navmore-item" + (tab === tb.id ? " active" : "")} onClick={() => switchTab(tb.id)}>
+                          <Icon name={tb.icon} size={17} stroke="currentColor" />{tb.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </nav>
+          {navMore && <div className="sa-navmore-backdrop" onClick={() => setNavMore(false)} />}
         </div>
       );
     }

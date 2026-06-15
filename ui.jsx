@@ -43,6 +43,7 @@ const ICONS = {
   home: "M3.5 11L12 4l8.5 7M5.5 9.5V20h13V9.5",
   info: "M12 16v-5M12 8h.01M12 21a9 9 0 100-18 9 9 0 000 18z",
   x: "M6 6l12 12M18 6L6 18",
+  plus: "M12 5v14M5 12h14",
   menu: "M4 7h16M4 12h16M4 17h16",
   trendUp: "M3 17l6-6 4 4 8-8M15 7h6v6",
   trendDown: "M3 7l6 6 4-4 8 8M15 17h6v-6",

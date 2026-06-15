@@ -570,6 +570,21 @@
         account: (r["account"] || "").trim(),
       })).filter(r => r.tipo && r.ym);
     } catch (e) { data.files = []; }
+    // gastos operativos globales + otros ingresos (P&L interno) — best effort
+    try {
+      const opexT = await fetchTab("Gastos operativos");
+      data.contaOpex = (opexT.items || []).map(r => ({
+        id: (r["id"] || "").trim(),
+        kind: (r["kind"] || "opex").trim().toLowerCase(),
+        ym: (r["mes"] || r["ym"] || "").trim(),
+        concepto: (r["concepto"] || "").trim(),
+        categoria: (r["categoria"] || "").trim(),
+        monto: num(r["monto"]),
+        currency: (r["moneda"] || r["currency"] || "GTQ").trim().toUpperCase() === "USD" ? "USD" : "GTQ",
+        fileUrl: (r["url"] || "").trim(),
+        fileName: (r["archivo"] || "").trim(),
+      })).filter(r => r.id && r.ym);
+    } catch (e) { data.contaOpex = []; }
     // depósitos registrados en "Depositos cargados" (respaldo visible aunque no
     // haya quedado el archivo en Drive) — best effort
     try {

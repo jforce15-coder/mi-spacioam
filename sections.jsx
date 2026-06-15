@@ -61,16 +61,29 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
     nochesReservadas: { label: t("kpi_nights"), fmt: num, short: (v) => Math.round(v) },
   };
   const md = metricDefs[metricKey];
+  const presentAll = months.filter(m => m.present);
+  const monthVal = (m) => m.y + "-" + m.m;
+  const monthLbl = (m) => m.label[lang] + " '" + String(m.y).slice(2);
+  const [fromYM, setFromYM] = useState("");
+  const [toYM, setToYM] = useState("");
+  const idxOf = (ym) => presentAll.findIndex(m => monthVal(m) === ym);
+  let fi = idxOf(fromYM), ti = idxOf(toYM);
+  if (ti < 0) ti = presentAll.length - 1;
+  if (fi < 0) fi = Math.max(0, presentAll.length - 6);
+  if (fi > ti) { const tmp = fi; fi = ti; ti = tmp; }
   const evo = SpacioAgg.evoSeries(months, metricKey, cmp);
-  const labels = evo.labels.map(l => l[lang]);
+  const labels = evo.labels.slice(fi, ti + 1).map(l => l[lang]);
+  const primaryVals = evo.primary.slice(fi, ti + 1);
+  const compareVals = evo.compare.slice(fi, ti + 1);
+  const overlapWin = compareVals.some(v => v != null);
   const cmpName = cmp === "year" ? t("evo_vs_year") : t("evo_vs_month");
   const series = [
-    { key: "primary", name: md.label, color: "var(--peach)", values: evo.primary, width: 2.6, fill: 0.14, dots: true },
-    { key: "compare", name: cmpName, color: "var(--earth)", values: evo.compare, width: 1.8, dash: "5 5", area: false, opacity: 0.9, dots: true },
+    { key: "primary", name: md.label, color: "var(--peach)", values: primaryVals, width: 2.6, fill: 0.14, dots: true },
+    { key: "compare", name: cmpName, color: "var(--earth)", values: compareVals, width: 1.8, dash: "5 5", area: false, opacity: 0.9, dots: true },
   ];
-  // delta table (recent present months)
-  const presentAll = months.filter(m => m.present);
-  const rows = presentAll.slice(-6);
+  const rangeOpts = presentAll.map(m => ({ value: monthVal(m), label: monthLbl(m) }));
+  // delta table (rango seleccionado)
+  const rows = presentAll.slice(fi, ti + 1);
   const metric = (m, prev, key, format) => ({ v: format(m[key]), d: prev ? ((m[key] - prev[key]) / Math.abs(prev[key] || 1)) * 100 : null });
 
   const metricOpts = [
@@ -88,15 +101,22 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
           <Segmented size="sm" value={cmp} onChange={setCmp}
             options={[{ value: "year", label: t("evo_vs_year") }, { value: "month", label: t("evo_vs_month") }]} />
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>{lang === "es" ? "Rango" : "Range"}</span>
+          <Select value={presentAll[fi] ? monthVal(presentAll[fi]) : ""} onChange={setFromYM} options={rangeOpts} icon="calendar" minWidth={138} />
+          <span style={{ color: "var(--earth)", fontFamily: "var(--sans)" }}>—</span>
+          <Select value={presentAll[ti] ? monthVal(presentAll[ti]) : ""} onChange={setToYM} options={rangeOpts} icon="calendar" minWidth={138} />
+        </div>
         <LineChart series={series} labels={labels} height={250} formatY={md.short} formatTip={md.fmt} />
         <Legend items={[{ name: md.label, color: "var(--peach)" }, { name: cmpName, color: "var(--earth)", dash: true }]} />
-        {cmp === "year" && !evo.overlap && (
+        {cmp === "year" && !overlapWin && (
           <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "14px 0 0", display: "flex", alignItems: "center", gap: 8 }}>
             <Icon name="info" size={14} stroke="var(--earth)" /> {t("evo_yoy_note")}
           </p>
         )}
       </Card>
       <Card pad={0}>
+        <div className="sa-evo-scroll">
         <div className="sa-evo-head sa-evo-row">
           <span>{lang === "es" ? "Mes" : "Month"}</span>
           <span>{t("kpi_net")}</span><span>{t("kpi_occ")}</span><span>{t("kpi_adr")}</span><span>{t("kpi_stays")}</span>
@@ -121,6 +141,7 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
             </div>
           );
         })}
+        </div>
       </Card>
     </section>
   );
