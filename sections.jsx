@@ -910,16 +910,16 @@ function FileUploadButton({ label, onPick, busy, dark }) {
 // ---- Liquidation block (above Financial): deposit receipt + invoice upload + overdue alert ----
 const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, isAdmin, isAll }) => {
   useFilesTick();
-  const { money } = fmt;
+  const { money, money2 } = fmt;
   const c = pdata.cur;
   const [busy, setBusy] = useState("");
-  const usaNeto2 = (c.netoSheet2 || 0) > 0.005;
-  const montoDeposito = usaNeto2 ? c.netoSheet2 : (c.ingresoNeto || 0);
+  const usaNeto2 = (c.retencion || 0) > 0.005;
+  const montoDeposito = c.montoDeposito != null ? c.montoDeposito : (c.ingresoNeto || 0);
   const stats = [
-    { label: t("liq_deposit"), value: money(montoDeposito), help: usaNeto2 ? t("liq_deposit_help_n2") : t("liq_deposit_help"), accent: true },
+    { label: t("liq_deposit"), value: money2(montoDeposito), help: usaNeto2 ? t("liq_deposit_help_n2") : t("liq_deposit_help"), accent: true },
   ];
-  if ((c.retencion || 0) > 0.005) stats.push({ label: t("liq_retencion"), value: money(c.retencion) });
-  if ((c.ivaSocios || 0) > 0.005) stats.push({ label: t("liq_iva"), value: money(c.ivaSocios) });
+  if ((c.retencion || 0) > 0.005) stats.push({ label: t("liq_retencion"), value: money2(c.retencion) });
+  if ((c.ivaSocios || 0) > 0.005) stats.push({ label: t("liq_iva"), value: money2(c.ivaSocios) });
 
   const endMonth = pdata.slice && pdata.slice.length ? pdata.slice[pdata.slice.length - 1] : null;
   const ym = ymOf(endMonth);

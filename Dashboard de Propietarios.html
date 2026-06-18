@@ -440,6 +440,7 @@
       const t = (k) => SpacioI18n.t(lang, k);
       const fmt = {
         money: (v) => SpacioI18n.money(v, currency),
+        money2: (v) => SpacioI18n.money(v, currency, { decimals: 2 }),
         moneyShort: (v) => SpacioI18n.moneyShort(v, currency),
         pct: SpacioI18n.pct, num: SpacioI18n.num,
       };

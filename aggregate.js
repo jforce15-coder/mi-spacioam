@@ -6,7 +6,7 @@
 (function () {
   "use strict";
 
-  const MONEY = ["ingresoBruto", "ingresoNeto", "fee", "insumos", "reparaciones", "gastos", "otrosDescuentos", "ivaTotal", "ivaSocios", "hostFee", "cleaningFee", "otrosIngresos", "otrosIngresos2", "retencion", "deposito", "netoSheet2", "cleaningPropietario", "costoOportunidad"];
+  const MONEY = ["ingresoBruto", "ingresoNeto", "fee", "insumos", "reparaciones", "gastos", "otrosDescuentos", "ivaTotal", "ivaSocios", "hostFee", "cleaningFee", "otrosIngresos", "otrosIngresos2", "retencion", "deposito", "netoSheet2", "montoDeposito", "cleaningPropietario", "costoOportunidad"];
   const COUNT = ["nochesReservadas", "estadias", "huespedes", "nochesBloqueadas", "nochesPropietario", "available", "totalDays"];
 
   function aggregate(slice) {

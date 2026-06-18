@@ -254,6 +254,9 @@
       // Ingreso Neto 2 (Depósito) = Ingreso Neto − Retención.
       // NO se suma IVA de socios (ya está incluido dentro del Ingreso Neto).
       acc.deposito = acc.ingresoNeto - acc.retencion;
+      // Monto a depositar (liquidación): Ingreso Neto 2 si la propiedad lo tiene; si no, Ingreso Neto.
+      // Se calcula POR propiedad/mes para que al agregar varias propiedades se SUME bien.
+      acc.montoDeposito = acc.netoSheet2 > 0 ? acc.netoSheet2 : acc.ingresoNeto;
       // Noches de uso personal del propietario: usa la columna "Noches propietario"
       // del consolidado si existe; si no (meses viejos), la deriva de
       // Costo de oportunidad ÷ Precio Prom (costoOport = noches × precioProm).
