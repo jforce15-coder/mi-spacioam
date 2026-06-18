@@ -118,7 +118,7 @@
       retencion: 0, deposito: 0,
       nochesReservadas: 0, estadias: 0, huespedes: 0, adr: 0, leadTime: 0, estadiaProm: 0,
       ocupacionTotal: 0, ocupacionAjustada: 0, available: daysIn(y, m), totalDays: daysIn(y, m),
-      nochesBloqueadas: 0, costoOportunidad: 0,
+      nochesBloqueadas: 0, nochesPropietario: 0, cleaningPropietario: 0, costoOportunidad: 0,
     };
   }
 
@@ -239,10 +239,11 @@
         totalDays: cur.totalDays === days && !had ? total : (had ? cur.totalDays + total : total),
         leadTime: had ? (cur.leadTime + num(r["Lead Time Prom"])) / 2 : num(r["Lead Time Prom"]),
         estadiaProm: num(r["Estadía Prom"]),
-        nochesBloqueadas: cur.nochesBloqueadas + num(r["Estadía propietario"]),
+        cleaningPropietario: (cur.cleaningPropietario || 0) + num(r["Estadía propietario"]),
         costoOportunidad: cur.costoOportunidad + num(r["Costo de oportunidad"]),
         _adrW: (cur._adrW || 0) + adr * noches,
         netoSheet2: (cur.netoSheet2 || 0) + num(r["Ingreso Neto 2"]),
+        nochesPropSheet: (cur.nochesPropSheet || 0) + num(r["Noches propietario"]),
       };
       acc.adr = acc.nochesReservadas ? acc._adrW / acc.nochesReservadas : adr;
       acc.ocupacionAjustada = acc.available ? acc.nochesReservadas / acc.available : 0;
@@ -250,10 +251,16 @@
       acc.otrosDescuentos = Math.max(0, acc.ingresoBruto - acc.ingresoNeto - acc.fee - acc.insumos - acc.reparaciones);
       // retención: 5% sobre la base sin IVA del neto (solo si la propiedad tiene retención)
       acc.retencion = p.flagRetencion ? (acc.ingresoNeto / 1.12) * 0.05 : 0;
-      // depósito = lo que realmente se transfiere al socio: (neto − retención) + IVA.
-      // "Ingreso Neto 2" de la hoja (cuando existe) ya es neto − retención.
-      const baseDep = acc.netoSheet2 > 0 ? acc.netoSheet2 : (acc.ingresoNeto - acc.retencion);
-      acc.deposito = baseDep + (acc.ivaSocios || 0);
+      // Ingreso Neto 2 (Depósito) = Ingreso Neto − Retención.
+      // NO se suma IVA de socios (ya está incluido dentro del Ingreso Neto).
+      acc.deposito = acc.ingresoNeto - acc.retencion;
+      // Noches de uso personal del propietario: usa la columna "Noches propietario"
+      // del consolidado si existe; si no (meses viejos), la deriva de
+      // Costo de oportunidad ÷ Precio Prom (costoOport = noches × precioProm).
+      acc.nochesPropietario = acc.nochesPropSheet > 0
+        ? acc.nochesPropSheet
+        : (acc.adr > 0 ? Math.round(acc.costoOportunidad / acc.adr) : 0);
+      acc.nochesBloqueadas = acc.nochesPropietario; // "noches bloqueadas por ti" = noches de uso propio
       p.months[idx] = acc;
     });
 

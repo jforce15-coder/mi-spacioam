@@ -91,9 +91,21 @@
     return LONG[m - 1] + " de " + y;
   }
   // mes como NÚMERO 1–12 (lo que espera generarResumenMensual: parseInt(mes)).
+  // Robusto a varios formatos: ISO "2026-05-31", dd/mm/yyyy, serial Excel y
+  // texto con nombre de mes ("1 May", "31 May 2026", "mayo de 2026"). Antes solo
+  // entendía ISO, así que un day no-ISO dejaba el Mes VACÍO y el resumen no lo sumaba.
+  const MES_NUM_3 = { ene:1,jan:1,feb:2,mar:3,abr:4,apr:4,may:5,jun:6,jul:7,ago:8,aug:8,sep:9,set:9,oct:10,nov:11,dic:12,dec:12 };
   function mesNumES(ymdStr) {
-    const m = String(ymdStr || "").split("-")[1];
-    return m ? parseInt(m, 10) : "";
+    if (ymdStr == null || ymdStr === "") return "";
+    const s = String(ymdStr).trim();
+    if (!s) return "";
+    let m = s.match(/^(\d{4})-(\d{1,2})-\d{1,2}/);        // ISO
+    if (m) return parseInt(m[2], 10);
+    const loose = parseLooseDate(s);                       // dd/mm/yyyy, serial, etc.
+    if (loose) return parseInt(loose.split("-")[1], 10);
+    const mm = s.toLowerCase().match(/[a-záéíóú]{3,}/);    // nombre de mes
+    if (mm && MES_NUM_3[mm[0].slice(0, 3)]) return MES_NUM_3[mm[0].slice(0, 3)];
+    return "";
   }
 
   // ---------- enlaces externos ----------

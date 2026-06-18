@@ -67,9 +67,17 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
   const [fromYM, setFromYM] = useState("");
   const [toYM, setToYM] = useState("");
   const idxOf = (ym) => presentAll.findIndex(m => monthVal(m) === ym);
+  // por defecto: últimos 6 meses CERRADOS (termina en el último mes cerrado,
+  // nunca el mes en curso) — p.ej. dic '25 → may '26 si hoy es junio 2026.
+  const _now = new Date(), _cy = _now.getFullYear(), _cm = _now.getMonth();
+  const _isClosed = (m) => m.y < _cy || (m.y === _cy && m.m < _cm);
   let fi = idxOf(fromYM), ti = idxOf(toYM);
-  if (ti < 0) ti = presentAll.length - 1;
-  if (fi < 0) fi = Math.max(0, presentAll.length - 6);
+  if (ti < 0) {
+    let lastClosed = -1;
+    for (let i = 0; i < presentAll.length; i++) if (_isClosed(presentAll[i])) lastClosed = i;
+    ti = lastClosed >= 0 ? lastClosed : presentAll.length - 1;
+  }
+  if (fi < 0) fi = Math.max(0, ti - 5);
   if (fi > ti) { const tmp = fi; fi = ti; ti = tmp; }
   const evo = SpacioAgg.evoSeries(months, metricKey, cmp);
   const labels = evo.labels.slice(fi, ti + 1).map(l => l[lang]);
@@ -497,6 +505,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
             <StatementRow label={t("row_fee_spacio")} usd={M.fee} n2={n2} rate={rate} kind="line" />
             <StatementRow label={t("row_insumos")} usd={M.insumos} n2={n2} rate={rate} kind="line" />
             <StatementRow label={t("row_reparaciones")} usd={M.reparaciones} n2={n2} rate={rate} kind="line" />
+            {Math.abs(M.cleaningPropietario || 0) > 0.005 && <StatementRow label={t("row_limpieza_personal")} usd={M.cleaningPropietario} n2={n2} rate={rate} kind="line" />}
             {(property.flagOtroIngreso || Math.abs(M.otrosIngresos2 || 0) > 0.005) && <StatementRow label={t("row_otros")} usd={M.otrosIngresos2} n2={n2} rate={rate} kind="line" />}
             {property.flagIva && <StatementRow label={t("row_iva_socio")} usd={M.ivaSocios} n2={n2} rate={rate} kind="line" />}
             <StatementRow label={t("row_ingreso_neto")} usd={M.ingresoNeto} n2={n2} rate={rate} kind="strong" />
@@ -542,6 +551,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
             <div className="sa-rf-side-lbl">{t("opp_cost_label")}</div>
             <div className="sa-rf-side-val">{n2(monthObj ? monthObj.costoOportunidad : 0)}</div>
             <div className="sa-rf-side-sub">USD</div>
+            <p style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--earth)", margin: "8px 0 0", textWrap: "pretty" }}>{t("opp_cost_note")}</p>
           </div>
           <div className="sa-rf-sidecard sa-rf-sidecard-soft">
             <div className="sa-rf-side-lbl">{t("kpi_stays")}</div>
@@ -903,8 +913,10 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
   const { money } = fmt;
   const c = pdata.cur;
   const [busy, setBusy] = useState("");
+  const usaNeto2 = (c.netoSheet2 || 0) > 0.005;
+  const montoDeposito = usaNeto2 ? c.netoSheet2 : (c.ingresoNeto || 0);
   const stats = [
-    { label: t("liq_deposit"), value: money(c.deposito), help: t("liq_deposit_help"), accent: true },
+    { label: t("liq_deposit"), value: money(montoDeposito), help: usaNeto2 ? t("liq_deposit_help_n2") : t("liq_deposit_help"), accent: true },
   ];
   if ((c.retencion || 0) > 0.005) stats.push({ label: t("liq_retencion"), value: money(c.retencion) });
   if ((c.ivaSocios || 0) > 0.005) stats.push({ label: t("liq_iva"), value: money(c.ivaSocios) });

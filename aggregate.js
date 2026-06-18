@@ -6,8 +6,8 @@
 (function () {
   "use strict";
 
-  const MONEY = ["ingresoBruto", "ingresoNeto", "fee", "insumos", "reparaciones", "gastos", "otrosDescuentos", "ivaTotal", "ivaSocios", "hostFee", "cleaningFee", "otrosIngresos", "otrosIngresos2", "retencion", "deposito", "costoOportunidad"];
-  const COUNT = ["nochesReservadas", "estadias", "huespedes", "nochesBloqueadas", "available", "totalDays"];
+  const MONEY = ["ingresoBruto", "ingresoNeto", "fee", "insumos", "reparaciones", "gastos", "otrosDescuentos", "ivaTotal", "ivaSocios", "hostFee", "cleaningFee", "otrosIngresos", "otrosIngresos2", "retencion", "deposito", "netoSheet2", "cleaningPropietario", "costoOportunidad"];
+  const COUNT = ["nochesReservadas", "estadias", "huespedes", "nochesBloqueadas", "nochesPropietario", "available", "totalDays"];
 
   function aggregate(slice) {
     const present = slice.filter(m => m.present);

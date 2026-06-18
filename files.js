@@ -71,12 +71,24 @@
     // varios depósitos). A nivel propiedad incluye también los del socio.
     coverageAll: function (kind, opts) {
       var ym = opts.ym, ownerN = norm(opts.owner), propN = norm(opts.property_name);
-      return this.records().filter(function (r) {
+      var hits = this.records().filter(function (r) {
         if (r.tipo !== kind || r.ym !== ym) return false;
         if (opts.scope === "owner") return r.scope === "owner" && ownerN && norm(r.owner) === ownerN;
         return (r.scope === "property" && propN && norm(r.property_name) === propN) ||
                (r.scope === "owner" && ownerN && norm(r.owner) === ownerN);
       });
+      // dedupe: el MISMO depósito puede quedar registrado a la vez a nivel propiedad
+      // y a nivel socio (o subirse dos veces) — no debe mostrarse como dos botones.
+      // Firma: mismo monto+fecha = mismo depósito; si no hay, por url; si no, por fid.
+      var seen = {}, out = [];
+      hits.forEach(function (r) {
+        var sig = (r.monto != null && r.monto !== "" && r.fecha)
+          ? "m:" + Math.round(Number(r.monto) * 100) + "|" + r.fecha
+          : (r.url ? "u:" + r.url : "f:" + (r.fid || ""));
+        if (seen[sig]) return;
+        seen[sig] = true; out.push(r);
+      });
+      return out;
     },
 
     // ¿hay archivo para este período? property: cubre el de la propiedad O el del socio.
