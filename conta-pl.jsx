@@ -73,11 +73,13 @@
       const opexList = OX.forMonth(key, "opex"), otroList = OX.forMonth(key, "otro");
       const opex = OX.totalUsd(opexList), otros = OX.totalUsd(otroList);
       const bruto = sum("fee") + sum("cleaning") + sum("gastosInv") + otros;
+      const socio002Neto = rows.filter(r => r.code === "Socio_002").reduce((a, r) => a + r.neto, 0);
       return {
         rows, sum, opexList, otroList, opex, otros,
         neto: sum("neto"), ret: sum("ret"), pagarSocios: sum("neto") - sum("ret"),
         fee: sum("fee"), cleaning: sum("cleaning"), gastosInv: sum("gastosInv"), insumos: sum("insumos"),
         bruto, netoSpacio: bruto - opex, baseCostos: opex + sum("cleaning") + sum("insumos"),
+        socio002Neto, jov: sum("fee") + socio002Neto - opex,
       };
     }
 
@@ -188,6 +190,8 @@
     };
     const focusRows = A.rows.filter(r => r.code === FOCUS);
     const restRows = A.rows.filter(r => r.code !== FOCUS);
+    const focusNeto = focusRows.reduce((a, r) => a + r.neto, 0);
+    const jovTotal = A.fee + focusNeto - A.opex;
     return (
       <React.Fragment>
         <Eyebrow style={{ marginBottom: 10 }}>{tr("Socios", "Owners")}</Eyebrow>
@@ -230,7 +234,40 @@
             { label: tr("Insumos y gastos", "Supplies & expenses"), vals: [A.insumos] },
           ]}
           footer={{ label: tr("Base de costos total", "Total cost base"), vals: [A.baseCostos] }} defaultOpen />
+
+        <Eyebrow style={{ margin: "26px 0 10px" }}>{tr("Ingreso total JOV", "JOV total income")}</Eyebrow>
+        <JOVBlock fee={A.fee} socioNeto={focusNeto} socioLabel={FOCUS} opex={A.opex} total={jovTotal} tr={tr} />
       </React.Fragment>
+    );
+  }
+
+  // ---- bloque resumen Ingreso total JOV ----
+  function JOVBlock({ fee, socioNeto, socioLabel, opex, total, tr }) {
+    const line = (sign, label, usd, neg) => (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "13px 22px", borderTop: "1px solid var(--ink-08)" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 18, textAlign: "center", fontFamily: "var(--sans)", fontSize: 16, fontWeight: 500, color: neg ? "var(--peach)" : "var(--earth)" }}>{sign}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)", letterSpacing: "0.02em" }}>{label}</span>
+        </span>
+        <Amt usd={usd} />
+      </div>
+    );
+    return (
+      <div style={{ border: "1px solid var(--ink-08)", borderRadius: 18, overflow: "hidden", marginBottom: 16, background: "var(--alabaster)" }}>
+        {line("+", tr("Fee Spacio AM", "Spacio AM fee"), fee)}
+        {line("+", tr("Ingreso neto del socio ", "Net income of owner ") + socioLabel, socioNeto)}
+        {line("−", tr("Gastos operativos", "Operating expenses"), opex, true)}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "18px 22px", background: "var(--ink)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 18, textAlign: "center", fontFamily: "var(--sans)", fontSize: 16, fontWeight: 500, color: "rgba(250,250,250,0.7)" }}>=</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(250,250,250,0.7)" }}>{tr("Ingreso total JOV", "JOV total income")}</span>
+          </span>
+          <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 23, fontWeight: 600, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: "var(--alabaster)" }}>{fGTQ(total)}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 500, fontVariantNumeric: "tabular-nums", color: "rgba(250,250,250,0.62)" }}>{fUSD(total)}</span>
+          </span>
+        </div>
+      </div>
     );
   }
 
@@ -322,6 +359,10 @@
       { label: tr("Gastos operativos", "Operating expenses"), key: "opex", gap: true },
       { label: tr("Ingreso neto (Spacio AM)", "Net income (Spacio AM)"), key: "netoSpacio", strong: true },
       { label: tr("Base de costos", "Cost base"), key: "baseCostos", gap: true },
+      { label: tr("Fee Spacio AM", "Spacio AM fee"), key: "fee", gap: true },
+      { label: tr("Ingreso neto socio Socio_002", "Net income owner Socio_002"), key: "socio002Neto" },
+      { label: tr("Gastos operativos", "Operating expenses"), key: "opex" },
+      { label: tr("Ingreso total JOV", "JOV total income"), key: "jov", strong: true },
     ];
     const rowTotal = (key) => aggs.reduce((a, g) => a + g[key], 0);
     return (
