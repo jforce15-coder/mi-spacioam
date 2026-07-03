@@ -45,6 +45,37 @@ const PYA_DEP_KEY = "sa-pya-deposits";
 function pyaDepSaved() { try { return new Set(JSON.parse(localStorage.getItem(PYA_DEP_KEY)) || []); } catch (e) { return new Set(); } }
 function pyaDepAdd(sigs) { const s = pyaDepSaved(); sigs.forEach(x => s.add(String(x))); localStorage.setItem(PYA_DEP_KEY, JSON.stringify([...s])); }
 
+// borrador de clasificación de depósitos: sobrevive a recargas y cambios de pestaña.
+// Guardamos SOLO metadatos + una miniatura comprimida (no el archivo original).
+const PYA_DEP_DRAFT_KEY = "sa-pya-dep-draft";
+function pyaDepDraftLoad() { try { return JSON.parse(localStorage.getItem(PYA_DEP_DRAFT_KEY)) || []; } catch (e) { return []; } }
+function pyaDepDraftSlim(deps) { return deps.map(d => ({ id: d.id, sig: d.sig, fileName: d.fileName, thumb: d.thumb || "", day: d.day, amount: d.amount, property_name: d.property_name, categoria: d.categoria, comentario: d.comentario, cuenta: d.cuenta, moneda: d.moneda })); }
+function pyaDepDraftSave(deps) {
+  try { localStorage.setItem(PYA_DEP_DRAFT_KEY, JSON.stringify(pyaDepDraftSlim(deps))); }
+  catch (e) {
+    // sin espacio (miniaturas): reintenta guardando solo los metadatos
+    try { localStorage.setItem(PYA_DEP_DRAFT_KEY, JSON.stringify(pyaDepDraftSlim(deps).map(d => Object.assign({}, d, { thumb: "" })))); } catch (e2) {}
+  }
+}
+// downscale de una imagen a un dataURL JPEG pequeño (persistible en localStorage)
+function pyaThumb(file) {
+  return new Promise(res => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => {
+      const max = 200, sc = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+      try { c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); } catch (e) {}
+      URL.revokeObjectURL(url);
+      let out = ""; try { out = c.toDataURL("image/jpeg", 0.6); } catch (e) {}
+      res(out);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); res(""); };
+    img.src = url;
+  });
+}
+// mes (1-12) a partir de una fecha yyyy-mm-dd o dd/mm/yyyy
+function pyaMonthOf(day) { const s = String(day || ""); let m = s.match(/(\d{4})-(\d{1,2})/); if (m) return +m[2]; m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/); return m ? +m[2] : ""; }
+
 // carga perezosa de Tesseract.js (solo cuando se usan depósitos)
 let _tessP = null;
 function ensureTesseract() {
@@ -545,12 +576,16 @@ function PyaDepositPanel({ lang, propOptions }) {
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
   const depCatOptions = [
-    { value: "Depósito a socio", label: tr("Depósito a socio", "Owner deposit") },
-    { value: "Reembolso", label: tr("Reembolso", "Refund") },
-    { value: "Ajuste", label: tr("Ajuste", "Adjustment") },
+    { value: "Reparaciones o inversión", label: tr("Reparaciones o inversión", "Repairs or investment") },
+    { value: "insumos & gastos", label: tr("insumos & gastos", "supplies & expenses") },
     { value: "Otro", label: tr("Otro", "Other") },
+    { value: "Gasto Spacio AM", label: tr("Gasto Spacio AM", "Spacio AM expense") },
+    { value: "Pago equipo de primera (EP)", label: tr("Pago equipo de primera (EP)", "First-team payment (EP)") },
+    { value: "Otro ingreso", label: tr("Otro ingreso", "Other income") },
   ];
-  const [deps, setDeps] = pyUseState([]);
+  const [deps, setDeps] = pyUseState(() => pyaDepDraftLoad());
+  // persiste cada cambio de clasificación (no se pierde al recargar o cambiar de pestaña)
+  pyUseEffect(() => { pyaDepDraftSave(deps); }, [deps]);
   const [busy, setBusy] = pyUseState("");
   const [progress, setProgress] = pyUseState(0);
   const [msg, setMsg] = pyUseState("");
@@ -577,7 +612,8 @@ function PyaDepositPanel({ lang, propOptions }) {
       try { const r = await T.recognize(url, "spa"); text = r.data.text || ""; } catch (e) { text = ""; }
       const info = P.extractDeposit(text, f.name);
       const guess = P.matchProperty(text + " " + f.name, names);
-      const rec = { id: "d" + Date.now() + "-" + i, sig, url, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "Depósito a socio", comentario: "", cuenta: info.cuenta || "", moneda: info.moneda || "" };
+      let thumb = ""; try { thumb = await pyaThumb(f); } catch (e) {}
+      const rec = { id: "d" + Date.now() + "-" + i, sig, url, thumb, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "insumos & gastos", comentario: "", cuenta: info.cuenta || "", moneda: info.moneda || "" };
       setProgress(Math.round(((i + 1) / imgs.length) * 100));
       setDeps(prev => prev.concat(rec));
     }
@@ -592,18 +628,27 @@ function PyaDepositPanel({ lang, propOptions }) {
   const save = async () => {
     if (!ready.length) return;
     setBusy("save"); setMsg("");
-    const rows = ready.map(d => ({ Fecha: d.day, monto: P.numQ(d.amount), property_name: d.property_name, cuenta: d.cuenta || "", categoria: d.categoria || "Depósito a socio", Comentario: d.comentario || (es ? "Depósito bancario" : "Bank deposit"), archivo: d.fileName }));
+    // cada registro clasificado se agrega como una FILA NUEVA en la hoja "insumos & gastos".
+    const rows = ready.map(d => ({
+      Mes: pyaMonthOf(d.day),
+      "Fecha de pedido": d.day,
+      property_name: d.property_name,
+      valor: P.numQ(d.amount),
+      categoria: d.categoria || "insumos & gastos",
+      Comentario: d.comentario || (es ? "Depósito / gasto cargado" : "Uploaded deposit / expense"),
+      orderId: "DEP-" + String(d.sig || d.id).replace(/[^A-Za-z0-9]+/g, "-"),
+    }));
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-      const res = await window.SpacioWrite.post("appendDeposito", { rows });
+      const res = await window.SpacioWrite.post("appendInsumos", { rows });
       // actualiza moneda en SETUP para las que se detectó
       for (const d of ready) { if ((d.moneda === "USD" || d.moneda === "GTQ") && d.property_name) { try { await window.SpacioWrite.post("updateMoneda", { property_name: d.property_name, moneda: d.moneda }); } catch (e) {} } }
-      if (res && res.ok) { pyaDepAdd(ready.map(d => d.sig)); setMsg(tr("Listo · " + (res.added != null ? res.added : rows.length) + " depósitos registrados." + (res.skipped ? " " + res.skipped + " ya existían." : ""), "Done · " + (res.added != null ? res.added : rows.length) + " deposits recorded." + (res.skipped ? " " + res.skipped + " already existed." : ""))); setDeps(ds => ds.filter(d => !ready.includes(d))); }
+      if (res && res.ok) { pyaDepAdd(ready.map(d => d.sig)); setMsg(tr("Listo · " + (res.added != null ? res.added : rows.length) + " registro(s) guardados en “insumos & gastos”." + (res.skipped ? " " + res.skipped + " ya existían." : ""), "Done · " + (res.added != null ? res.added : rows.length) + " record(s) saved to “insumos & gastos”." + (res.skipped ? " " + res.skipped + " already existed." : ""))); setDeps(ds => ds.filter(d => !ready.includes(d))); }
       else setMsg(tr("No se pudo escribir: " + ((res && res.error) || "sin conexión") + ".", "Could not write: " + ((res && res.error) || "offline") + "."));
     } else {
-      const header = ["Fecha", "monto", "property_name", "cuenta", "categoria", "Comentario", "archivo"];
+      const header = ["Mes", "Fecha de pedido", "property_name", "valor", "categoria", "Comentario", "orderId"];
       const lines2 = [header.join("\t")].concat(rows.map(o => header.map(h => o[h]).join("\t")));
       const blob = new Blob([lines2.join("\n")], { type: "text/tab-separated-values" });
-      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "depositos.tsv"; a.click();
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "insumos-gastos.tsv"; a.click();
       setMsg(tr("Backend sin configurar. Se descargó un TSV.", "Backend not configured. A TSV was downloaded."));
     }
     setBusy("");
@@ -628,7 +673,7 @@ function PyaDepositPanel({ lang, propOptions }) {
           <div className="pya-deps">
             {deps.map(d => (
               <div className="pya-dep" key={d.id}>
-                <img className="pya-dep-thumb" src={d.url} alt="" onClick={() => setZoom(d.url)} />
+                <img className="pya-dep-thumb" src={d.thumb || d.url} alt="" onClick={() => setZoom(d.url || d.thumb)} />
                 <div className="pya-dep-body">
                   <div className="pya-dep-row">
                     <div style={{ flex: 1 }}><PyaDate value={d.day} onChange={v => setDep(d.id, { day: v })} lang={lang} /></div>
