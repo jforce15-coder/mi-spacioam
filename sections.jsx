@@ -1320,7 +1320,10 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     const scope = view === "owner" ? "owner" : "property";
     const acc = (SpacioData.owners || []).find(o => o.code === g.owner || (o.codes && o.codes.includes(g.owner)));
     const ownerLabel = acc ? (acc.name || acc.code) : g.owner;
-    return SF.coverageLatest("deposito", { scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym });
+    // Solo cuenta el comprobante del MES que se está viendo (coverage exacto), no el
+    // más reciente de otro mes: así la fila "Descargar" coincide con los comprobantes
+    // realmente cargados en ese mes (evita el falso positivo de socio_025 en junio).
+    return SF.coverage("deposito", { scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym });
   };
   // currency conversion to the property's OWN moneda
   const conv = (usd, moneda) => moneda === "GTQ" ? usd * SpacioI18n.GTQ_RATE : usd;
