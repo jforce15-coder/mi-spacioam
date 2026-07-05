@@ -1233,35 +1233,65 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
 // ---- Admin: lista visible de TODOS los comprobantes de depósito cargados ----
 // Independiente del período y de la liquidación, para que siempre se puedan ver
 // y descargar (incluye los subidos en lote). Lee de SpacioFiles.list("deposito").
-function UploadedDepositsList({ lang, t }) {
+function UploadedDepositsList({ lang, t, ym }) {
   useFilesTick();
   const SF = window.SpacioFiles;
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
   const deps = SF ? SF.list("deposito") : [];
+  const [expanded, setExpanded] = useState({});
   if (!deps.length) return null;
-  const monthLabel = (ym) => { const m = String(ym || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (ym || ""); };
+  const monthLabel = (k) => { const m = String(k || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (k || tr("Sin mes", "No month")); };
   const del = (r) => { if (window.confirm(tr("¿Borrar este comprobante? Se quitará del dashboard y de Drive.", "Delete this receipt? It will be removed from the dashboard and Drive."))) SF.remove(r); };
+  // Agrupar por mes (ym) y ordenar descendente: conforme avanzan los meses se
+  // acumulan muchos comprobantes, así que cada mes se puede minimizar/expandir.
+  const groups = {};
+  deps.forEach(r => { const k = r.ym || "—"; (groups[k] = groups[k] || []).push(r); });
+  const monthKeys = Object.keys(groups).sort().reverse();
+  // Por defecto solo se expande el mes que se está viendo en el dashboard
+  // ("mostrando junio 2026"); si ese mes no tiene comprobantes, el más reciente.
+  const defaultYm = (ym && groups[ym]) ? ym : monthKeys[0];
+  const isOpen = (k) => (k in expanded) ? expanded[k] : (k === defaultYm);
+  const toggle = (k) => setExpanded(e => Object.assign({}, e, { [k]: !isOpen(k) }));
+
   return (
     <div style={{ marginBottom: 28 }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
         <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Comprobantes cargados", "Uploaded receipts")}</span>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}>· {deps.length}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}>· {deps.length} · {monthKeys.length} {monthKeys.length === 1 ? tr("mes", "month") : tr("meses", "months")}</span>
       </div>
-      <div className="sa-uplist">
-        {deps.map((r, i) => (
-          <div className="sa-uplist-row" key={r.fid || i}>
-            <span className="sa-uplist-ic"><Icon name="file" size={15} stroke="var(--ink)" /></span>
-            <div className="sa-uplist-main">
-              <span className="sa-uplist-prop">{r.property_name || (r.owner ? (tr("Socio: ", "Owner: ") + r.owner) : tr("(sin propiedad)", "(no property)"))}</span>
-              <span className="sa-uplist-meta">{monthLabel(r.ym)}{r.monto ? " · Q " + Number(r.monto).toLocaleString("en-US") : ""}{r.cuenta ? " · " + tr("cta. ", "acct. ") + r.cuenta : ""}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {monthKeys.map(k => {
+          const open = isOpen(k);
+          const list = groups[k];
+          return (
+            <div key={k} style={{ border: "1px solid var(--warm-grey)", borderRadius: 16, overflow: "hidden", background: "var(--alabaster)" }}>
+              <button onClick={() => toggle(k)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", border: "none", background: open ? "var(--beige-soft)" : "transparent", cursor: "pointer", textAlign: "left" }}>
+                <Icon name="chevronRight" size={16} stroke="var(--ink)" style={{ flexShrink: 0, transition: "transform var(--d-fast) var(--ease)", transform: open ? "rotate(90deg)" : "none" }} />
+                <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink)" }}>{monthLabel(k)}</span>
+                {k === ym && <span style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--peach)", border: "1px solid var(--peach)", borderRadius: 999, padding: "2px 9px" }}>{tr("En pantalla", "On screen")}</span>}
+                <span style={{ marginLeft: "auto", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--earth)" }}>{list.length} {list.length === 1 ? tr("comprobante", "receipt") : tr("comprobantes", "receipts")}</span>
+              </button>
+              {open && (
+                <div className="sa-uplist" style={{ padding: "6px 12px 12px" }}>
+                  {list.map((r, i) => (
+                    <div className="sa-uplist-row" key={r.fid || i}>
+                      <span className="sa-uplist-ic"><Icon name="file" size={15} stroke="var(--ink)" /></span>
+                      <div className="sa-uplist-main">
+                        <span className="sa-uplist-prop">{r.property_name || (r.owner ? (tr("Socio: ", "Owner: ") + r.owner) : tr("(sin propiedad)", "(no property)"))}</span>
+                        <span className="sa-uplist-meta">{monthLabel(r.ym)}{r.monto ? " · Q " + Number(r.monto).toLocaleString("en-US") : ""}{r.cuenta ? " · " + tr("cta. ", "acct. ") + r.cuenta : ""}</span>
+                      </div>
+                      {r.url
+                        ? <a className="sa-file-btn ghost" style={{ padding: "7px 13px", fontSize: 11 }} href={r.url} target="_blank" rel="noreferrer"><Icon name="download" size={13} stroke="var(--ink)" />{tr("Ver", "View")}</a>
+                        : <span className="sa-uplist-pending">{r.sessionOnly ? tr("solo esta sesión", "this session only") : tr("sin enlace", "no link")}</span>}
+                      <button className="sa-uplist-del" onClick={() => del(r)} title={tr("Borrar", "Delete")}><Icon name="trash" size={14} stroke="currentColor" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            {r.url
-              ? <a className="sa-file-btn ghost" style={{ padding: "7px 13px", fontSize: 11 }} href={r.url} target="_blank" rel="noreferrer"><Icon name="download" size={13} stroke="var(--ink)" />{tr("Ver", "View")}</a>
-              : <span className="sa-uplist-pending">{r.sessionOnly ? tr("solo esta sesión", "this session only") : tr("sin enlace", "no link")}</span>}
-            <button className="sa-uplist-del" onClick={() => del(r)} title={tr("Borrar", "Delete")}><Icon name="trash" size={14} stroke="currentColor" /></button>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1310,10 +1340,14 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     const c = pd.cur;
     const income = c.deposito || c.ingresoNeto || 0; // neto2 si retención, si no neto
     const iva = c.ivaSocios || 0;
+    // "Total" = monto a depositar (idéntico al bloque de liquidación del dashboard).
+    // Cuando la propiedad usa Ingreso Neto 2 este monto YA incluye retención e IVA,
+    // por eso NO se vuelve a sumar el IVA aquí (ese era el error de la fórmula previa).
+    const montoDeposito = c.montoDeposito != null ? c.montoDeposito : (c.ingresoNeto || 0);
     const acc = SpacioData.owners.find(o => o.props.indexOf(p.id) >= 0);
     return {
       moneda: p.moneda || "USD", owner: p.code, ownerEmail: acc ? acc.email : "", prop: p.name,
-      cuenta: p.cuenta || "", income, iva, total: income + iva,
+      cuenta: p.cuenta || "", income, iva, total: montoDeposito,
     };
   });
   const monedas = [...new Set(rows.map(r => r.moneda))].sort();
@@ -1336,8 +1370,6 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
       <SectionHead eyebrow={t("admin_badge")} title={t("dep_title")} sub={t("dep_sub")}
         right={<Segmented size="sm" value={view} onChange={setView}
           options={[{ value: "owner", label: t("dep_by_owner") }, { value: "prop", label: t("dep_by_prop") }]} />} />
-      <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />
-      <UploadedDepositsList lang={lang} t={t} />
       {monedas.map(mon => {
         const rs = rows.filter(r => r.moneda === mon);
         const groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
@@ -1396,6 +1428,10 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
           <Icon name="info" size={14} stroke="var(--earth)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("dep_account_note")}
         </p>
       )}
+      <div style={{ marginTop: 40 }}>
+        <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />
+        <UploadedDepositsList lang={lang} t={t} ym={ym} />
+      </div>
     </section>
   );
 };
