@@ -217,7 +217,9 @@
       const fee = num(r["Fee Spacio"]);
       const insumos = num(r["Insumos & Gastos"]);
       const reparaciones = num(r["Reparaciones"]);
-      const otrosIng2 = num(r["Otros ingresos 2"]);
+      // La columna real de Resumenconsolidado es "Otros ingresos" (así la escribe
+      // Codigo.gs); leíamos "Otros ingresos 2" por error → siempre 0. Fallback por si acaso.
+      const otrosIng2 = num(r["Otros ingresos"]) || num(r["Otros ingresos 2"]);
       const noches = num(r["Noches"]);
       const occAdj = pctNum(r["Ocupación Ajustada"] || r["Ocupación"]);
       const occTot = pctNum(r["Ocupación"]);
