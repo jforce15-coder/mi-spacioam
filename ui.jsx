@@ -203,14 +203,45 @@ const Card = ({ children, pad = 24, style = {}, soft = false, onClick, hover = f
 };
 
 // ---- KPI card ----
+// ---- Auto-shrink text: keeps a value on ONE line, reducing font-size to fit ----
+const FitText = ({ children, maxPx = 46, minPx = 20, weight = 600, color = "var(--ink)", extraStyle }) => {
+  const outer = React.useRef(null);
+  const inner = React.useRef(null);
+  const fit = () => {
+    const o = outer.current, i = inner.current;
+    if (!o || !i) return;
+    i.style.fontSize = maxPx + "px";
+    if (i.scrollWidth <= o.clientWidth) return;
+    let lo = minPx, hi = maxPx, best = minPx;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      i.style.fontSize = mid + "px";
+      if (i.scrollWidth <= o.clientWidth) { best = mid; lo = mid + 1; } else hi = mid - 1;
+    }
+    i.style.fontSize = best + "px";
+  };
+  React.useLayoutEffect(() => { fit(); });
+  React.useLayoutEffect(() => {
+    const o = outer.current; if (!o || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(o);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <span ref={outer} style={{ display: "block", flex: "1 1 auto", minWidth: 0, overflow: "hidden" }}>
+      <span ref={inner} style={{ fontFamily: "var(--sans)", fontWeight: weight, letterSpacing: "-0.02em", color, lineHeight: 1, whiteSpace: "nowrap", display: "inline-block", ...extraStyle }}>{children}</span>
+    </span>
+  );
+};
+
 const KpiCard = ({ label, value, help, trend, accent = false, big = false, spark, onInfo }) => (
   <Card pad={big ? 26 : 20} style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative", minHeight: big ? 150 : 120 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
       <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{label}</span>
       {accent && <Sparkle size={12} color="var(--peach)" />}
     </div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: big ? 16 : 12, flexWrap: "wrap" }}>
-      <span style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: big ? "clamp(34px,4.4vw,46px)" : "clamp(26px,3vw,32px)", letterSpacing: "-0.02em", color: "var(--ink)", lineHeight: 1 }}>{value}</span>
+    <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: big ? 16 : 12 }}>
+      <FitText maxPx={big ? 46 : 32} minPx={big ? 22 : 18}>{value}</FitText>
       {trend != null && <Trend value={trend} />}
     </div>
     {spark && <div style={{ marginTop: 12 }}>{spark}</div>}
@@ -218,4 +249,4 @@ const KpiCard = ({ label, value, help, trend, accent = false, big = false, spark
   </Card>
 );
 
-Object.assign(window, { Sparkle, Wordmark, Icon, Eyebrow, SectionHead, Trend, Segmented, Select, Card, KpiCard });
+Object.assign(window, { Sparkle, Wordmark, Icon, Eyebrow, SectionHead, Trend, Segmented, Select, Card, KpiCard, FitText });

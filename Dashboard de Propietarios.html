@@ -450,7 +450,7 @@
           const ent = Math.floor(abs).toLocaleString("en-US");
           const dec = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
           return React.createElement("span", null, neg + sym + ent,
-            React.createElement("span", { style: { fontSize: "0.6em", opacity: 0.6 } }, "." + dec));
+            React.createElement("span", { style: { fontSize: "0.72em", opacity: 0.62 } }, "." + dec));
         },
         moneyShort: (v) => SpacioI18n.moneyShort(v, currency),
         pct: SpacioI18n.pct, num: SpacioI18n.num,

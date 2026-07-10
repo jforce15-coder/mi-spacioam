@@ -918,16 +918,16 @@ function FileUploadButton({ label, onPick, busy, dark }) {
 // ---- Liquidation block (above Financial): deposit receipt + invoice upload + overdue alert ----
 const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, isAdmin, isAll }) => {
   useFilesTick();
-  const { money, money2 } = fmt;
+  const { money, money2, moneyEl } = fmt;
   const c = pdata.cur;
   const [busy, setBusy] = useState("");
   const usaNeto2 = (c.retencion || 0) > 0.005;
   const montoDeposito = c.montoDeposito != null ? c.montoDeposito : (c.ingresoNeto || 0);
   const stats = [
-    { label: t("liq_deposit"), value: money2(montoDeposito), help: usaNeto2 ? t("liq_deposit_help_n2") : t("liq_deposit_help"), accent: true },
+    { label: t("liq_deposit"), value: moneyEl(montoDeposito), help: usaNeto2 ? t("liq_deposit_help_n2") : t("liq_deposit_help"), accent: true },
   ];
-  if ((c.retencion || 0) > 0.005) stats.push({ label: t("liq_retencion"), value: money2(c.retencion) });
-  if ((c.ivaSocios || 0) > 0.005) stats.push({ label: t("liq_iva"), value: money2(c.ivaSocios) });
+  if ((c.retencion || 0) > 0.005) stats.push({ label: t("liq_retencion"), value: moneyEl(c.retencion) });
+  if ((c.ivaSocios || 0) > 0.005) stats.push({ label: t("liq_iva"), value: moneyEl(c.ivaSocios) });
 
   const endMonth = pdata.slice && pdata.slice.length ? pdata.slice[pdata.slice.length - 1] : null;
   const ym = ymOf(endMonth);
@@ -960,7 +960,9 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
               <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{s.label}</span>
               {s.accent && <Sparkle size={12} color="var(--peach)" />}
             </div>
-            <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: s.accent ? "clamp(30px,3.6vw,40px)" : "clamp(24px,2.6vw,30px)", letterSpacing: "-0.02em", color: s.accent ? "var(--ink)" : "var(--earth)", lineHeight: 1, marginTop: 16 }}>{s.value}</div>
+            <div style={{ display: "flex", alignItems: "baseline", marginTop: 16 }}>
+              <FitText maxPx={s.accent ? 40 : 30} minPx={s.accent ? 22 : 18} color={s.accent ? "var(--ink)" : "var(--earth)"}>{s.value}</FitText>
+            </div>
             {s.help && <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.5, color: "var(--earth)", margin: "auto 0 0", paddingTop: 12 }}>{s.help}</p>}
           </Card>
         ))}
