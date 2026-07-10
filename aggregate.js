@@ -111,6 +111,9 @@
   function resForMonth(property, y, m) {
     return (property.reservations || [])
       .filter(r => r.y === y && r.m === m)
+      // Solo reservas aceptadas: las canceladas ("cancelled") no deben aparecer en
+      // el detalle del mes. Se toleran filas sin status (datos viejos) como aceptadas.
+      .filter(r => { const st = (r.status || "").toLowerCase().trim(); return st === "" || st === "accepted"; })
       .sort((a, b) => (a._sort - b._sort) || (a.nights - b.nights));
   }
 

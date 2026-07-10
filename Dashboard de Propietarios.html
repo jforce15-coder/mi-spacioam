@@ -441,6 +441,17 @@
       const fmt = {
         money: (v) => SpacioI18n.money(v, currency),
         money2: (v) => SpacioI18n.money(v, currency, { decimals: 2 }),
+        // Monto con 2 decimales donde los decimales se ven más pequeños (para el Resumen).
+        moneyEl: (v) => {
+          const val = currency === "GTQ" ? (v || 0) * SpacioI18n.GTQ_RATE : (v || 0);
+          const sym = currency === "GTQ" ? "Q " : "$";
+          const neg = val < 0 ? "−" : "";
+          const abs = Math.abs(val);
+          const ent = Math.floor(abs).toLocaleString("en-US");
+          const dec = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
+          return React.createElement("span", null, neg + sym + ent,
+            React.createElement("span", { style: { fontSize: "0.6em", opacity: 0.6 } }, "." + dec));
+        },
         moneyShort: (v) => SpacioI18n.moneyShort(v, currency),
         pct: SpacioI18n.pct, num: SpacioI18n.num,
       };

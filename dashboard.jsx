@@ -143,14 +143,14 @@ const Hero = ({ property, isAll, propsCount, periodText, contextLine, t, lang })
 
 // ---- Summary KPI grid ----
 const SummaryKPIs = ({ cur, prev, fmt, t }) => {
-  const { money, pct, num } = fmt;
+  const { money, moneyEl, pct, num } = fmt;
   const d = (k) => SpacioAgg.delta(cur, prev, k);
   return (
     <div className="sa-kpi-grid">
-      <KpiCard big accent label={t("kpi_net")} value={money(cur.ingresoNeto)} trend={d("ingresoNeto")} help={t("net_help")} />
-      <KpiCard label={t("kpi_gross")} value={money(cur.ingresoBruto)} trend={d("ingresoBruto")} help={t("gross_help")} />
+      <KpiCard big accent label={t("kpi_net")} value={moneyEl(cur.ingresoNeto)} trend={d("ingresoNeto")} help={t("net_help")} />
+      <KpiCard label={t("kpi_gross")} value={moneyEl(cur.ingresoBruto)} trend={d("ingresoBruto")} help={t("gross_help")} />
       <KpiCard label={t("kpi_occ")} value={pct(cur.ocupacionAjustada)} trend={d("ocupacionAjustada")} help={t("occ_help")} />
-      <KpiCard label={t("kpi_adr")} value={money(cur.adr)} trend={d("adr")} help={t("adr_help")} />
+      <KpiCard label={t("kpi_adr")} value={moneyEl(cur.adr)} trend={d("adr")} help={t("adr_help")} />
       <KpiCard label={t("kpi_stays")} value={num(cur.estadias)} trend={d("estadias")} help={t("stays_help")} />
       <KpiCard label={t("kpi_nights")} value={num(cur.nochesReservadas)} trend={d("nochesReservadas")} help={t("nights_help")} />
     </div>
@@ -159,7 +159,7 @@ const SummaryKPIs = ({ cur, prev, fmt, t }) => {
 
 // ---- Financial section ----
 const FinancialSection = ({ pdata, fmt, t, lang }) => {
-  const { money } = fmt;
+  const { money, moneyEl } = fmt;
   const slice = pdata.slice.length > 1 ? pdata.slice : pdata.hist.months.slice(-6);
   const labels = slice.map(m => m.label[lang]);
   const series = [
@@ -179,11 +179,11 @@ const FinancialSection = ({ pdata, fmt, t, lang }) => {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
             <div>
               <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("net")}</div>
-              <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 28, letterSpacing: "-0.02em", color: "var(--ink)", marginTop: 6 }}>{money(cur.ingresoNeto)}</div>
+              <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 28, letterSpacing: "-0.02em", color: "var(--ink)", marginTop: 6 }}>{moneyEl(cur.ingresoNeto)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("fee")}</div>
-              <div style={{ fontFamily: "var(--sans)", fontWeight: 500, fontSize: 20, color: "var(--earth)", marginTop: 6 }}>{money(cur.fee)}</div>
+              <div style={{ fontFamily: "var(--sans)", fontWeight: 500, fontSize: 20, color: "var(--earth)", marginTop: 6 }}>{moneyEl(cur.fee)}</div>
             </div>
           </div>
           <LineChart series={series} labels={labels} height={250} formatY={v => fmt.moneyShort(v)} formatTip={v => money(v)} />

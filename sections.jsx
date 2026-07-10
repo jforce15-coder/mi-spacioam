@@ -4,9 +4,10 @@
 
 // ---- Distribution (donut) ----
 const DistributionSection = ({ pdata, fmt, t, lang }) => {
-  const { money, pct } = fmt;
+  const { money, moneyEl, pct } = fmt;
   const c = pdata.cur;
   const gross = c.ingresoBruto || 1;
+  const hasIva = c.ivaTotal > 0.5;
   // real identity: bruto = neto + fee + iva + host + insumos + reparaciones
   const raw = [
     { key: "net", label: t("dist_net"), value: c.ingresoNeto, color: "var(--ink)" },
@@ -24,7 +25,7 @@ const DistributionSection = ({ pdata, fmt, t, lang }) => {
       <Card pad={28}>
         <div className="sa-dist-grid">
           <div style={{ display: "flex", justifyContent: "center" }}>
-            <Donut segments={segs} size={232} thickness={30} centerLabel={money(gross)} centerSub={t("kpi_gross")} />
+            <Donut segments={segs} size={232} thickness={30} centerLabel={moneyEl(gross)} centerSub={t("kpi_gross")} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {segs.map((s, i) => (
@@ -35,12 +36,19 @@ const DistributionSection = ({ pdata, fmt, t, lang }) => {
                 </span>
                 <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
                   <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.08em", color: "var(--earth)" }}>{s.pretty} {t("of_total")}</span>
-                  <span style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", minWidth: 86, textAlign: "right" }}>{money(s.value)}</span>
+                  <span style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", minWidth: 86, textAlign: "right" }}>{moneyEl(s.value)}</span>
                 </span>
               </div>
             ))}
           </div>
         </div>
+        {hasIva && (
+          <p style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "18px 0 0", textWrap: "pretty" }}>
+            {lang === "es"
+              ? "El IVA mostrado corresponde al IVA total recaudado (dueño + Spacio AM)."
+              : "The VAT shown is the total VAT collected (owner + Spacio AM)."}
+          </p>
+        )}
       </Card>
     </section>
   );
