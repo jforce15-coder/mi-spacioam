@@ -147,6 +147,7 @@ const PedidosYaImport = ({ lang }) => {
     { k: "sat", label: tr("SAT · PedidosYa", "SAT · PedidosYa"), icon: "file" },
     { k: "manual", label: tr("Gasto manual", "Manual expense"), icon: "coins" },
     { k: "deposit", label: tr("Depósitos", "Deposits"), icon: "wrench" },
+    { k: "reportes", label: tr("Reportes", "Reports"), icon: "wrench" },
     { k: "manage", label: tr("Guardados", "Saved"), icon: "pencil" },
   ];
 
@@ -189,6 +190,9 @@ const PedidosYaImport = ({ lang }) => {
           </div>
           <div style={{ display: mode === "deposit" ? "block" : "none" }}>
             <PyaDepositPanel lang={lang} propOptions={propOptions} />
+          </div>
+          <div style={{ display: mode === "reportes" ? "block" : "none" }}>
+            <PyaReportesPanel lang={lang} propOptions={propOptions} addImported={addImported} active={mode === "reportes"} />
           </div>
           <div style={{ display: mode === "manage" ? "block" : "none" }}>
             <PyaManagePanel lang={lang} propOptions={propOptions} active={mode === "manage"} />
@@ -911,4 +915,189 @@ function PyaManagePanel({ lang, propOptions, active }) {
   );
 }
 
-Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel, PyaManagePanel });
+// ==================================================
+// 5) Panel Reportes de mantenimiento (importación + validación)
+// ==================================================
+function ReporteDetalleBox({ rep, lang, onClose }) {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  if (!rep) return null;
+  const Field = ({ label, children }) => (
+    <div style={{ background: "var(--beige-soft)", borderRadius: 14, padding: "12px 14px" }}>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 5 }}>{label}</div>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", lineHeight: 1.35 }}>{children}</div>
+    </div>
+  );
+  const fotos = (rep.fotoDespues || []).concat(rep.fotoAntes || []);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.4)", backdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 24, maxWidth: 560, width: "100%", maxHeight: "86vh", overflow: "auto", boxShadow: "var(--shadow-lg)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "22px 24px 16px", borderBottom: "1px solid var(--warm-grey)", position: "sticky", top: 0, background: "var(--alabaster)", zIndex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Detalle del trabajo", "Job detail")}</div>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>{rep.propiedadRaw || rep.property_name}</div>
+          </div>
+          <button onClick={onClose} className="sa-file-btn" style={{ padding: "8px 16px", fontSize: 11, background: "var(--ink)", color: "var(--alabaster)", border: "none" }}>{tr("Cerrar", "Close")}</button>
+        </div>
+        <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
+          <div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 10 }}>{tr("Resumen ejecutivo", "Executive summary")}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Field label={tr("Técnico", "Technician")}>{rep.tecnico || "—"}</Field>
+              <Field label={tr("Fecha", "Date")}>{rep.fecha || "—"}</Field>
+              <Field label="Total">{"Q" + Number(rep.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Field>
+              <Field label={tr("Pago", "Payment")}>{rep.pagado ? "✓ " + tr("Pagado", "Paid") : tr("Pendiente", "Pending")}{rep.pagadoPor ? " · " + rep.pagadoPor : ""}</Field>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Categoría", "Category")}</div>
+            <span style={{ display: "inline-block", padding: "6px 14px", borderRadius: 999, background: "var(--peach-12)", color: "var(--ink)", fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600 }}>{rep.categoria || "Mantenimiento"}</span>
+          </div>
+          <div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Trabajo realizado", "Work performed")}</div>
+            <div style={{ background: "var(--beige-soft)", borderRadius: 14, padding: "14px 16px", fontFamily: "var(--sans)", fontSize: 13.5, lineHeight: 1.6, color: "var(--ink)", whiteSpace: "pre-wrap", textWrap: "pretty" }}>{rep.descripcion || "—"}</div>
+            {rep.comentarios && <div style={{ marginTop: 8, fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.6, color: "var(--earth)" }}>{rep.comentarios}</div>}
+          </div>
+          {fotos.length > 0 && (
+            <div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--peach)", marginBottom: 10 }}>{tr("Fotos", "Photos")}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))", gap: 10 }}>
+                {fotos.slice(0, 12).map((u, i) => (
+                  <a key={i} href={u} target="_blank" rel="noreferrer" style={{ display: "block", aspectRatio: "4/3", borderRadius: 12, overflow: "hidden", border: "1px solid var(--warm-grey)" }}>
+                    <img src={u} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          {rep.factura && (
+            <div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Factura adjunta", "Attached invoice")}</div>
+              {/^https?:/.test(rep.factura)
+                ? <a className="sa-file-btn ghost" href={rep.factura} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>{tr("Ver factura", "View invoice")}</a>
+                : <span style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)" }}>{rep.factura}</span>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PyaReportesPanel({ lang, propOptions, addImported, active }) {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const R = window.SpacioReportes;
+  const [reps, setReps] = pyUseState([]);
+  const [busy, setBusy] = pyUseState("");
+  const [msg, setMsg] = pyUseState("");
+  const [box, setBox] = pyUseState(null);
+  const [tick, setTick] = pyUseState(0);
+  const [props, setProps] = pyUseState({}); // override manual de propiedad por id
+
+  const run = async (manual) => {
+    if (!R) return;
+    setBusy("sync"); setMsg("");
+    try {
+      const all = await R.sync();
+      setReps(all);
+      setMsg(tr("Sincronizado · " + all.length + " reporte(s) de mantenimiento desde el 1 de julio 2026.", "Synced · " + all.length + " maintenance report(s) since July 1, 2026."));
+    } catch (e) {
+      setMsg(tr("No se pudo leer la hoja de reportes: " + (e && e.message ? e.message : "error") + ". Verifica que esté compartida como “cualquiera con el enlace”.", "Could not read the reports sheet: " + (e && e.message ? e.message : "error") + ". Make sure it is shared as “anyone with the link”."));
+    }
+    setBusy("");
+  };
+
+  // carga inicial la primera vez; después, rutina semanal automática
+  pyUseEffect(() => { if (active && R && R.needsSync()) run(false); }, [active]);
+
+  const pending = R ? R.pending(reps) : [];
+  const propOf = (r) => (props[r.id] !== undefined ? props[r.id] : r.property_name);
+  const ready = pending.filter(r => propOf(r) && r.total > 0);
+
+  const keep = async (r) => {
+    const name = propOf(r);
+    if (!name) { setMsg(tr("Asigna una propiedad antes de conservar el gasto.", "Assign a property before keeping the expense.")); return; }
+    setBusy("k-" + r.id); setMsg("");
+    const row = R.sheetRow(Object.assign({}, r, { property_name: name }));
+    if (window.SpacioWrite && window.SpacioWrite.enabled()) {
+      const res = await window.SpacioWrite.post("appendInsumos", { rows: [row] });
+      if (!(res && res.ok)) { setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ".", "Could not save: " + ((res && res.error) || "offline") + ".")); setBusy(""); return; }
+      if (addImported) addImported([row.orderId]);
+    }
+    R.decide(r.id, "ok"); setBusy(""); setTick(t => t + 1);
+    setMsg(tr("Gasto conservado y agregado a " + name + ".", "Expense kept and added to " + name + "."));
+  };
+  const drop = (r) => {
+    if (!window.confirm(tr("¿Eliminar este reporte? No se agregará como gasto.", "Delete this report? It will not be added as an expense."))) return;
+    R.decide(r.id, "no"); setTick(t => t + 1);
+  };
+  const keepAll = async () => {
+    for (const r of ready) { await keep(r); }
+  };
+
+  if (!R) return <p className="pya-note">{tr("Módulo de reportes no disponible.", "Reports module unavailable.")}</p>;
+  const last = R.lastSync();
+
+  return (
+    <div>
+      <p className="pya-note" style={{ marginTop: 0 }}>
+        {tr("Se importan automáticamente los reportes de categoría Mantenimiento desde el 1 de julio 2026. La sincronización es semanal; valida cada gasto para conservarlo o eliminarlo.",
+          "Maintenance reports since July 1, 2026 are imported automatically. Sync runs weekly; validate each expense to keep or delete it.")}
+      </p>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", margin: "14px 0 18px" }}>
+        <button className="sa-file-btn" onClick={() => run(true)} disabled={busy === "sync"} style={{ fontSize: 12 }}>
+          {busy === "sync" ? tr("Sincronizando…", "Syncing…") : tr("Sincronizar ahora", "Sync now")}
+        </button>
+        {ready.length > 1 && (
+          <button className="sa-file-btn ghost" onClick={keepAll} disabled={!!busy} style={{ fontSize: 12 }}>
+            {tr("Conservar los " + ready.length + " listos", "Keep all " + ready.length + " ready")}
+          </button>
+        )}
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", letterSpacing: "0.04em" }}>
+          {last ? tr("Última sincronización: ", "Last sync: ") + new Date(last).toLocaleString(es ? "es-GT" : "en-US") : tr("Sin sincronizar todavía", "Not synced yet")}
+          {" · " + pending.length + " " + tr("por validar", "to validate")}
+        </span>
+      </div>
+      {msg && <p className="pya-note" style={{ color: "var(--ink)" }}>{msg}</p>}
+
+      {!pending.length && !busy && (
+        <p className="pya-note">{tr("No hay reportes de mantenimiento pendientes de validar.", "No maintenance reports pending validation.")}</p>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {pending.map(r => {
+          const name = propOf(r);
+          return (
+            <div key={r.id} style={{ border: "1px solid var(--warm-grey)", borderRadius: 18, padding: 16, background: "var(--alabaster)", display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 13.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.4 }}>{r.descripcion || tr("Mantenimiento", "Maintenance")}</div>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", marginTop: 4, letterSpacing: "0.04em" }}>
+                    {r.fecha}{r.tecnico ? " · " + r.tecnico : ""}{r.propiedadRaw ? " · " + r.propiedadRaw : ""}
+                  </div>
+                </div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 17, fontWeight: 600, color: "var(--ink)" }}>{"Q" + Number(r.total || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <select value={name || ""} onChange={(e) => setProps(p => Object.assign({}, p, { [r.id]: e.target.value }))}
+                  style={{ flex: "1 1 200px", minWidth: 180, padding: "9px 12px", borderRadius: 12, border: "1px solid " + (name ? "var(--warm-grey)" : "var(--peach)"), background: "var(--alabaster)", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--ink)" }}>
+                  <option value="">{tr("— asigna la propiedad —", "— assign the property —")}</option>
+                  {(propOptions || []).map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <button className="sa-file-btn ghost" onClick={() => setBox(r)} style={{ fontSize: 11.5 }}>{tr("Ver detalle", "View detail")}</button>
+                <button className="sa-file-btn" onClick={() => keep(r)} disabled={!name || busy === "k-" + r.id} style={{ fontSize: 11.5 }}>
+                  {busy === "k-" + r.id ? tr("Guardando…", "Saving…") : tr("Conservar", "Keep")}
+                </button>
+                <button className="sa-file-btn ghost" onClick={() => drop(r)} style={{ fontSize: 11.5, color: "#9B5B4E", borderColor: "#D9BAB2" }}>{tr("Eliminar", "Delete")}</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {box && <ReporteDetalleBox rep={box} lang={lang} onClose={() => setBox(null)} />}
+    </div>
+  );
+}
+
+Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel, PyaManagePanel, PyaReportesPanel, ReporteDetalleBox });

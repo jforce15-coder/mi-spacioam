@@ -233,6 +233,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const { money } = fmt;
   const [open, setOpen] = useState(false);
   const [invBox, setInvBox] = useState(null);
+  const [repBox, setRepBox] = useState(null);   // detalle del reporte de mantenimiento
   const [editExp, setEditExp] = useState(null);   // expense being edited (admin)
   const [expMsg, setExpMsg] = useState("");
   const [localPatch, setLocalPatch] = useState({}); // orderId -> {field overrides} | "__deleted__"
@@ -344,7 +345,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const multiProp = activeProps.length > 1 && propKeys.length > 1;
   return (
     <section id="sec-expenses" className="sa-section">
-      {isAdmin && typeof PedidosYaImport !== "undefined" && <PedidosYaImport lang={lang} />}
+      {isAdmin && typeof PedidosYaImport !== "undefined" && <div style={{ marginBottom: 44 }}><PedidosYaImport lang={lang} /></div>}
       <SectionHead eyebrow={t("sec_expenses")} title={t("exp_title")} sub={t("exp_sub")}
         right={<div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("exp_total")} · {lang === "es" ? "consolidado" : "consolidated"}</div>
@@ -390,7 +391,13 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                 <div key={i} className="sa-exp-row">
                   <span className="sa-exp-date">{r.day} {monthName(r).slice(0, 3)}</span>
                   <span className="sa-exp-desc">
-                    {r.desc}
+                    {window.SpacioReportes ? window.SpacioReportes.cleanComment(r.desc) || r.desc : r.desc}
+                    {window.SpacioReportes && window.SpacioReportes.refOf(r.desc) && window.SpacioReportes.get(window.SpacioReportes.refOf(r.desc)) && (
+                      <button onClick={() => setRepBox(window.SpacioReportes.get(window.SpacioReportes.refOf(r.desc)))}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle" }}>
+                        <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver detalle" : "View detail"}
+                      </button>
+                    )}
                     {!multiProp && activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--earth)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
                     {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--peach)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
                     {(r.orderUrl || r.authProductos || r.authTarifa) && (
@@ -438,6 +445,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
         <ExpenseEditModal exp={editExp} lang={lang} allProps={activeProps} onClose={() => setEditExp(null)} onSave={(patch) => saveExp(editExp, patch)} />
       )}
       {invBox && typeof InvoiceViewBox !== "undefined" && <InvoiceViewBox data={invBox} lang={lang} onClose={() => setInvBox(null)} />}
+      {repBox && typeof ReporteDetalleBox !== "undefined" && <ReporteDetalleBox rep={repBox} lang={lang} onClose={() => setRepBox(null)} />}
     </section>
   );
 };
@@ -596,6 +604,65 @@ const AccountField = ({ label, hint, value, onChange, type, placeholder }) => (
   </label>
 );
 
+// ---- Usuarios de contabilidad (solo administrador) ----
+const ContaUsersCard = ({ lang }) => {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const CU = window.SpacioContaUsers;
+  const init = CU ? CU.get() : { emails: [], pass: "" };
+  const [emails, setEmails] = useState(init.emails.length ? init.emails.slice() : [""]);
+  const [pass, setPass] = useState(init.pass);
+  const [saved, setSaved] = useState(false);
+  if (!CU) return null;
+  const setAt = (i, v) => setEmails(es2 => es2.map((e, j) => (j === i ? v : e)));
+  const add = () => setEmails(es2 => es2.concat(""));
+  const del = (i) => setEmails(es2 => (es2.length > 1 ? es2.filter((_, j) => j !== i) : [""]));
+  const save = () => { CU.save(emails, pass); setSaved(true); setTimeout(() => setSaved(false), 2200); };
+  const reset = () => { const d = CU.reset(); setEmails(d.emails.slice()); setPass(d.pass); };
+  const inputStyle = { flex: 1, minWidth: 0, padding: "12px 14px", borderRadius: 12, border: "1px solid var(--warm-grey)", background: "var(--alabaster)", fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.04em", color: "var(--ink)" };
+  return (
+    <Card pad={28}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        <div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <span style={{ display: "inline-flex", padding: "5px 11px", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 999, fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase" }}>{tr("Administrador", "Administrator")}</span>
+            <Sparkle size={13} color="var(--peach)" />
+          </div>
+          <h3 style={{ fontFamily: "var(--serif)", fontSize: 22, color: "var(--ink)", margin: 0, lineHeight: 1.2 }}>{tr("Usuarios de contabilidad", "Accounting users")}</h3>
+          <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "8px 0 0", textWrap: "pretty" }}>
+            {tr("Estos correos entran directo a la pestaña Contabilidad. Todos comparten la misma contraseña.", "These emails go straight to the Accounting tab. They all share the same password.")}
+          </p>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {emails.map((e, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="email" value={e} onChange={(ev) => setAt(i, ev.target.value)} placeholder="contador@empresa.com" style={inputStyle} />
+              <button onClick={() => del(i)} title={tr("Quitar", "Remove")} style={{ border: "1px solid var(--ink-08)", background: "transparent", cursor: "pointer", borderRadius: 10, padding: "9px 10px", color: "var(--earth)", display: "inline-flex" }}>
+                <Icon name="trash" size={14} stroke="currentColor" />
+              </button>
+            </div>
+          ))}
+          <button onClick={add} style={{ alignSelf: "flex-start", border: "1px solid var(--ink-08)", background: "transparent", cursor: "pointer", borderRadius: 11, padding: "9px 16px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--earth)" }}>
+            {tr("Añadir correo", "Add email")}
+          </button>
+        </div>
+        <div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Contraseña compartida", "Shared password")}</div>
+          <input type="text" value={pass} onChange={(ev) => setPass(ev.target.value)} style={Object.assign({}, inputStyle, { width: "100%" })} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <button onClick={save} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 13, padding: "14px 24px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 9 }}>
+            {saved ? <React.Fragment><Icon name="check" size={15} stroke="var(--alabaster)" /> {tr("Guardado", "Saved")}</React.Fragment> : tr("Guardar", "Save")}
+          </button>
+          <button onClick={reset} style={{ border: "1px solid var(--ink-08)", cursor: "pointer", background: "transparent", color: "var(--earth)", borderRadius: 13, padding: "14px 20px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+            {tr("Restaurar", "Reset")}
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
 const AccountSection = ({ owner, lang, t, onUpdate }) => {
   const orig = (SpacioData.owners || []).find(o => o.code === owner.code) || owner;
   const [email, setEmail] = useState(owner.email || "");
@@ -630,6 +697,7 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
     <section className="sa-section" style={{ marginTop: 28 }}>
       <SectionHead eyebrow={t("account")} title={t("acc_title")} sub={t("acc_sub")} />
       <div className="sa-acc-grid">
+        {owner.isAdmin && <ContaUsersCard lang={lang} />}
         <Card pad={28}>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <AccountField label={t("acc_email")} hint={t("acc_email_hint")} value={email} onChange={setEmail} type="email" placeholder="tu@correo.com" />
@@ -767,6 +835,7 @@ const SetupSection = ({ lang, t }) => {
   return (
     <section className="sa-section" style={{ marginTop: 28 }}>
       <SectionHead eyebrow={t("admin_badge")} title={t("setup_title")} sub={t("setup_sub")} />
+      <div style={{ marginBottom: 40 }}><ContaUsersCard lang={lang} /></div>
 
       {/* write-back connection */}
       <Card pad={20} soft style={{ marginBottom: 18 }}>
@@ -1449,4 +1518,4 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   );
 };
 
-Object.assign(window, { DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList });
+Object.assign(window, { ContaUsersCard, DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList });

@@ -12,14 +12,35 @@
   const DEMO_PASS = "spacioam";     // contraseña demo única (auth real vive en EPI)
   const ADMIN_EMAIL = "spacioam@gmail.com";
   const ADMIN_PASS = "Valencia2026!";
-  // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad)
-  const CONTADOR_EMAILS = [
+  // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad).
+  // Estos son los valores POR DEFECTO; el administrador puede editarlos desde
+  // Setup → "Usuarios de contabilidad" (se guardan en el navegador).
+  const CONTADOR_DEFAULTS = [
     "pruano@minerva.com.gt",
     "anasimon@minerva.com.gt",
     "andreasimon@minerva.com.gt",
-    "",   // 4º correo (futuro): escribe el correo entre las comillas y guarda
   ].filter(e => e && e.trim());
-  const CONTADOR_PASS = "Contabilidad2026!";
+  const CONTADOR_PASS_DEFAULT = "Contabilidad2026!";
+  const LS_CONTA = "spacio_conta_users_v1";
+  function contaConfig() {
+    try {
+      const v = JSON.parse(localStorage.getItem(LS_CONTA) || "null");
+      if (v && Array.isArray(v.emails)) {
+        return { emails: v.emails.filter(e => e && e.trim()), pass: v.pass || CONTADOR_PASS_DEFAULT };
+      }
+    } catch (e) {}
+    return { emails: CONTADOR_DEFAULTS.slice(), pass: CONTADOR_PASS_DEFAULT };
+  }
+  window.SpacioContaUsers = {
+    get: contaConfig,
+    save(emails, pass) {
+      const clean = (emails || []).map(e => String(e || "").trim().toLowerCase()).filter(Boolean);
+      try { localStorage.setItem(LS_CONTA, JSON.stringify({ emails: clean, pass: pass || CONTADOR_PASS_DEFAULT })); } catch (e) {}
+      return contaConfig();
+    },
+    reset() { try { localStorage.removeItem(LS_CONTA); } catch (e) {} return contaConfig(); },
+    defaults: { emails: CONTADOR_DEFAULTS.slice(), pass: CONTADOR_PASS_DEFAULT },
+  };
 
   const MONTHS_ES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
   const MONTHS_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -375,9 +396,10 @@
       email: ADMIN_EMAIL, pass: ADMIN_PASS, secondaryEmail: "", props: allProps,
     };
     // cuenta del contador (solo lectura de Contabilidad; 4 correos alternativos)
+    const cfgC = contaConfig();
     const contador = {
       code: "__contador__", codes: ["__contador__"], name: "Contador", isContador: true,
-      email: CONTADOR_EMAILS[0], emails: CONTADOR_EMAILS.slice(), pass: CONTADOR_PASS, secondaryEmail: "", props: [],
+      email: cfgC.emails[0] || "", emails: cfgC.emails.slice(), pass: cfgC.pass, secondaryEmail: "", props: [],
     };
 
     // effective credentials apply any locally-saved profile edits (demo persistence)
@@ -399,7 +421,9 @@
       auth(login, pass) {
         const L = String(login || "").trim().toLowerCase();
         if (L === ADMIN_EMAIL.toLowerCase() && pass === ADMIN_PASS) return Object.assign({}, admin);
-        if (CONTADOR_EMAILS.some(e => e.toLowerCase() === L) && pass === CONTADOR_PASS) return Object.assign({}, contador);
+        // se relee en cada intento para respetar los cambios del administrador
+        const cc = contaConfig();
+        if (cc.emails.some(e => e.toLowerCase() === L) && pass === cc.pass) return Object.assign({}, contador, { email: L, emails: cc.emails.slice(), pass: cc.pass });
         for (const o of owners) {
           const e = eff(o);
           const email = (e.email || "").toLowerCase();
