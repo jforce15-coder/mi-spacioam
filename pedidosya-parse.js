@@ -606,7 +606,9 @@
       let score = 0, nameHit = false;
       parts.forEach(p => {
         const tok = p.replace(/[^a-z0-9áéíóúñ]/gi, "");
-        if (tok.length >= 3 && h.replace(/[^a-z0-9áéíóúñ]/gi, "").includes(tok)) { score += tok.length; nameHit = true; }
+        // solo un token CON LETRAS cuenta como evidencia del nombre del edificio;
+        // un token puramente numérico (el nº de apto) suma puntaje pero no certeza.
+        if (tok.length >= 3 && h.replace(/[^a-z0-9áéíóúñ]/gi, "").includes(tok)) { score += tok.length; if (/[a-záéíóúñ]/i.test(tok)) nameHit = true; }
         const numM = p.match(/\d{2,4}/); // número de apto
         if (numM && new RegExp("\\b" + numM[0] + "\\b").test(h)) score += 4;
       });
