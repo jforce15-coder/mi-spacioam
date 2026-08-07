@@ -1205,6 +1205,19 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
       const isOwner = d.scope === "owner";
       // IMPORTANTE: el comprobante se guarda en el MES SELECCIONADO en el filtro
       // superior (ym), no en la fecha en que se sube.
+      // La fila de la hoja debe caer SIEMPRE en el mes seleccionado (ym). Si el OCR
+      // leyó una fecha de otro mes, se reancla: si no, la fila aparece como
+      // "comprobante sin enlace" en el mes de la fecha leída.
+      const fechaMes = (() => {
+        const mm = String(ym || "").match(/(\d{4})-(\d{1,2})/);
+        if (!mm) return d.day || "";
+        let dd = 0;
+        let g = String(d.day || "").match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+        if (g) dd = +g[3]; else { g = String(d.day || "").match(/^(\d{1,2})[\/\-.](\d{1,2})/); if (g) dd = +g[1]; }
+        const last = new Date(+mm[1], +mm[2], 0).getDate();
+        if (!dd || dd > last) dd = last;
+        return mm[1] + "-" + String(+mm[2]).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
+      })();
       const r = await SF.upload(isOwner
         ? { kind: "deposito", scope: "owner", owner: d.owner, ym, file: d.file, multiple: true, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day }
         : { kind: "deposito", scope: "property", property_name: d.property_name, ym, file: d.file, multiple: true, monto: P.numQ(d.amount), cuenta: d.cuenta || "", fecha: d.day });
@@ -1215,7 +1228,7 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
           // a nivel socio: registra el depósito en TODAS sus propiedades
           const targets = isOwner ? propsOfOwner(d.owner) : [d.property_name];
           for (const pn of targets) {
-            await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: d.day, monto: P.numQ(d.amount), property_name: pn, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: isOwner ? ("Socio: " + d.owner) : "", archivo: (r && r.fileName) || d.fileName }] });
+            await window.SpacioWrite.post("appendDeposito", { rows: [{ Fecha: fechaMes, monto: P.numQ(d.amount), property_name: pn, cuenta: d.cuenta || "", categoria: "Depósito a socio", Comentario: isOwner ? ("Socio: " + d.owner) : "", archivo: (r && r.fileName) || d.fileName }] });
             if (d.moneda === "USD" || d.moneda === "GTQ" || d.cuenta) { const mr = await window.SpacioWrite.post("updateMoneda", { property_name: pn, moneda: d.moneda || "", cuenta: d.cuenta || "" }); if (mr && mr.ok && mr.updated) monUpd++; }
           }
         }

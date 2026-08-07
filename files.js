@@ -29,6 +29,15 @@
     m = s.match(/(\d{4})/); if (m) return m[1] + "-01";
     return "";
   }
+  // propiedades (nombres) de un socio, por nombre legible o código
+  function ownerProps(ownerName) {
+    var D = window.SpacioData || {};
+    var o = (D.owners || []).find(function (x) { return (x.name || x.code) === ownerName || x.code === ownerName; });
+    if (!o) return [""];
+    var codes = o.codes || [o.code];
+    var list = (D.propertyList || []).filter(function (p) { return codes.indexOf(p.code) >= 0; }).map(function (p) { return p.name; });
+    return list.length ? list : [""];
+  }
   function keyOf(rec) {
     var who = rec.scope === "owner" ? ("owner:" + norm(rec.owner)) : ("prop:" + norm(rec.property_name));
     return [rec.tipo, who, rec.ym].join("|");
@@ -136,16 +145,24 @@
       if (kind === "deposito") {
         // ya cubiertos: por propiedad+mes Y por propiedad+monto (evita el
         // duplicado "fantasma sin enlace" cuando el archivo quedó en otro mes)
-        var have = {}, haveAmt = {};
+        var have = {}, haveAmt = {}, haveFile = {};
         out.forEach(function (r) {
-          have[norm(r.property_name) + "|" + (r.ym || "")] = true;
-          if (r.monto) haveAmt[norm(r.property_name) + "|" + Math.round(r.monto * 100)] = true;
+          // un comprobante a nivel SOCIO cubre a todas sus propiedades: si no se
+          // expande aquí, la hoja genera una copia fantasma por cada propiedad.
+          var props = r.scope === "owner" ? ownerProps(r.owner) : [r.property_name];
+          props.forEach(function (pn) {
+            have[norm(pn) + "|" + (r.ym || "")] = true;
+            if (r.monto) haveAmt[norm(pn) + "|" + Math.round(r.monto * 100)] = true;
+          });
+          if (r.archivo) haveFile[norm(r.archivo)] = true;
         });
         var deps = (window.SpacioData && window.SpacioData.depositos) || [];
         deps.forEach(function (d, i) {
           var ym = ymFromDate(d.fecha);
           var key = norm(d.property_name) + "|" + ym;
           var amtKey = norm(d.property_name) + "|" + Math.round((d.monto || 0) * 100);
+          // el mismo archivo ya está en el registro (aunque la hoja lo repita por propiedad)
+          if (d.archivo && haveFile[norm(d.archivo)]) return;
           if (have[key] || (d.monto && haveAmt[amtKey])) return; // ya hay archivo para este depósito
           // fid estable para poder ocultarlo/borrarlo (tumba)
           var fid = "sheet|" + norm(d.property_name) + "|" + ym + "|" + Math.round((d.monto || 0) * 100);
