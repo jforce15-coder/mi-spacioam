@@ -344,6 +344,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const multiProp = activeProps.length > 1 && propKeys.length > 1;
   return (
     <section id="sec-expenses" className="sa-section">
+      {isAdmin && typeof PedidosYaImport !== "undefined" && <PedidosYaImport lang={lang} />}
       <SectionHead eyebrow={t("sec_expenses")} title={t("exp_title")} sub={t("exp_sub")}
         right={<div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("exp_total")} · {lang === "es" ? "consolidado" : "consolidated"}</div>
@@ -436,7 +437,6 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
       {isAdmin && editExp && typeof ExpenseEditModal !== "undefined" && (
         <ExpenseEditModal exp={editExp} lang={lang} allProps={activeProps} onClose={() => setEditExp(null)} onSave={(patch) => saveExp(editExp, patch)} />
       )}
-      {isAdmin && typeof PedidosYaImport !== "undefined" && <PedidosYaImport lang={lang} />}
       {invBox && typeof InvoiceViewBox !== "undefined" && <InvoiceViewBox data={invBox} lang={lang} onClose={() => setInvBox(null)} />}
     </section>
   );

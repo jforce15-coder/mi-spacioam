@@ -97,6 +97,7 @@ const PedidosYaImport = ({ lang }) => {
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
   const [mode, setMode] = pyUseState("sat");
+  const [open, setOpen] = pyUseState(false); // minimizado por defecto; se abre con el botón
   const [imported, setImported] = pyUseState(() => pyaLocalImported());
   const [sheetExpenses, setSheetExpenses] = pyUseState([]);
 
@@ -152,17 +153,23 @@ const PedidosYaImport = ({ lang }) => {
   return (
     <section className="pya-block">
       <div className="pya-card">
-        <div className="pya-head">
-          <div>
+        <button className="pya-head" onClick={() => setOpen(o => !o)}
+          style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "5px 11px", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 999, fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase" }}>{tr("Administrador", "Administrator")}</span>
               <Sparkle size={13} color="var(--peach)" />
             </div>
             <h3 className="pya-head-title">{tr("Cargar gastos e insumos", "Load expenses & supplies")}</h3>
-            <p className="pya-head-sub">{tr("Sube el archivo del SAT para registrar las facturas de PedidosYa, agrega gastos manuales o carga depósitos bancarios. Nada se duplica.", "Upload the SAT file to register PedidosYa invoices, add manual expenses, or load bank deposits. Nothing is duplicated.")}</p>
+            {open && <p className="pya-head-sub">{tr("Sube el archivo del SAT para registrar las facturas de PedidosYa, agrega gastos manuales o carga depósitos bancarios. Nada se duplica.", "Upload the SAT file to register PedidosYa invoices, add manual expenses, or load bank deposits. Nothing is duplicated.")}</p>}
           </div>
-        </div>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0, fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>
+            {open ? tr("Minimizar", "Collapse") : tr("Abrir", "Open")}
+            <Icon name="chevronRight" size={16} stroke="var(--ink)" style={{ transition: "transform var(--d-fast) var(--ease)", transform: open ? "rotate(90deg)" : "none" }} />
+          </span>
+        </button>
 
+        {open && (
         <div className="pya-body">
           <div className="pya-modes">
             {modes.map(m => (
@@ -187,6 +194,7 @@ const PedidosYaImport = ({ lang }) => {
             <PyaManagePanel lang={lang} propOptions={propOptions} active={mode === "manage"} />
           </div>
         </div>
+        )}
       </div>
     </section>
   );
@@ -613,7 +621,7 @@ function PyaDepositPanel({ lang, propOptions }) {
       const info = P.extractDeposit(text, f.name);
       const guess = P.matchProperty(text + " " + f.name, names);
       let thumb = ""; try { thumb = await pyaThumb(f); } catch (e) {}
-      const rec = { id: "d" + Date.now() + "-" + i, sig, url, thumb, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "insumos & gastos", comentario: "", cuenta: info.cuenta || "", moneda: info.moneda || "" };
+      const rec = { id: "d" + Date.now() + "-" + i, sig, url, thumb, fileName: f.name, day: info.day || "", amount: info.amount || "", property_name: guess || "", categoria: "insumos & gastos", comentario: info.comentario || "", cuenta: info.cuenta || "", moneda: info.moneda || "" };
       setProgress(Math.round(((i + 1) / imgs.length) * 100));
       setDeps(prev => prev.concat(rec));
     }

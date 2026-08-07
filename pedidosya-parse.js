@@ -554,7 +554,27 @@
     const amount = amts.length ? Math.max.apply(null, amts) : 0;
     const dm = (t.match(/(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/) || [])[1];
     const day = parseLooseDate(dm) || parseSpanishDate(t);
-    return { amount: Math.round(amount * 100) / 100, day, cuenta: extractAccount(t), moneda: extractCurrency(t), raw: t, filename: filename || "" };
+    return { amount: Math.round(amount * 100) / 100, day, cuenta: extractAccount(t), moneda: extractCurrency(t), comentario: extractComment(t), raw: t, filename: filename || "" };
+  }
+  // comentario/concepto escrito en la boleta de depósito: se toma el texto que
+  // sigue a la etiqueta del banco (Comentario, Concepto, Descripción, Motivo…).
+  function extractComment(t) {
+    const s = String(t || "").replace(/\r/g, "");
+    var re = /(coment(?:ario)?s?|concepto|descripci[oó]n|motivo|referencia|detalle|nota|glosa|raz[oó]n)\s*[:\-–]?\s*([^\n]*)/i;
+    var m = s.match(re);
+    if (!m) return "";
+    var val = (m[2] || "").trim();
+    // si el valor quedó en la línea siguiente (etiqueta sola), toma esa línea
+    if (!val || val.length < 2) {
+      var after = s.slice(m.index + m[0].length).split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+      val = after.length ? after[0] : "";
+    }
+    // descarta ruido del OCR: montos, fechas, números sueltos o etiquetas vacías
+    val = val.replace(/\s{2,}/g, " ").trim();
+    if (!val) return "";
+    if (/^[\d\s.,:\/-]+$/.test(val)) return "";
+    if (val.length < 3 || val.length > 120) return val.length > 120 ? val.slice(0, 120).trim() : "";
+    return val;
   }
   // número de cuenta acreditada: prioriza el número largo que sigue a "acreditar"
   function extractAccount(t) {
@@ -580,19 +600,22 @@
   function matchProperty(hint, names) {
     const h = String(hint || "").toLowerCase().replace(/[^a-z0-9áéíóúñ #]/gi, " ");
     if (!h.trim()) return "";
-    let best = "", bestScore = 0;
+    let best = "", bestScore = 0, bestName = false;
     (names || []).forEach(name => {
       const parts = String(name).toLowerCase().split(/\s*-\s*/).map(s => s.trim()).filter(Boolean);
-      let score = 0;
+      let score = 0, nameHit = false;
       parts.forEach(p => {
         const tok = p.replace(/[^a-z0-9áéíóúñ]/gi, "");
-        if (tok.length >= 3 && h.replace(/[^a-z0-9áéíóúñ]/gi, "").includes(tok)) score += tok.length;
+        if (tok.length >= 3 && h.replace(/[^a-z0-9áéíóúñ]/gi, "").includes(tok)) { score += tok.length; nameHit = true; }
         const numM = p.match(/\d{2,4}/); // número de apto
         if (numM && new RegExp("\\b" + numM[0] + "\\b").test(h)) score += 4;
       });
-      if (score > bestScore) { bestScore = score; best = name; }
+      if (score > bestScore) { bestScore = score; best = name; bestName = nameHit; }
     });
-    return bestScore >= 4 ? best : "";
+    // Solo se deduce la propiedad si coincidió el NOMBRE del edificio, no un número
+    // suelto (un monto o una cuenta puede coincidir por azar con el nº de apto).
+    // Si no hay certeza se devuelve vacío y el usuario la asigna a mano.
+    return (bestName && bestScore >= 6) ? best : "";
   }
 
   // ---------- file readers ----------
