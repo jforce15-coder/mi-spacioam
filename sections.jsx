@@ -773,6 +773,7 @@ const SetupSection = ({ lang, t }) => {
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null); // index being edited
   const [quick, setQuick] = useState(false);
+  const [showList, setShowList] = useState(false);   // la lista completa se pide, no se impone
   const [savedId, setSavedId] = useState(null);
   // write-back connection
   const [apiUrl, setApiUrl] = useState(SpacioWrite.url());
@@ -813,6 +814,8 @@ const SetupSection = ({ lang, t }) => {
   // dispara el envío masivo en Apps Script; confirma antes porque no se puede deshacer
   const sendMail = async (action) => {
     if (!SpacioWrite.enabled()) { setMailMsg(tr("Conecta el backend primero.", "Connect the backend first.")); return; }
+    // el token vive por dispositivo: si se configuró en otro, aquí llega vacío
+    if (!SpacioWrite.token()) { setMailMsg(tr("Este dispositivo no tiene el token. Pégalo arriba en Conexión de escritura.", "This device has no token. Paste it above under write connection.")); return; }
     const label = action === "sendCierreMes" ? tr("el correo de cierre de mes", "the month-close email") : tr("los recordatorios de factura", "the invoice reminders");
     if (!window.confirm(tr("Se enviará " + label + " a los socios que correspondan. ¿Continuar?", "This will send " + label + ". Continue?"))) return;
     setMailBusy(action); setMailMsg(tr("Enviando…", "Sending…"));
@@ -821,6 +824,8 @@ const SetupSection = ({ lang, t }) => {
     if (r && r.ok) {
       setMailMsg(tr(`Listo · ${r.enviados} correo(s)`, `Done · ${r.enviados} email(s)`) +
         (r.sinCorreo && r.sinCorreo.length ? tr(" · sin correo: ", " · no email: ") + r.sinCorreo.join(", ") : ""));
+    } else if (r && r.error === "unauthorized") {
+      setMailMsg(tr("Token incorrecto en este dispositivo: revísalo en Conexión de escritura.", "Wrong token on this device: check it under write connection."));
     } else setMailMsg(tr("Error: ", "Error: ") + ((r && r.error) || tr("sin conexión", "offline")));
   };
 
@@ -913,7 +918,13 @@ const SetupSection = ({ lang, t }) => {
         </div>
       </div>
 
-      {/* lista de propiedades: nombre + editar */}
+      {/* lista de propiedades: solo al buscar o al pedirla explícitamente */}
+      {!q && !showList && (
+        <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setShowList(true)} style={{ width: "100%", justifyContent: "center", padding: "13px 18px" }}>
+          <Icon name="chevronDown" size={14} stroke="var(--earth)" />{tr("Ver las " + rows.length + " propiedades", "Show all " + rows.length + " properties")}
+        </button>
+      )}
+      {(q || showList) && (
       <div className="sa-setup-list">
         {filtered.map(({ r, i }) => (
           <div className="sa-setup-listrow" key={r.property_id}>
@@ -927,7 +938,13 @@ const SetupSection = ({ lang, t }) => {
           </div>
         ))}
         {filtered.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--earth)" }}>{tr("Sin resultados.", "No results.")}</div>}
+        {!q && showList && (
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setShowList(false)} style={{ width: "100%", justifyContent: "center", marginTop: 10 }}>
+            <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: "rotate(180deg)" }} />{tr("Ocultar lista", "Hide list")}
+          </button>
+        )}
       </div>
+      )}
 
       <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "16px 0 0", display: "flex", gap: 8, maxWidth: 720 }}>
         <Icon name="info" size={14} stroke="var(--earth)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("setup_note")}
@@ -1045,6 +1062,8 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
   const SF = window.SpacioFiles;
 
   const invCov = SF && ym ? SF.coverage("factura", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
+  // constancia de retención: solo tiene sentido cuando el mes retuvo algo
+  const retCov = SF && ym && usaNeto2 ? SF.coverage("retencion", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
   const depAll = SF && ym ? SF.coverageAll("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : [];
   const income = c.ingresoNeto || 0;
   const enforce = endMonth && endMonth.y >= (SF ? SF.ENFORCE_FROM_YEAR : 2026);
@@ -1093,6 +1112,21 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
             </div>
           : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", maxWidth: 260, textAlign: "right" }}>{t("liq_deposit_none")}</span>}
       </div>
+
+      {usaNeto2 && (
+        <div className="sa-file-deposit">
+          <span className="lbl">
+            <span className="ic"><Icon name="file" size={18} stroke={retCov && retCov.url ? "var(--ink)" : "var(--warm-grey)"} /></span>
+            <span>
+              <strong style={{ fontWeight: 600 }}>{lang === "es" ? "Constancia de retención" : "Withholding certificate"}</strong>
+              <span style={{ display: "block", color: "var(--earth)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}</span>
+            </span>
+          </span>
+          {retCov && retCov.url
+            ? <a className="sa-file-btn ghost" href={retCov.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{lang === "es" ? "Descargar" : "Download"}</a>
+            : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", maxWidth: 280, textAlign: "right" }}>{lang === "es" ? "Aún no está cargada." : "Not uploaded yet."}</span>}
+        </div>
+      )}
 
       <div className="sa-liq-invoice">
         <div className="sa-liq-invoice-amt">
@@ -1427,37 +1461,192 @@ function UploadedDepositsList({ lang, t, ym }) {
   );
 }
 
-// ---- Admin: Owner deposits — one table per currency, by owner or by property ----
+// ---- Semáforo (farol) reutilizable ----
+function Farol({ ok, na, size = 9 }) {
+  const c = na ? "var(--warm-grey)" : ok ? "#5B8A6B" : "var(--peach)";
+  return <span style={{ display: "inline-block", width: size, height: size, borderRadius: "50%", background: c, flexShrink: 0 }} />;
+}
+
+// último mes con datos cargados en cualquier propiedad → "YYYY-MM"
+function lastLoadedYm() {
+  let best = null;
+  (SpacioData.propertyList || []).forEach(p => (p.months || []).forEach(mo => {
+    if (!mo.present) return;
+    const k = mo.y * 12 + mo.m;
+    if (!best || k > best.k) best = { k, y: mo.y, m: mo.m };
+  }));
+  return best ? best.y + "-" + String(best.m + 1).padStart(2, "0") : "";
+}
+
+// envío al Apps Script, compartido por el aviso del resumen y la tabla de facturas
+async function sendMailAction(action, payload) {
+  if (!window.SpacioWrite || !SpacioWrite.enabled()) return { ok: false, error: "no-backend" };
+  if (!SpacioWrite.token()) return { ok: false, error: "no-token" };
+  return await SpacioWrite.post(action, payload);
+}
+function mailErrText(r, es) {
+  if (!r) return es ? "Sin conexión" : "Offline";
+  if (r.error === "no-backend") return es ? "Conecta el backend en Setup." : "Connect the backend in Setup.";
+  if (r.error === "no-token") return es ? "Este dispositivo no tiene el token (Setup)." : "This device has no token (Setup).";
+  if (r.error === "unauthorized") return es ? "Token incorrecto en este dispositivo." : "Wrong token on this device.";
+  return (es ? "Error: " : "Error: ") + (r.error || "?");
+}
+
+// ---- Aviso corto en Resumen: enviar el correo mensual a socios ----
+const MailNudgeCard = ({ lang }) => {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const [open, setOpen] = useState(false);
+  const [mes, setMes] = useState(lastLoadedYm);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const send = async () => {
+    if (!window.confirm(tr("Se enviará el correo de cierre a todos los socios con resultado en " + mes + ". ¿Continuar?", "This sends the month-close email to every owner with results in " + mes + ". Continue?"))) return;
+    setBusy(true); setMsg(tr("Enviando…", "Sending…"));
+    const r = await sendMailAction("sendCierreMes", { mes });
+    setBusy(false);
+    setMsg(r && r.ok ? tr("Listo · " + r.enviados + " correo(s)", "Done · " + r.enviados + " email(s)") : mailErrText(r, es));
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 18, padding: "14px 18px", marginBottom: 18 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 11, background: "var(--alabaster)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+        <Icon name="mail" size={16} stroke="var(--ink)" />
+      </span>
+      <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", color: "var(--ink)", flex: 1, minWidth: 200 }}>
+        {tr("Avisa a los socios que su reporte del mes ya está listo.", "Let owners know their monthly report is ready.")}
+      </span>
+      {!open
+        ? <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => setOpen(true)}><Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar correo mensual", "Send monthly email")}</button>
+        : <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+            <input className="sa-setup-input" style={{ maxWidth: 120 }} value={mes} onChange={e => setMes(e.target.value)} placeholder="2026-07" />
+            <button className="sa-chip-btn sa-chip-btn-dark" onClick={send} disabled={busy}>{busy ? tr("Enviando…", "Sending…") : tr("Confirmar envío", "Confirm")}</button>
+            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => { setOpen(false); setMsg(""); }}>{tr("Cancelar", "Cancel")}</button>
+          </div>}
+      {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", width: "100%" }}>{msg}</span>}
+    </div>
+  );
+};
+
+// ---- Control de facturas por socio (debajo de depósitos) ----
+const InvoiceControlTable = ({ allProps, lang }) => {
+  useFilesTick();
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const SF = window.SpacioFiles;
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+  const [onlyPending, setOnlyPending] = useState(true);
+  const hasta = lastLoadedYm();
+
+  const socios = useMemo(() => {
+    if (!SF) return [];
+    return (SpacioData.owners || []).map(o => {
+      const props = allProps.filter(p => (o.props || []).indexOf(p.id) >= 0);
+      const missing = SF.missingInvoiceMonths({ owner: o.code || o.name, properties: props });
+      return { code: o.code || o.name, name: o.name || o.code, email: o.email || "", props, missing };
+    }).sort((a, b) => b.missing.length - a.missing.length);
+  }, [allProps, SF]);
+
+  const shown = onlyPending ? socios.filter(s => s.missing.length) : socios;
+  const totalPend = socios.filter(s => s.missing.length).length;
+
+  const remind = async (code) => {
+    const who = code ? tr("a ese socio", "that owner") : tr("a todos los socios con facturas pendientes", "every owner with pending invoices");
+    if (!window.confirm(tr("Se enviará el recordatorio " + who + ". ¿Continuar?", "This sends the reminder to " + who + ". Continue?"))) return;
+    setBusy(code || "__all__"); setMsg("");
+    const r = await sendMailAction("sendRecordatoriosFactura", code ? { hasta, socio: code } : { hasta });
+    setBusy("");
+    setMsg(r && r.ok ? tr("Listo · " + r.enviados + " correo(s)", "Done · " + r.enviados + " email(s)") : mailErrText(r, es));
+  };
+
+  return (
+    <div style={{ marginTop: 46 }}>
+      <SectionHead eyebrow={tr("Control", "Control")} title={tr("Facturas de socios", "Owner invoices")}
+        sub={tr("Meses con ingreso que aún no tienen factura cargada.", "Months with income that still have no invoice on file.")}
+        right={<Segmented size="sm" value={onlyPending ? "pend" : "all"} onChange={v => setOnlyPending(v === "pend")}
+          options={[{ value: "pend", label: tr("Pendientes", "Pending") }, { value: "all", label: tr("Todos", "All") }]} />} />
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--earth)" }}>
+          {totalPend} {tr("socio(s) con facturas pendientes", "owner(s) with pending invoices")}
+        </span>
+        {totalPend > 0 && (
+          <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => remind("")} disabled={busy !== ""}>
+            <Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Recordar a todos", "Remind everyone")}
+          </button>
+        )}
+        {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{msg}</span>}
+      </div>
+      <div className="sa-setup-scroll">
+        <table className="sa-setup-table sa-dep-table">
+          <thead>
+            <tr>
+              <th style={{ minWidth: 40 }}></th>
+              <th style={{ minWidth: 130 }}>{tr("Socio", "Owner")}</th>
+              <th style={{ minWidth: 90, textAlign: "right" }}>{tr("Pendientes", "Pending")}</th>
+              <th style={{ minWidth: 260 }}>{tr("Meses sin factura", "Months without invoice")}</th>
+              <th style={{ minWidth: 170 }}>{tr("Correo", "Email")}</th>
+              <th style={{ minWidth: 150 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map(s => (
+              <tr key={s.code}>
+                <td><Farol ok={!s.missing.length} /></td>
+                <td style={{ fontWeight: 500 }}>{s.name}</td>
+                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: s.missing.length ? "var(--peach)" : "var(--earth)" }}>{s.missing.length}</td>
+                <td style={{ color: "var(--earth)" }}>
+                  {s.missing.length
+                    ? s.missing.map(m => longMonth(lang, m.y, m.m)).join(" · ")
+                    : tr("Al día", "Up to date")}
+                </td>
+                <td style={{ color: "var(--earth)" }}>{s.email}</td>
+                <td>
+                  {s.missing.length > 0 && (
+                    <button className="sa-chip-btn sa-chip-btn-ghost" style={{ padding: "7px 12px", fontSize: 11 }} onClick={() => remind(s.code)} disabled={busy !== ""}>
+                      <Icon name="mail" size={13} stroke="var(--earth)" />{busy === s.code ? tr("Enviando…", "Sending…") : tr("Recordar", "Remind")}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {shown.length === 0 && (
+              <tr><td colSpan={6} style={{ padding: "26px 16px", textAlign: "center", color: "var(--earth)" }}>{tr("Todos los socios están al día.", "Every owner is up to date.")}</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// ---- Admin: Owner deposits — one table per currency, by property (default) or owner ----
 const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
-  const [view, setView] = useState("owner");
+  const [view, setView] = useState("prop");
+  const [flt, setFlt] = useState("all");
   useFilesTick();
   const [busyKey, setBusyKey] = useState("");
   const SF = window.SpacioFiles;
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
   const endMonth = pdata.slice && pdata.slice.length ? pdata.slice[pdata.slice.length - 1] : null;
   const ym = ymOf(endMonth);
-  // sube el comprobante de depósito de una fila (propiedad o socio)
-  const uploadDeposit = async (g, file) => {
-    if (!ym || !SF) return;
-    const scope = view === "owner" ? "owner" : "property";
+  const ownerLabelOf = (g) => {
     const acc = (SpacioData.owners || []).find(o => o.code === g.owner || (o.codes && o.codes.includes(g.owner)));
-    const ownerLabel = acc ? (acc.name || acc.code) : g.owner;
-    setBusyKey(g.key);
-    await SF.upload({ kind: "deposito", scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym, file });
+    return acc ? (acc.name || acc.code) : g.owner;
+  };
+  const scopeNow = view === "owner" ? "owner" : "property";
+  // sube un archivo (comprobante de depósito o constancia de retención) de una fila
+  const uploadFor = async (kind, g, file) => {
+    if (!ym || !SF) return;
+    setBusyKey(g.key + kind);
+    await SF.upload({ kind, scope: scopeNow, owner: ownerLabelOf(g), property_name: scopeNow === "property" ? g.label : "", ym, file });
     setBusyKey("");
   };
-  const depFor = (g) => {
+  const covFor = (kind, g) => {
     if (!SF || !ym) return null;
-    const scope = view === "owner" ? "owner" : "property";
-    const acc = (SpacioData.owners || []).find(o => o.code === g.owner || (o.codes && o.codes.includes(g.owner)));
-    const ownerLabel = acc ? (acc.name || acc.code) : g.owner;
-    // Solo cuenta el comprobante del MES que se está viendo (coverage exacto), no el
-    // más reciente de otro mes: así la fila "Descargar" coincide con los comprobantes
-    // realmente cargados en ese mes (evita el falso positivo de socio_025 en junio).
-    return SF.coverage("deposito", { scope, owner: ownerLabel, property_name: scope === "property" ? g.label : "", ym });
+    return SF.coverage(kind, { scope: scopeNow, owner: ownerLabelOf(g), property_name: scopeNow === "property" ? g.label : "", ym });
   };
-  // currency conversion to the property's OWN moneda
   const conv = (usd, moneda) => moneda === "GTQ" ? usd * SpacioI18n.GTQ_RATE : usd;
-  // monto con DECIMALES en texto pequeño (no rompe el layout ni la estética)
   const fmtMon = (usd, moneda) => {
     const v = conv(usd, moneda);
     const sym = moneda === "GTQ" ? "Q " : "$";
@@ -1467,88 +1656,126 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     const dec = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
     return <span>{neg}{sym}{ent}<span style={{ fontSize: "0.72em", opacity: 0.62 }}>.{dec}</span></span>;
   };
-  // per-property settlement for the selected period
+  // liquidación por propiedad del período seleccionado
   const rows = allProps.map(p => {
     const pd = SpacioAgg.periodData(p.months, period);
     const c = pd.cur;
-    const income = c.deposito || c.ingresoNeto || 0; // neto2 si retención, si no neto
-    const iva = c.ivaSocios || 0;
-    // "Total" = monto a depositar (idéntico al bloque de liquidación del dashboard).
-    // Cuando la propiedad usa Ingreso Neto 2 este monto YA incluye retención e IVA,
-    // por eso NO se vuelve a sumar el IVA aquí (ese era el error de la fórmula previa).
+    // "Total" = monto a depositar. La retención sustituye a la antigua columna
+    // "Ingreso", que repetía exactamente el mismo valor que "Total".
     const montoDeposito = c.montoDeposito != null ? c.montoDeposito : (c.ingresoNeto || 0);
     const acc = SpacioData.owners.find(o => o.props.indexOf(p.id) >= 0);
     return {
       moneda: p.moneda || "USD", owner: p.code, ownerEmail: acc ? acc.email : "", prop: p.name,
-      cuenta: p.cuenta || "", income, iva, total: montoDeposito,
+      cuenta: p.cuenta || "", retencion: c.retencion || 0, iva: c.ivaSocios || 0, total: montoDeposito,
+      needsRet: !!p.flagRetencion,
     };
   });
   const monedas = [...new Set(rows.map(r => r.moneda))].sort();
   const hasAccounts = rows.some(r => r.cuenta);
 
   const buildGroups = (rs) => {
-    if (view === "prop") return rs.map(r => ({ key: r.prop, owner: r.owner, email: r.ownerEmail, label: r.prop, cuenta: r.cuenta, income: r.income, iva: r.iva, total: r.total, moneda: r.moneda }));
+    if (view === "prop") return rs.map(r => ({ key: r.prop, owner: r.owner, email: r.ownerEmail, label: r.prop, cuenta: r.cuenta, retencion: r.retencion, iva: r.iva, total: r.total, moneda: r.moneda, needsRet: r.needsRet }));
     const g = {};
     rs.forEach(r => {
       const k = r.owner;
-      if (!g[k]) g[k] = { key: k, owner: r.owner, email: r.ownerEmail, label: r.owner, cuenta: r.cuenta, income: 0, iva: 0, total: 0, moneda: r.moneda };
-      g[k].income += r.income; g[k].iva += r.iva; g[k].total += r.total;
+      if (!g[k]) g[k] = { key: k, owner: r.owner, email: r.ownerEmail, label: r.owner, cuenta: r.cuenta, retencion: 0, iva: 0, total: 0, moneda: r.moneda, needsRet: false };
+      g[k].retencion += r.retencion; g[k].iva += r.iva; g[k].total += r.total;
+      if (r.needsRet) g[k].needsRet = true;
       if (!g[k].cuenta && r.cuenta) g[k].cuenta = r.cuenta;
     });
     return Object.values(g);
   };
 
+  const FLT = [
+    { value: "all", label: tr("Todos", "All") },
+    { value: "pending", label: tr("Falta depósito", "Missing deposit") },
+    { value: "done", label: tr("Con depósito", "Deposited") },
+    { value: "ret", label: tr("Falta constancia", "Missing withholding") },
+  ];
+
   return (
     <section className="sa-section" style={{ marginTop: 28 }}>
       <SectionHead eyebrow={t("admin_badge")} title={t("dep_title")} sub={t("dep_sub")}
         right={<Segmented size="sm" value={view} onChange={setView}
-          options={[{ value: "owner", label: t("dep_by_owner") }, { value: "prop", label: t("dep_by_prop") }]} />} />
+          options={[{ value: "prop", label: t("dep_by_prop") }, { value: "owner", label: t("dep_by_owner") }]} />} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
+        {FLT.map(f => (
+          <button key={f.value} onClick={() => setFlt(f.value)}
+            className={"sa-chip-btn " + (flt === f.value ? "sa-chip-btn-dark" : "sa-chip-btn-ghost")}
+            style={{ padding: "7px 14px", fontSize: 11 }}>
+            {f.value === "pending" && <Farol ok={false} size={8} />}
+            {f.value === "done" && <Farol ok={true} size={8} />}
+            {f.value === "ret" && <Farol ok={false} size={8} />}
+            {f.label}
+          </button>
+        ))}
+      </div>
       {monedas.map(mon => {
         const rs = rows.filter(r => r.moneda === mon);
-        const groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
-        const tot = groups.reduce((a, g) => ({ income: a.income + g.income, iva: a.iva + g.iva, total: a.total + g.total }), { income: 0, iva: 0, total: 0 });
+        let groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
+        groups = groups.filter(g => {
+          if (flt === "all") return true;
+          if (flt === "ret") return g.needsRet && !covFor("retencion", g);
+          const dep = covFor("deposito", g);
+          return flt === "done" ? !!dep : !dep;
+        });
+        if (!groups.length) return null;
+        const tot = groups.reduce((a, g) => ({ retencion: a.retencion + g.retencion, iva: a.iva + g.iva, total: a.total + g.total }), { retencion: 0, iva: 0, total: 0 });
         return (
           <div key={mon} style={{ marginBottom: 26 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 999, fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em" }}>{mon}</span>
-              <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--earth)" }}>{groups.length} {view === "owner" ? (lang === "es" ? "socios" : "owners") : (lang === "es" ? "propiedades" : "properties")}</span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--earth)" }}>{groups.length} {view === "owner" ? tr("socios", "owners") : tr("propiedades", "properties")}</span>
             </div>
             <div className="sa-setup-scroll">
               <table className="sa-setup-table sa-dep-table">
                 <thead>
                   <tr>
+                    <th style={{ minWidth: 36 }}></th>
                     <th style={{ minWidth: 130 }}>{view === "owner" ? t("dep_col_owner") : t("dep_col_prop")}</th>
                     {view === "prop" && <th style={{ minWidth: 110 }}>{t("dep_col_owner")}</th>}
-                    <th style={{ minWidth: 110, textAlign: "right" }}>{t("dep_col_income")}</th>
+                    <th style={{ minWidth: 110, textAlign: "right" }}>{tr("Retención", "Withholding")}</th>
                     <th style={{ minWidth: 100, textAlign: "right" }}>{t("dep_col_iva")}</th>
                     <th style={{ minWidth: 110, textAlign: "right" }}>{t("dep_col_total")}</th>
                     <th style={{ minWidth: 130 }}>{t("dep_col_account")}</th>
                     <th style={{ minWidth: 170 }}>{t("dep_col_email")}</th>
                     <th style={{ minWidth: 150 }}>{t("liq_deposit_proof")}</th>
+                    <th style={{ minWidth: 160 }}>{tr("Constancia de retención", "Withholding certificate")}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {groups.map(g => (
-                    <tr key={g.key}>
-                      <td style={{ fontWeight: 500 }}>{g.label}</td>
-                      {view === "prop" && <td style={{ color: "var(--earth)" }}>{g.owner}</td>}
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmtMon(g.income, mon)}</td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--earth)" }}>{fmtMon(g.iva, mon)}</td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtMon(g.total, mon)}</td>
-                      <td style={{ color: g.cuenta ? "var(--ink)" : "var(--earth)" }}>{g.cuenta || t("dep_no_account")}</td>
-                      <td style={{ color: "var(--earth)" }}>{g.email}</td>
-                      <td>{(() => { const dc = depFor(g); return dc && dc.url
-                        ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={dc.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{lang === "es" ? "Descargar" : "Download"}</a>
-                        : <FileUploadButton label={dc ? (lang === "es" ? "Reemplazar" : "Replace") : (lang === "es" ? "Subir" : "Upload")} onPick={(f) => uploadDeposit(g, f)} busy={busyKey === g.key} />; })()}</td>
-                    </tr>
-                  ))}
+                  {groups.map(g => {
+                    const dep = covFor("deposito", g);
+                    const ret = covFor("retencion", g);
+                    return (
+                      <tr key={g.key}>
+                        <td><Farol ok={!!dep} /></td>
+                        <td style={{ fontWeight: 500 }}>{g.label}</td>
+                        {view === "prop" && <td style={{ color: "var(--earth)" }}>{g.owner}</td>}
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--earth)" }}>{g.retencion > 0.005 ? fmtMon(g.retencion, mon) : "—"}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--earth)" }}>{fmtMon(g.iva, mon)}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtMon(g.total, mon)}</td>
+                        <td style={{ color: g.cuenta ? "var(--ink)" : "var(--earth)" }}>{g.cuenta || t("dep_no_account")}</td>
+                        <td style={{ color: "var(--earth)" }}>{g.email}</td>
+                        <td>{dep && dep.url
+                          ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={dep.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{tr("Descargar", "Download")}</a>
+                          : <FileUploadButton label={dep ? tr("Reemplazar", "Replace") : tr("Subir", "Upload")} onPick={(f) => uploadFor("deposito", g, f)} busy={busyKey === g.key + "deposito"} />}</td>
+                        <td>{!g.needsRet
+                          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}><Farol na /> {tr("No aplica", "N/A")}</span>
+                          : ret && ret.url
+                            ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={ret.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{tr("Descargar", "Download")}</a>
+                            : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Farol ok={!!ret} /><FileUploadButton label={ret ? tr("Reemplazar", "Replace") : tr("Subir", "Upload")} onPick={(f) => uploadFor("retencion", g, f)} busy={busyKey === g.key + "retencion"} /></span>}</td>
+                      </tr>
+                    );
+                  })}
                   <tr style={{ background: "var(--beige-soft)" }}>
+                    <td></td>
                     <td style={{ fontWeight: 600 }}>{t("dep_total_row")}</td>
                     {view === "prop" && <td></td>}
-                    <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.income, mon)}</td>
+                    <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.retencion, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.iva, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.total, mon)}</td>
-                    <td></td><td></td><td></td>
+                    <td></td><td></td><td></td><td></td>
                   </tr>
                 </tbody>
               </table>
@@ -1565,8 +1792,9 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
         <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />
         <UploadedDepositsList lang={lang} t={t} ym={ym} />
       </div>
+      <InvoiceControlTable allProps={allProps} lang={lang} />
     </section>
   );
 };
 
-Object.assign(window, { ContaUsersCard, DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList });
+Object.assign(window, { ContaUsersCard, DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList, MailNudgeCard, InvoiceControlTable, Farol });

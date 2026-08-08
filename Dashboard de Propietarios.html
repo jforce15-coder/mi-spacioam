@@ -549,6 +549,9 @@
           </div>
 
           <div className="sa-wrap">
+            {isAdmin && tab === "dashboard" && typeof MailNudgeCard !== "undefined" && (
+              <MailNudgeCard lang={lang} />
+            )}
             {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && (
               <AdminFilters allProps={allOwnerProps} owner={adminOwner} setOwner={setAdminOwner} zona={adminZona} setZona={setAdminZona}
                 edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={effSelProp} setSelProp={setSelProp} t={t} lang={lang} />
