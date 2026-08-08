@@ -68,6 +68,7 @@ const ICONS = {
   sofa: "M5 11V8.5A2.5 2.5 0 017.5 6h9A2.5 2.5 0 0119 8.5V11M3 12.5A1.5 1.5 0 014.5 11h0A1.5 1.5 0 016 12.5V16h12v-3.5A1.5 1.5 0 0119.5 11h0a1.5 1.5 0 011.5 1.5V18H3v-5.5zM6 18v2M18 18v2",
   file: "M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M9 13h6M9 17h4",
   grid: "M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z",
+  mail: "M3.5 6.5h17v11h-17zM3.5 7l8.5 6 8.5-6",
   bank: "M3 9.5L12 4l9 5.5M4 9.5h16M5.5 10v8M9.5 10v8M14.5 10v8M18.5 10v8M3.5 18.5h17M3 21h18",
 };
 const Icon = ({ name, size = 20, stroke = "currentColor", width = 1.25, style = {} }) => (

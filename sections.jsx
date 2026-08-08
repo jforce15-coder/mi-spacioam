@@ -807,6 +807,23 @@ const SetupSection = ({ lang, t }) => {
     setSyncMsg(r && r.ok ? tr(`Listo · ${r.rowsUpdated} filas`, `Done · ${r.rowsUpdated} rows`) : tr("Error: " + (r.error || "sin conexión"), "Error: " + (r.error || "offline")));
   };
 
+  const [mailMes, setMailMes] = useState(() => { const n = new Date(); n.setMonth(n.getMonth() - 1); return n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0"); });
+  const [mailBusy, setMailBusy] = useState("");
+  const [mailMsg, setMailMsg] = useState("");
+  // dispara el envío masivo en Apps Script; confirma antes porque no se puede deshacer
+  const sendMail = async (action) => {
+    if (!SpacioWrite.enabled()) { setMailMsg(tr("Conecta el backend primero.", "Connect the backend first.")); return; }
+    const label = action === "sendCierreMes" ? tr("el correo de cierre de mes", "the month-close email") : tr("los recordatorios de factura", "the invoice reminders");
+    if (!window.confirm(tr("Se enviará " + label + " a los socios que correspondan. ¿Continuar?", "This will send " + label + ". Continue?"))) return;
+    setMailBusy(action); setMailMsg(tr("Enviando…", "Sending…"));
+    const r = await SpacioWrite.post(action, action === "sendCierreMes" ? { mes: mailMes } : { hasta: mailMes });
+    setMailBusy("");
+    if (r && r.ok) {
+      setMailMsg(tr(`Listo · ${r.enviados} correo(s)`, `Done · ${r.enviados} email(s)`) +
+        (r.sinCorreo && r.sinCorreo.length ? tr(" · sin correo: ", " · no email: ") + r.sinCorreo.join(", ") : ""));
+    } else setMailMsg(tr("Error: ", "Error: ") + ((r && r.error) || tr("sin conexión", "offline")));
+  };
+
   const editField = (key, val) => setRows(rs => rs.map((r, i) => i === editing ? Object.assign({}, r, { [key]: val }) : r));
   const persist = (r) => {
     SpacioSetup.saveEditRaw(r.property_id, r);
@@ -863,6 +880,27 @@ const SetupSection = ({ lang, t }) => {
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--warm-grey)" }}>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={syncDeposits}><Icon name="coins" size={14} stroke="var(--earth)" />{tr("Sincronizar depósitos", "Sync deposits")}</button>
           {syncMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{syncMsg}</span>}
+        </div>
+      </Card>
+
+      {/* correos a socios */}
+      <Card pad={20} soft style={{ marginBottom: 18 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 6 }}>
+          <Icon name="mail" size={16} stroke="var(--ink)" />
+          <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)" }}>{tr("Correos a socios", "Owner emails")}</span>
+        </div>
+        <p style={{ margin: "0 0 14px", fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.7, letterSpacing: "0.03em", color: "var(--earth)" }}>
+          {tr("Se envían desde la hoja. El cierre de mes va a cada socio con resultado en ese mes; el recordatorio, solo a quienes tienen facturas pendientes.", "Sent from the sheet. Month close goes to every owner with results that month; the reminder only to those with pending invoices.")}
+        </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <input className="sa-setup-input" style={{ maxWidth: 130 }} value={mailMes} onChange={e => setMailMes(e.target.value)} placeholder="2026-07" />
+          <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => sendMail("sendCierreMes")} disabled={mailBusy !== ""}>
+            <Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar cierre de mes", "Send month close")}
+          </button>
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => sendMail("sendRecordatoriosFactura")} disabled={mailBusy !== ""}>
+            <Icon name="alert" size={14} stroke="var(--earth)" />{tr("Recordar facturas pendientes", "Remind pending invoices")}
+          </button>
+          {mailMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{mailMsg}</span>}
         </div>
       </Card>
 
