@@ -6,9 +6,8 @@ GITHUB — reemplaza estos archivos en la raiz del repositorio del sitio:
   facturas-batch.js                (NUEVO)       clasificador de facturas por mes
   Dashboard de Propietarios.html   (reemplazar)  carga facturas-batch.js
 
-ANTES de subir sheets.js, rellena arriba del archivo:
+sheets.js YA VIENE CONFIGURADO (linea 493-494): la URL /exec y el token de subida
+estan dentro. No hay que editar nada antes de subirlo.
 
-  const SA_PUBLIC_URL = "https://script.google.com/macros/s/AKfyc.../exec";
-  const SA_PUBLIC_TOKEN = "el-mismo-valor-de-SA_UPLOAD_TOKEN";
-
-Sin esos dos valores no se guarda nada.
+En el Apps Script, SA_UPLOAD_TOKEN (linea 19) ya trae el mismo token. Solo falta
+guardar la llave ANTHROPIC_API_KEY en Propiedades del script y publicar version nueva.

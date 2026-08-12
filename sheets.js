@@ -490,8 +490,8 @@
   // Drive (su navegador no tiene la conexión del admin) y el archivo se pierde
   // al recargar. El token de subida solo autoriza "uploadFile" en el Apps
   // Script (SA_UPLOAD_TOKEN), por eso puede ir dentro del código publicado.
-  const SA_PUBLIC_URL = "";   // ej. "https://script.google.com/macros/s/AKfyc…/exec"
-  const SA_PUBLIC_TOKEN = ""; // el mismo valor de SA_UPLOAD_TOKEN en el Apps Script
+  const SA_PUBLIC_URL = "https://script.google.com/macros/s/AKfycbzqUTv_0NuNBVRXhlfHGaS5RdWKjBAmfA-dIsdDnMLbl2aE2PriEXNWw3qCi8yPF28qaQ/exec"; // ej. "https://script.google.com/macros/s/AKfyc…/exec"
+  const SA_PUBLIC_TOKEN = "spam-subida-8f42c7bd91e6a5-2026"; // el mismo valor de SA_UPLOAD_TOKEN en el Apps Script
   // ---------------------------------------------------------------
   function saCookieGet(k) {
     try { const m = document.cookie.match("(?:^|; )" + k.replace(/[-]/g, "\\$&") + "=([^;]*)"); return m ? decodeURIComponent(m[1]) : ""; } catch (e) { return ""; }
