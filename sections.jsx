@@ -815,7 +815,7 @@ const SetupSection = ({ lang, t }) => {
   const sendMail = async (action) => {
     if (!SpacioWrite.enabled()) { setMailMsg(tr("Conecta el backend primero.", "Connect the backend first.")); return; }
     // el token vive por dispositivo: si se configuró en otro, aquí llega vacío
-    if (!SpacioWrite.token()) { setMailMsg(tr("Este dispositivo no tiene el token. Pégalo arriba en Conexión de escritura.", "This device has no token. Paste it above under write connection.")); return; }
+    if (!SpacioWrite.isAdminConn || !SpacioWrite.isAdminConn()) { setMailMsg(tr("Este dispositivo no tiene el token de administrador. Pégalo arriba en Conexión de escritura.", "This device has no admin token. Paste it above under write connection.")); return; }
     const label = action === "sendCierreMes" ? tr("el correo de cierre de mes", "the month-close email") : tr("los recordatorios de factura", "the invoice reminders");
     if (!window.confirm(tr("Se enviará " + label + " a los socios que correspondan. ¿Continuar?", "This will send " + label + ". Continue?"))) return;
     setMailBusy(action); setMailMsg(tr("Enviando…", "Sending…"));
@@ -1039,12 +1039,164 @@ function FileUploadButton({ label, onPick, busy, dark }) {
   );
 }
 
+// ---- Subida en LOTE de facturas (socio): varios archivos a la vez.
+// Cada factura se clasifica leyendo su DESCRIPCION (el periodo que factura), no la
+// fecha de creacion: los socios facturan atrasado. PDF con texto se lee en el
+// navegador; fotos y escaneos van a OCR (Claude Haiku) via Apps Script.
+// El socio ve la imagen en grande y puede corregir el mes de cualquiera.
+function FacturaBatchUpload({ scope, ownerLabel, propName, lang, enforceYear }) {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const ref = useRef(null);
+  const [rows, setRows] = useState([]);
+  const [prog, setProg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [auto, setAuto] = useState(true);
+  const [zoom, setZoom] = useState(null);
+  const SF = window.SpacioFiles, FB = window.SpacioFacturaBatch;
+  if (!SF || !FB) return null;
+
+  const monthOpts = useMemo(() => {
+    const now = new Date(), out = [];
+    for (let y = enforceYear; y <= now.getFullYear(); y++) {
+      const last = y === now.getFullYear() ? now.getMonth() : 11;
+      for (let m = 0; m <= last; m++) out.push(y + "-" + String(m + 1).padStart(2, "0"));
+    }
+    return out.reverse();
+  }, [enforceYear]);
+  const monthLabel = (ym) => {
+    if (!/^\d{4}-\d{2}$/.test(String(ym || ""))) return ym || "—";
+    const [y, m] = ym.split("-");
+    return longMonth(lang, +y, +m - 1);
+  };
+
+  const pick = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setProg({ i: 0, n: files.length });
+    const cls = await FB.classifyAll(files, { ocr: auto }, (_r, i, n) => setProg({ i: i + 1, n }));
+    setProg(null);
+    setRows(rs => rs.concat(cls.map((c, i) => ({
+      id: "b" + Date.now() + "-" + i, name: c.name, ym: c.ym, conf: c.conf, source: c.source,
+      descripcion: c.descripcion || "", preview: c.preview || "", file: c.file, status: "ready", error: "",
+    }))));
+  };
+  const setYm = (id, ym) => setRows(rs => rs.map(r => (r.id === id ? Object.assign({}, r, { ym, conf: "manual", source: "manual" }) : r)));
+  const drop = (id) => setRows(rs => rs.filter(r => r.id !== id));
+
+  const uploadAll = async () => {
+    setBusy(true);
+    for (const r of rows.filter(x => x.status !== "done")) {
+      setRows(rs => rs.map(x => (x.id === r.id ? Object.assign({}, x, { status: "up" }) : x)));
+      const res = await SF.upload({ kind: "factura", scope, owner: ownerLabel, property_name: propName, ym: r.ym, file: r.file, multiple: true });
+      setRows(rs => rs.map(x => (x.id === r.id
+        ? Object.assign({}, x, { status: res && res.ok ? "done" : "fail", error: (res && res.error) || "" })
+        : x)));
+    }
+    setBusy(false);
+  };
+
+  const pend = rows.filter(r => r.status !== "done").length;
+  const bad = rows.filter(r => r.status === "fail").length;
+  const dudosas = rows.filter(r => r.status !== "done" && (r.conf === "baja" || r.conf === "media")).length;
+  const SRC = {
+    "periodo": tr("periodo de la factura", "invoice period"),
+    "ocr-periodo": tr("periodo leído de la imagen", "period read from image"),
+    "emision": tr("fecha de emisión", "issue date"),
+    "ocr-emision": tr("emisión leída de la imagen", "issue date read from image"),
+    "nombre": tr("nombre del archivo", "file name"),
+    "fecha": tr("fecha del archivo — revísalo", "file date — please check"),
+    "manual": tr("elegido por ti", "you chose it"),
+  };
+
+  return (
+    <div style={{ marginTop: 14, border: "1px solid var(--warm-grey)", borderRadius: 18, background: "var(--alabaster)", padding: "16px 18px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ flex: "1 1 240px" }}>
+          <strong style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600, letterSpacing: "0.03em", color: "var(--ink)" }}>{tr("Subir varias facturas a la vez", "Upload several invoices at once")}</strong>
+          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--earth)", marginTop: 3 }}>
+            {auto
+              ? tr("Leemos la descripción de cada factura para ubicarla en el mes que corresponde. Revisa y corrige antes de subir.", "We read each invoice's description to file it under the right month. Review and correct before uploading.")
+              : tr("Súbelas y clasifícalas tú: elige el mes de cada una viendo la imagen.", "Upload them and classify them yourself: pick each month while looking at the image.")}
+          </span>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--earth)" }}>
+            <input type="checkbox" checked={auto} disabled={!!prog || busy} onChange={e => setAuto(e.target.checked)} style={{ width: 14, height: 14, accentColor: "var(--peach)" }} />
+            {tr("Clasificar automáticamente", "Classify automatically")}
+          </label>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input ref={ref} type="file" multiple accept="image/*,application/pdf" style={{ display: "none" }}
+            onChange={e => { pick(e.target.files); e.target.value = ""; }} />
+          <button type="button" className="sa-file-btn ghost" disabled={!!prog || busy} onClick={() => ref.current && ref.current.click()}>
+            <Icon name="upload" size={15} stroke="var(--ink)" />
+            {prog ? tr("Leyendo " + prog.i + " de " + prog.n + "…", "Reading " + prog.i + " of " + prog.n + "…") : tr("Elegir archivos", "Choose files")}
+          </button>
+          {!!pend && <button type="button" className="sa-file-btn dark" disabled={busy || !!prog} onClick={uploadAll}>
+            {busy ? tr("Subiendo…", "Uploading…") : tr("Subir " + pend, "Upload " + pend)}
+          </button>}
+        </div>
+      </div>
+
+      {!!rows.length && (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+          {rows.map(r => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 12, borderTop: "1px solid var(--warm-grey)", paddingTop: 10 }}>
+              {r.preview
+                ? <button type="button" onClick={() => setZoom(r)} title={tr("Ver en grande", "View larger")}
+                    style={{ flex: "0 0 auto", width: 54, height: 68, borderRadius: 8, border: "1px solid var(--warm-grey)", padding: 0, overflow: "hidden", background: "var(--beige-soft)", cursor: "zoom-in" }}>
+                    <img src={r.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  </button>
+                : <span style={{ flex: "0 0 auto", width: 54, height: 68, borderRadius: 8, border: "1px solid var(--warm-grey)", background: "var(--beige-soft)", display: "grid", placeItems: "center" }}><Icon name="file" size={18} stroke="var(--earth)" /></span>}
+              <div style={{ flex: "1 1 160px", minWidth: 0 }}>
+                <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.descripcion || r.name}</span>
+                <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.05em", color: r.conf === "baja" ? "var(--peach)" : "var(--earth)", marginTop: 3 }}>
+                  {r.status === "done" ? tr("guardada en ", "saved under ") + monthLabel(r.ym) : r.status === "fail" ? tr("no se guardó", "not saved") : SRC[r.source] || ""}
+                </span>
+              </div>
+              <select value={r.ym} disabled={r.status === "done" || busy} onChange={e => setYm(r.id, e.target.value)}
+                style={{ flex: "0 0 auto", fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--ink)", background: "var(--beige-soft)", border: "1px solid " + (r.conf === "baja" ? "var(--peach)" : "var(--warm-grey)"), borderRadius: 10, padding: "6px 8px" }}>
+                {monthOpts.indexOf(r.ym) < 0 && <option value={r.ym}>{monthLabel(r.ym)}</option>}
+                {monthOpts.map(o => <option key={o} value={o}>{monthLabel(o)}</option>)}
+              </select>
+              {r.status === "done"
+                ? <Icon name="check" size={16} stroke="#5B8A6B" />
+                : <button className="sa-uplist-del" disabled={busy} onClick={() => drop(r.id)} title={tr("Quitar", "Remove")}><Icon name="trash" size={14} stroke="currentColor" /></button>}
+            </div>
+          ))}
+          {!!dudosas && !bad && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--earth)", letterSpacing: "0.03em" }}>{tr("Toca una imagen para verla en grande y confirmar el mes.", "Tap an image to view it larger and confirm the month.")}</span>}
+          {!!bad && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--peach)", letterSpacing: "0.03em" }}>{tr("Algunas no se guardaron. Vuelve a intentarlo o envíalas a hola@spacioam.com.", "Some were not saved. Try again or email them to hola@spacioam.com.")}</span>}
+        </div>
+      )}
+
+      {zoom && (
+        <div onClick={() => setZoom(null)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.72)", backdropFilter: "blur(6px)", display: "grid", placeItems: "center", padding: 24 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 20, boxShadow: "0 28px 80px rgba(62,63,63,0.10)", padding: 16, maxWidth: "min(860px, 94vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", gap: 12 }}>
+            <img src={zoom.preview} alt="" style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 12, background: "var(--beige-soft)" }} />
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--ink)" }}>{zoom.descripcion || zoom.name}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <select value={(rows.find(x => x.id === zoom.id) || zoom).ym} onChange={e => { setYm(zoom.id, e.target.value); setZoom(Object.assign({}, zoom, { ym: e.target.value })); }}
+                  style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--ink)", background: "var(--beige-soft)", border: "1px solid var(--warm-grey)", borderRadius: 10, padding: "7px 10px" }}>
+                  {monthOpts.indexOf(zoom.ym) < 0 && <option value={zoom.ym}>{monthLabel(zoom.ym)}</option>}
+                  {monthOpts.map(o => <option key={o} value={o}>{monthLabel(o)}</option>)}
+                </select>
+                <button type="button" className="sa-file-btn ghost" onClick={() => setZoom(null)}>{tr("Listo", "Done")}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---- Liquidation block (above Financial): deposit receipt + invoice upload + overdue alert ----
 const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, isAdmin, isAll }) => {
   useFilesTick();
   const { money, money2, moneyEl } = fmt;
   const c = pdata.cur;
   const [busy, setBusy] = useState("");
+  const [upMsg, setUpMsg] = useState(null);
   const usaNeto2 = (c.retencion || 0) > 0.005;
   const montoDeposito = c.montoDeposito != null ? c.montoDeposito : (c.ingresoNeto || 0);
   const stats = [
@@ -1071,10 +1223,21 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
 
   const doUpload = async (file) => {
     if (!canUpload) return;
-    setBusy("inv");
-    await SF.upload({ kind: "factura", scope, owner: ownerLabel, property_name: propName, ym, file });
+    setBusy("inv"); setUpMsg(null);
+    const res = await SF.upload({ kind: "factura", scope, owner: ownerLabel, property_name: propName, ym, file });
     setBusy("");
+    if (res && res.ok) {
+      setUpMsg({ ok: true, text: lang === "es" ? "Factura guardada · ya queda registrada." : "Invoice saved · now on file." });
+    } else {
+      setUpMsg({ ok: false, text: lang === "es"
+        ? "No se pudo guardar la factura. No quedó registrada: vuelve a intentarlo o envíala a hola@spacioam.com."
+        : "The invoice could not be saved. Nothing was stored: try again or email it to hola@spacioam.com." });
+    }
   };
+  // facturas que este dispositivo intentó subir y NO se guardaron (rastro local)
+  const pendInv = (SF && SF.pending ? SF.pending("factura") : []).filter(r => (
+    scope === "owner" ? true : (r.property_name || "") === propName
+  ));
 
   return (
     <section className="sa-section" id="sec-liquidation" style={{ marginTop: 40 }}>
@@ -1148,6 +1311,25 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
                 ? <FileUploadButton label={t("liq_invoice_upload")} onPick={doUpload} busy={busy === "inv"} dark />
                 : <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--earth)", letterSpacing: "0.02em" }}>{lang === "es" ? "Selecciona una propiedad o tu portafolio para subir la factura." : "Select a property or your portfolio to upload the invoice."}</span>}
             </div>
+          )}
+          {upMsg && (
+            <div className={upMsg.ok ? "sa-liq-note" : "sa-overdue lvl2"} style={{ marginTop: 10 }}>
+              <Icon name={upMsg.ok ? "check" : "alert"} size={15} stroke={upMsg.ok ? "#5B8A6B" : "var(--peach)"} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>{upMsg.text}</span>
+            </div>
+          )}
+          {!!pendInv.length && (
+            <div className="sa-overdue lvl2" style={{ marginTop: 10, alignItems: "flex-start" }}>
+              <Icon name="alert" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} />
+              <span>
+                <strong>{lang === "es" ? "Facturas que no se guardaron" : "Invoices that were not saved"}</strong>
+                <span style={{ display: "block", marginTop: 3 }}>{lang === "es" ? "Vuelve a subirlas: el archivo nunca llegó a nuestro Drive." : "Please upload them again: the file never reached our Drive."}</span>
+                <span style={{ display: "block", marginTop: 4, color: "var(--earth)", fontSize: 11 }}>{pendInv.slice(0, 6).map(r => (r.ym || "") + " · " + (r.archivo || "")).join(" — ")}</span>
+              </span>
+            </div>
+          )}
+          {canUpload && (
+            <FacturaBatchUpload scope={scope} ownerLabel={ownerLabel} propName={propName} lang={lang} enforceYear={SF ? SF.ENFORCE_FROM_YEAR : 2026} />
           )}
           {overdue && (overdue.level === 1 || overdue.level === 2) ? (
             <div className={"sa-overdue lvl" + overdue.level}>
@@ -1481,7 +1663,7 @@ function lastLoadedYm() {
 // envío al Apps Script, compartido por el aviso del resumen y la tabla de facturas
 async function sendMailAction(action, payload) {
   if (!window.SpacioWrite || !SpacioWrite.enabled()) return { ok: false, error: "no-backend" };
-  if (!SpacioWrite.token()) return { ok: false, error: "no-token" };
+  if (!SpacioWrite.isAdminConn || !SpacioWrite.isAdminConn()) return { ok: false, error: "no-token" };
   return await SpacioWrite.post(action, payload);
 }
 function mailErrText(r, es) {

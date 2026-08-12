@@ -1,0 +1,14 @@
+GITHUB — reemplaza estos archivos en la raiz del repositorio del sitio:
+
+  sheets.js                        (reemplazar)  conexion publica de subida
+  files.js                         (reemplazar)  ya no finge que guardo
+  sections.jsx                     (reemplazar)  subida en lote + vista grande
+  facturas-batch.js                (NUEVO)       clasificador de facturas por mes
+  Dashboard de Propietarios.html   (reemplazar)  carga facturas-batch.js
+
+ANTES de subir sheets.js, rellena arriba del archivo:
+
+  const SA_PUBLIC_URL = "https://script.google.com/macros/s/AKfyc.../exec";
+  const SA_PUBLIC_TOKEN = "el-mismo-valor-de-SA_UPLOAD_TOKEN";
+
+Sin esos dos valores no se guarda nada.

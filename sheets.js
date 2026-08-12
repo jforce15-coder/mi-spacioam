@@ -484,6 +484,15 @@
   // Safari/iOS no la borra mientras se use el dashboard con regularidad, y si un
   // almacén se limpia, se restaura desde otro. Solo cambia si el admin la cambia.
   const SA_WK = "sa-writeapi-url", SA_TK = "sa-writeapi-token";
+  // ---------------------------------------------------------------
+  // CONEXIÓN PÚBLICA DE SUBIDA — rellenar UNA vez y volver a publicar.
+  // Sin esto, un socio que sube una factura desde su teléfono NO la guarda en
+  // Drive (su navegador no tiene la conexión del admin) y el archivo se pierde
+  // al recargar. El token de subida solo autoriza "uploadFile" en el Apps
+  // Script (SA_UPLOAD_TOKEN), por eso puede ir dentro del código publicado.
+  const SA_PUBLIC_URL = "";   // ej. "https://script.google.com/macros/s/AKfyc…/exec"
+  const SA_PUBLIC_TOKEN = ""; // el mismo valor de SA_UPLOAD_TOKEN en el Apps Script
+  // ---------------------------------------------------------------
   function saCookieGet(k) {
     try { const m = document.cookie.match("(?:^|; )" + k.replace(/[-]/g, "\\$&") + "=([^;]*)"); return m ? decodeURIComponent(m[1]) : ""; } catch (e) { return ""; }
   }
@@ -514,9 +523,12 @@
 
   const SpacioWrite = {
     urlKey: SA_WK, tokenKey: SA_TK,
-    // lee de localStorage; si está vacío, cae a la cookie (sincrónico)
-    url() { return (saLocalGet(SA_WK) || saCookieGet(SA_WK) || "").trim(); },
-    token() { return (saLocalGet(SA_TK) || saCookieGet(SA_TK) || "").trim(); },
+    // lee de localStorage; si está vacío, cae a la cookie y luego a la conexión
+    // pública de subida (para que TODO dispositivo pueda guardar archivos).
+    url() { return (saLocalGet(SA_WK) || saCookieGet(SA_WK) || SA_PUBLIC_URL || "").trim(); },
+    token() { return (saLocalGet(SA_TK) || saCookieGet(SA_TK) || SA_PUBLIC_TOKEN || "").trim(); },
+    // ¿este dispositivo tiene la conexión completa del admin (no la pública)?
+    isAdminConn() { return !!(saLocalGet(SA_TK) || saCookieGet(SA_TK)); },
     // escribe en los TRES almacenes
     setConfig(url, token) {
       url = (url || "").trim(); token = (token || "").trim();
@@ -526,10 +538,10 @@
     },
     // al cargar: restaura desde el almacén que sobreviva y re-sella todo
     async hydrate() {
-      let url = this.url(), token = this.token();
+      let url = saLocalGet(SA_WK) || saCookieGet(SA_WK), token = saLocalGet(SA_TK) || saCookieGet(SA_TK);
       if (!url) { const o = await saIdb("get"); if (o && o.url) { url = o.url; token = o.token || token; } }
       if (url) this.setConfig(url, token); // re-sella (refresca el temporizador de Safari)
-      return !!url;
+      return !!this.url();
     },
     enabled() { return !!this.url(); },
     async post(action, payload) {

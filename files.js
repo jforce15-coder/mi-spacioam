@@ -73,7 +73,18 @@
       pub.forEach(function (r) { byKey[fidOf(r)] = r; });
       loc.forEach(function (r) { byKey[fidOf(r)] = r; }); // local gana (más reciente)
       var tomb = readTomb();
-      return Object.values(byKey).filter(function (r) { return tomb.indexOf(fidOf(r)) < 0; });
+      // los registros FALLIDOS (no llegaron a Drive) no cuentan como cobertura:
+      // se listan aparte con pending() para poder volver a subirlos.
+      return Object.values(byKey).filter(function (r) { return tomb.indexOf(fidOf(r)) < 0 && !r.failed; });
+    },
+
+    // archivos que este dispositivo intentó subir y NO se guardaron en Drive.
+    // Sirven de rastro para volver a cargarlos (el archivo en sí ya no existe).
+    pending: function (kind) {
+      var tomb = readTomb();
+      return readLocal().filter(function (r) {
+        return r.failed && tomb.indexOf(fidOf(r)) < 0 && (!kind || r.tipo === kind);
+      }).sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
     },
 
     // TODOS los archivos que cubren una propiedad/socio para un mes (puede haber
@@ -205,15 +216,19 @@
           this._remember(rec, multiple); emit();
           return { ok: true, rec: rec, fileName: rec.archivo, url: rec.url };
         }
-        // si falla el backend, devolvemos el error para mostrar estado de carga
-        return { ok: false, error: (res && res.error) || "backend" };
+        // el backend falló: guardamos SOLO el rastro (marcado como fallido) para
+        // que el socio vea qué factura hay que volver a subir, y avisamos.
+        rec.archivo = params.file.name; rec.failed = true;
+        rec.error = (res && res.error) || "backend";
+        this._remember(rec, true); emit();
+        return { ok: false, error: rec.error, rec: rec };
       }
-      // fallback local: URL de sesión (no sobrevive recarga, pero el registro sí)
-      rec.archivo = params.file.name;
-      try { rec.url = URL.createObjectURL(params.file); } catch (e) { rec.url = ""; }
-      rec.sessionOnly = true;
-      this._remember(rec, multiple); emit();
-      return { ok: true, rec: rec, local: true, sessionOnly: true };
+      // SIN conexión de escritura: el archivo no puede salir del dispositivo.
+      // Antes se guardaba una URL de sesión que moría al recargar (las facturas
+      // "desaparecían"). Ahora se registra como fallida y se avisa al usuario.
+      rec.archivo = params.file.name; rec.failed = true; rec.error = "no-backend";
+      this._remember(rec, true); emit();
+      return { ok: false, error: "no-backend", rec: rec };
     },
 
     // borra un archivo (por su registro): quita del local, marca tumba para ocultar
