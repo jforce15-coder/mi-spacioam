@@ -10,7 +10,7 @@
   const SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
   const GTQ_RATE = 7.46;            // USD → GTQ (alineado al Reporte Financiero oficial)
   const DEMO_PASS = "spacioam";     // contraseña demo única (auth real vive en EPI)
-  const ADMIN_EMAIL = "spacioam@gmail.com";
+  const ADMIN_EMAIL = "jovalle@spacioam.com";
   const ADMIN_PASS = "Valencia2026!";
   // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad).
   // Estos son los valores POR DEFECTO; el administrador puede editarlos desde
@@ -409,6 +409,7 @@
         email: pr.email != null ? pr.email : o.email,
         secondaryEmail: pr.secondaryEmail != null ? pr.secondaryEmail : o.secondaryEmail,
         pass: pr.pass != null ? pr.pass : o.pass,
+        avatar: pr.avatar != null ? pr.avatar : (o.avatar || ""),
       };
     }
 
@@ -418,6 +419,18 @@
       live: true, rate: GTQ_RATE, monthKeys, MONTHS_ES, MONTHS_EN, setupHead: setup.head || [],
       properties: byId, propertyList: Object.values(propByName), owners, admin, contador,
       effCreds: eff,
+      // Convierte el perfil del auth unificado en un "owner" del dashboard
+      fromProfile(p) {
+        const email = (p.email || "").toLowerCase();
+        const rol = (p.apps && p.apps.mi) || "";
+        if (rol === "admin_principal") return Object.assign({}, admin, { email: p.email, avatar: p.foto || "" });
+        if (rol === "contador") return Object.assign({}, contador, { email: p.email });
+        const found = owners.find(o => {
+          const e = eff(o);
+          return (e.email || "").toLowerCase() === email || (e.secondaryEmail || "").toLowerCase() === email;
+        });
+        return found ? Object.assign({}, found, { avatar: p.foto || found.avatar || "" }) : Object.assign({ code: "__u__", name: p.nombre || p.email, email: p.email, props: [], avatar: p.foto || "" });
+      },
       auth(login, pass) {
         const L = String(login || "").trim().toLowerCase();
         if (L === ADMIN_EMAIL.toLowerCase() && pass === ADMIN_PASS) return Object.assign({}, admin);

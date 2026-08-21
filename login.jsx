@@ -7,16 +7,41 @@ const Login = ({ lang, setLang, onLogin }) => {
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState(false);
+  const [needPass, setNeedPass] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const submit = (e) => {
     e.preventDefault();
     setErr(false); setBusy(true);
-    setTimeout(() => {
+    // Modo compatibilidad: primero el login unificado (hoja «Control de
+    // usuarios»); si el endpoint no responde o no existe el usuario, cae
+    // al login viejo de la app. Así nada se rompe.
+    const fallback = () => {
       const owner = SpacioData.auth(code, pass);
       if (owner) onLogin(owner);
       else { setErr(true); setBusy(false); }
-    }, 520);
+    };
+    if (!window.SAAuth) { setTimeout(fallback, 300); return; }
+    window.SAAuth.login(code, pass).then((r) => {
+      if (r && r.ok && r.profile && r.profile.apps && r.profile.apps.mi) {
+        onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
+      } else if (r && r.error === "needs_password" && r.profile) {
+        setNeedPass(r.profile);       // primer ingreso: crear contraseña
+        setBusy(false);
+      } else {
+        fallback();                    // respaldo login viejo
+      }
+    }).catch(fallback);
+  };
+
+  const createPass = (e) => {
+    e.preventDefault();
+    if (!pass || pass.length < 6) { setErr(true); return; }
+    setBusy(true);
+    window.SAAuth.setInitialPassword(code, pass).then((r) => {
+      if (r && r.ok) onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
+      else { setErr(true); setBusy(false); }
+    }).catch(() => { setErr(true); setBusy(false); });
   };
 
   const fill = (o) => { setCode(o.email || o.code); setPass(o.pass); setErr(false); };
@@ -79,9 +104,12 @@ const Login = ({ lang, setLang, onLogin }) => {
           <h1 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: 38, letterSpacing: "-0.01em", lineHeight: 1.08, color: "var(--ink)", margin: 0 }}>{t("login_welcome")}</h1>
           <p style={{ fontFamily: "var(--sans)", fontSize: 13.5, letterSpacing: "0.04em", lineHeight: 1.7, color: "var(--fg-muted)", margin: "12px 0 30px" }}>{t("login_sub")}</p>
 
-          <form onSubmit={submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <form onSubmit={needPass ? createPass : submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {needPass && (
+              <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", background: "var(--beige)", borderRadius: 12, padding: "12px 14px", marginBottom: -2 }}>Es tu primer ingreso. Crea una contraseña (mínimo 6 caracteres).</div>
+            )}
             {field(t("user_label"), code, setCode, t("user_ph"), "text", null, true)}
-            {field(t("pass_label"), pass, setPass, t("pass_ph"), show ? "text" : "password",
+            {field(needPass ? "NUEVA CONTRASEÑA" : t("pass_label"), pass, setPass, t("pass_ph"), show ? "text" : "password",
               <button type="button" onClick={() => setShow(s => !s)} aria-label="toggle"
                 style={{ position: "absolute", right: 12, border: "none", background: "transparent", cursor: "pointer", color: "var(--fg-muted)", padding: 4, display: "flex" }}>
                 <Icon name={show ? "eyeOff" : "eye"} size={18} />
@@ -107,7 +135,7 @@ const Login = ({ lang, setLang, onLogin }) => {
               onMouseDown={e => e.currentTarget.style.transform = "scale(0.98)"}
               onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}>
-              {busy ? <span className="sa-spin" style={{ width: 15, height: 15, border: "2px solid rgba(250,250,250,0.35)", borderTopColor: "var(--alabaster)", borderRadius: "50%" }} /> : <><Icon name="lock" size={15} stroke="var(--alabaster)" />{t("enter")}</>}
+              {busy ? <span className="sa-spin" style={{ width: 15, height: 15, border: "2px solid rgba(250,250,250,0.35)", borderTopColor: "var(--alabaster)", borderRadius: "50%" }} /> : <><Icon name="lock" size={15} stroke="var(--alabaster)" />{needPass ? "CREAR CONTRASEÑA" : t("enter")}</>}
             </button>
           </form>
 
