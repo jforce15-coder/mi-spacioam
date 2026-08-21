@@ -1,12 +1,12 @@
 /* ============================================================
    Spacio AM — Colors & Type Tokens
-   "Hay espacios en donde sueñas con volver a despertar."
+   "Hay espacios donde despertar se siente como un sueño."
    ============================================================ */
 
 /* ---------- Fonts ---------- */
 @font-face {
   font-family: "Valky";
-  src: url("Valky-Light.otf") format("opentype");
+  src: url("Valky-Regular.otf") format("opentype");
   font-weight: 300;
   font-style: normal;
   font-display: swap;
@@ -51,13 +51,29 @@
   --beige-30:     rgba(245, 243, 240, 0.30);  /* brushstroke transparency */
   --peach-12:     rgba(233, 130, 106, 0.12);
 
+  /* graphite — texto secundario accesible (5.2:1). earth queda como swatch >=18px. */
+  --graphite:     #6F6867;
+  --peach-neon:   #F2755A;
+
+  /* estados — escala única (peach = atención, NUNCA error). */
+  --success:      #3d6b52;  --success-tint:   #E8F2ED;
+  --attention:    #F2755A;  --attention-tint: rgba(242,117,90,0.12);  --attention-text: #B54D36;
+  --warning:      #9a5020;  --warning-tint:   #F5EBE5;
+  --error:        #C0392B;  --error-tint:     #F7E7E4;
+  --info:         #3B6691;  --info-tint:      #E8EDF3;
+  --pending:      #6F6867;  --pending-tint:   #F5F3F0;
+
   /* ---------- Semantic colors ---------- */
   --bg:           var(--alabaster);
   --bg-alt:       var(--beige-soft);
+  --surface:      var(--white, #FFFFFF);
   --fg:           var(--ink);
-  --fg-muted:     var(--earth);
+  --fg-muted:     var(--graphite);   /* graphite, no earth — AA para texto pequeño */
+  --fg-subtle:    var(--earth);      /* swatch de marca, solo decorativo o >=18px */
   --divider:      var(--warm-grey);
   --accent:       var(--peach);
+  --accent-neon:  var(--peach-neon);
+  --accent-tint:  var(--peach-12);
 
   /* ---------- Type families ---------- */
   --serif: "Valky", "Cormorant Garamond", "Playfair Display", Georgia, serif;

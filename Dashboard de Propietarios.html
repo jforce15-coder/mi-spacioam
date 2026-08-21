@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spacio AM · Portal de propietarios</title>
-<link rel="stylesheet" href="spacio-tokens.css">
+<link rel="stylesheet" href="spacio-tokens.css?v=20260821">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -38,7 +38,7 @@
   .sa-tabs-inner { max-width: 1240px; margin: 0 auto; padding: 0 20px; display: flex; gap: 4px; overflow-x: auto; }
   .sa-tab { display: inline-flex; align-items: center; gap: 9px; border: none; background: transparent; cursor: pointer;
     padding: 20px 20px; font-family: var(--sans); font-size: 13px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--earth); border-bottom: 2px solid transparent; transition: color .18s var(--ease), border-color .18s var(--ease); white-space: nowrap; }
+    color: var(--fg-muted); border-bottom: 2px solid transparent; transition: color .18s var(--ease), border-color .18s var(--ease); white-space: nowrap; }
   .sa-tab:hover { color: var(--ink); }
   .sa-tab.active { color: var(--ink); border-bottom-color: var(--peach); }
   .sa-tab svg { width: 19px; height: 19px; }
@@ -68,7 +68,7 @@
   .sa-wrap { max-width: 1240px; margin: 0 auto; padding: 26px 20px 120px; }
   .sa-pagehead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
   .sa-period-chip { display: inline-flex; align-items: center; gap: 8px; margin-top: 14px; padding: 8px 14px;
-    background: var(--beige-soft); border-radius: 999px; font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; color: var(--earth); }
+    background: var(--beige-soft); border-radius: 999px; font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; color: var(--fg-muted); }
   .sa-period-chip span { text-transform: uppercase; letter-spacing: 0.16em; font-size: 10px; font-weight: 500; }
   .sa-period-chip strong { color: var(--ink); font-weight: 600; letter-spacing: 0.02em; font-size: 12px; }
   .sa-acc-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
@@ -89,7 +89,7 @@
   .sa-liq-line svg { flex-shrink: 0; margin-top: 1px; }
   .sa-liq-line strong { font-weight: 600; }
   .sa-liq-note { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--warm-grey);
-    font-family: var(--sans); font-size: 12px; line-height: 1.55; letter-spacing: 0.02em; color: var(--earth); text-wrap: pretty; }
+    font-family: var(--sans); font-size: 12px; line-height: 1.55; letter-spacing: 0.02em; color: var(--fg-muted); text-wrap: pretty; }
 
   /* ---------- file upload / download chips ---------- */
   .sa-file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -109,7 +109,7 @@
   /* ---------- overdue invoice alert (escalates) ---------- */
   .sa-overdue { display: flex; align-items: flex-start; gap: 12px; border-radius: 14px; padding: 13px 16px; margin-top: 4px;
     font-family: var(--sans); font-size: 12.5px; line-height: 1.5; letter-spacing: 0.02em; text-wrap: pretty; }
-  .sa-overdue.lvl1 { background: var(--beige-soft); color: var(--earth); border: 1px solid var(--warm-grey); font-size: 12px; padding: 11px 14px; }
+  .sa-overdue.lvl1 { background: var(--beige-soft); color: var(--fg-muted); border: 1px solid var(--warm-grey); font-size: 12px; padding: 11px 14px; }
   .sa-overdue.lvl2 { background: var(--peach-12); color: var(--ink); border: 1px solid var(--peach); font-size: 13.5px; padding: 15px 18px; font-weight: 500; }
   .sa-overdue.lvl3 { background: var(--peach); color: var(--alabaster); border: 1px solid var(--peach); box-shadow: 0 8px 26px rgba(233,130,106,0.34); animation: saPulse 1.8s var(--ease) infinite; }
   @keyframes saPulse { 0%,100% { box-shadow: 0 8px 26px rgba(233,130,106,0.30); } 50% { box-shadow: 0 8px 34px rgba(233,130,106,0.55); } }
@@ -137,7 +137,7 @@
     background: var(--alabaster); border-radius: 13px; padding: 13px 16px; transition: all .16s var(--ease); }
   .sa-pend-item:hover { border-color: var(--ink); transform: translateX(2px); }
   .sa-pend-month { font-family: var(--serif); font-size: 17px; color: var(--ink); }
-  .sa-pend-props { font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--earth); }
+  .sa-pend-props { font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--fg-muted); }
   .sa-dep-table td { font-size: 12.5px; }
 
   /* ---------- batch deposit upload (OCR) ---------- */
@@ -154,7 +154,7 @@
   .sa-dep-select:focus, .sa-dep-input:focus { border-color: var(--ink); }
   .sa-dep-input::placeholder { color: var(--warm-grey); }
   .pya-segbtn { display: inline-flex; gap: 3px; background: var(--beige-soft); border-radius: 9px; padding: 3px; }
-  .pya-segbtn button { border: none; cursor: pointer; background: transparent; border-radius: 7px; padding: 6px 12px; font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; color: var(--earth); transition: all .14s var(--ease); }
+  .pya-segbtn button { border: none; cursor: pointer; background: transparent; border-radius: 7px; padding: 6px 12px; font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; color: var(--fg-muted); transition: all .14s var(--ease); }
   .pya-segbtn button.on { background: var(--alabaster); color: var(--ink); box-shadow: var(--shadow-xs); }
 
   /* ---------- uploaded receipts list ---------- */
@@ -164,9 +164,9 @@
   .sa-uplist-ic { width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: var(--alabaster); display: inline-flex; align-items: center; justify-content: center; }
   .sa-uplist-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
   .sa-uplist-prop { font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sa-uplist-meta { font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.03em; color: var(--earth); }
-  .sa-uplist-pending { font-family: var(--sans); font-size: 10px; letter-spacing: 0.04em; color: var(--peach); white-space: nowrap; }
-  .sa-uplist-del { flex-shrink: 0; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--warm-grey); background: var(--alabaster); border-radius: 9px; cursor: pointer; color: var(--earth); transition: all .14s var(--ease); }
+  .sa-uplist-meta { font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.03em; color: var(--fg-muted); }
+  .sa-uplist-pending { font-family: var(--sans); font-size: 10px; letter-spacing: 0.04em; color: var(--attention-text); white-space: nowrap; }
+  .sa-uplist-del { flex-shrink: 0; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--warm-grey); background: var(--alabaster); border-radius: 9px; cursor: pointer; color: var(--fg-muted); transition: all .14s var(--ease); }
   .sa-uplist-del:hover { border-color: var(--peach); color: var(--peach); }
 
   /* ---------- setup property list ---------- */
@@ -175,7 +175,7 @@
   .sa-setup-listrow { display: flex; align-items: center; gap: 13px; background: var(--beige-soft); border: 1px solid var(--ink-08); border-radius: 15px; padding: 12px 15px; }
   .sa-setup-listic { width: 36px; height: 36px; flex-shrink: 0; border-radius: 11px; background: var(--alabaster); display: inline-flex; align-items: center; justify-content: center; }
   .sa-setup-listname { display: block; font-family: var(--sans); font-size: 13px; font-weight: 600; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sa-setup-listmeta { display: block; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.03em; color: var(--earth); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sa-setup-listmeta { display: block; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.03em; color: var(--fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ---------- Admin ---------- */
   .sa-admin-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 20px; padding: 14px 16px;
@@ -187,7 +187,7 @@
   .sa-setup-scroll { overflow-x: auto; border: 1px solid var(--ink-08); border-radius: 18px; }
   .sa-setup-table { width: 100%; min-width: 920px; border-collapse: collapse; }
   .sa-setup-table th { position: sticky; top: 0; background: var(--beige-soft); font-family: var(--sans); font-size: 9.5px; font-weight: 600;
-    letter-spacing: 0.16em; text-transform: uppercase; color: var(--earth); text-align: left; padding: 13px 12px; white-space: nowrap; }
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); text-align: left; padding: 13px 12px; white-space: nowrap; }
   .sa-setup-table td { padding: 9px 12px; border-top: 1px solid var(--ink-08); font-family: var(--sans); font-size: 12.5px; color: var(--ink); vertical-align: middle; }
   .sa-setup-table tr:hover td { background: var(--beige-30); }
   .sa-setup-input { width: 100%; box-sizing: border-box; font-family: var(--sans); font-size: 12.5px; color: var(--ink);
@@ -196,7 +196,7 @@
   .sa-chip-btn { display: inline-flex; align-items: center; gap: 7px; border: none; cursor: pointer; border-radius: 11px; padding: 11px 16px;
     font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; }
   .sa-chip-btn-dark { background: var(--ink); color: var(--alabaster); }
-  .sa-chip-btn-ghost { background: transparent; color: var(--earth); border: 1px solid var(--ink-08); }
+  .sa-chip-btn-ghost { background: transparent; color: var(--fg-muted); border: 1px solid var(--ink-08); }
   .sa-section { margin-top: 46px; }
 
   /* ---------- Top grid: hero + KPIs ---------- */
@@ -219,7 +219,7 @@
     background: linear-gradient(to top, rgba(40,40,40,0.62), rgba(40,40,40,0.12) 55%, transparent); }
   .sa-hero-context { padding: 22px 24px 24px; }
   .sa-listing-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; text-decoration: none;
-    font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; color: var(--earth); transition: color .18s var(--ease); }
+    font-family: var(--sans); font-size: 11px; letter-spacing: 0.08em; color: var(--fg-muted); transition: color .18s var(--ease); }
   .sa-listing-link:hover { color: var(--peach); }
 
   .sa-kpi-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
@@ -247,19 +247,19 @@
     padding: 16px 22px; min-width: 540px; }
   .sa-evo-head { background: var(--beige-soft); }
   .sa-evo-head span { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.18em;
-    text-transform: uppercase; color: var(--earth); }
+    text-transform: uppercase; color: var(--fg-muted); }
 
   /* ---------- Expenses ---------- */
   .sa-exp-grouphead { display: flex; align-items: center; justify-content: space-between; padding: 16px 22px 12px; }
   .sa-exp-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--beige-soft); display: flex; align-items: center; justify-content: center; }
   .sa-exp-row { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 11px 22px;
     border-top: 1px solid var(--ink-08); }
-  .sa-exp-date { font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--earth); white-space: nowrap; }
+  .sa-exp-date { font-family: var(--sans); font-size: 11px; letter-spacing: 0.04em; color: var(--fg-muted); white-space: nowrap; }
   .sa-exp-desc { font-family: var(--sans); font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
   .sa-exp-amt { font-family: var(--sans); font-size: 13px; font-weight: 600; color: var(--ink); text-align: right; white-space: nowrap; }
   .sa-viewall { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; border: none;
     border-top: 1px solid var(--warm-grey); background: transparent; cursor: pointer; padding: 15px;
-    font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--earth); }
+    font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-muted); }
   .sa-viewall:hover { color: var(--ink); }
 
   /* ---------- Operations ---------- */
@@ -267,7 +267,7 @@
   .sa-ops-ic { width: 40px; height: 40px; border-radius: 12px; background: var(--beige-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sa-ops-grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
   .sa-res-head { background: var(--beige-soft); }
-  .sa-res-head span { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--earth); }
+  .sa-res-head span { font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); }
   .sa-res-row { display: grid; grid-template-columns: 1.5fr 1fr 0.5fr 0.8fr; gap: 10px; align-items: center; padding: 13px 24px; }
 
   /* ---------- Opportunity ---------- */
@@ -282,9 +282,9 @@
   .sa-rf-table { min-width: 0; }
   .sa-rf-row { display: grid; grid-template-columns: 1fr 46px 84px 92px; gap: 8px; align-items: center; padding: 7px 0; }
   .sa-rf-colhead { border-bottom: 1.5px solid var(--ink); padding-bottom: 9px; margin-bottom: 2px; }
-  .sa-rf-colhead .sa-rf-lbl, .sa-rf-colhead .sa-rf-n, .sa-rf-colhead .sa-rf-v { font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--earth); }
+  .sa-rf-colhead .sa-rf-lbl, .sa-rf-colhead .sa-rf-n, .sa-rf-colhead .sa-rf-v { font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); }
   .sa-rf-lbl { font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.01em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .sa-rf-n { font-family: var(--sans); font-size: 12px; color: var(--earth); text-align: center; font-variant-numeric: tabular-nums; }
+  .sa-rf-n { font-family: var(--sans); font-size: 12px; color: var(--fg-muted); text-align: center; font-variant-numeric: tabular-nums; }
   .sa-rf-v { font-family: var(--sans); font-size: 12px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
   .sa-rf-block { border-bottom: 1px solid var(--warm-grey); padding: 6px 0 8px; }
   .sa-rf-block:last-child { border-bottom: none; }
@@ -292,13 +292,13 @@
   .sa-rf-row.sa-rf-total .sa-rf-lbl, .sa-rf-row.sa-rf-total .sa-rf-v, .sa-rf-row.sa-rf-total .sa-rf-n { font-weight: 600; }
   .sa-rf-row.sa-rf-strong { background: var(--ink); margin: 5px -10px 0; padding: 11px 10px; border-radius: 9px; }
   .sa-rf-row.sa-rf-strong .sa-rf-lbl, .sa-rf-row.sa-rf-strong .sa-rf-v, .sa-rf-row.sa-rf-strong .sa-rf-n { color: var(--alabaster); font-weight: 600; }
-  .sa-rf-row.sa-rf-line .sa-rf-lbl { color: var(--earth); }
+  .sa-rf-row.sa-rf-line .sa-rf-lbl { color: var(--fg-muted); }
   .sa-rf-side { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
   .sa-rf-sidecard { background: var(--beige-soft); border-radius: 16px; padding: 18px 14px; text-align: center; }
   .sa-rf-sidecard-soft { background: var(--alabaster); border: 1px solid var(--ink-08); }
-  .sa-rf-side-lbl { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--earth); line-height: 1.3; }
+  .sa-rf-side-lbl { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); line-height: 1.3; }
   .sa-rf-side-val { font-family: var(--sans); font-size: 26px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); margin-top: 8px; }
-  .sa-rf-side-sub { font-family: var(--sans); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--earth); margin-top: 3px; }
+  .sa-rf-side-sub { font-family: var(--sans); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-muted); margin-top: 3px; }
   @media (min-width: 920px) {
     .sa-rf-grid-wrap { grid-template-columns: 1fr 230px; gap: 28px; padding: 18px 28px 28px; }
     .sa-rf-side { grid-template-columns: 1fr; align-content: start; }
@@ -310,7 +310,7 @@
     border: 1px solid var(--ink-08); border-radius: 999px; box-shadow: var(--shadow-md); padding: 6px; }
   .sa-bottomnav-inner { display: flex; justify-content: space-around; }
   .sa-navbtn { border: none; background: transparent; cursor: pointer; display: flex; flex-direction: column; align-items: center;
-    gap: 3px; padding: 7px 10px; border-radius: 999px; color: var(--earth); font-family: var(--sans); font-size: 8.5px;
+    gap: 3px; padding: 7px 10px; border-radius: 999px; color: var(--fg-muted); font-family: var(--sans); font-size: 8.5px;
     letter-spacing: 0.1em; text-transform: uppercase; transition: color .18s var(--ease); flex: 1; }
   .sa-navbtn.active { color: var(--ink); }
   .sa-navbtn.active .sa-navdot { opacity: 1; }
@@ -323,7 +323,7 @@
     padding: 7px; display: flex; flex-direction: column; gap: 2px; animation: sa-fade .18s var(--ease); }
   .sa-navmore-item { display: flex; align-items: center; gap: 11px; border: none; background: transparent; cursor: pointer;
     padding: 13px 14px; border-radius: 13px; font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: 0.14em;
-    text-transform: uppercase; color: var(--earth); text-align: left; transition: background .14s var(--ease), color .14s var(--ease); }
+    text-transform: uppercase; color: var(--fg-muted); text-align: left; transition: background .14s var(--ease), color .14s var(--ease); }
   .sa-navmore-item:hover { background: var(--beige-soft); color: var(--ink); }
   .sa-navmore-item.active { background: var(--beige-soft); color: var(--ink); }
 
@@ -365,7 +365,7 @@
   /* ---------- Contabilidad ---------- */
   .conta-table { width: 100%; border-collapse: collapse; font-family: var(--sans); font-size: 12.5px; }
   .conta-table th { text-align: left; text-transform: uppercase; letter-spacing: 0.1em; font-size: 9.5px; font-weight: 600;
-    color: var(--earth); padding: 11px 14px; border-bottom: 1px solid var(--warm-grey); white-space: nowrap; background: var(--alabaster); }
+    color: var(--fg-muted); padding: 11px 14px; border-bottom: 1px solid var(--warm-grey); white-space: nowrap; background: var(--alabaster); }
   .conta-table td { padding: 9px 14px; border-bottom: 1px solid var(--ink-08); color: var(--ink); vertical-align: middle; letter-spacing: 0.01em; }
   .conta-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .conta-table tbody tr:hover { background: var(--beige-soft); }
@@ -374,6 +374,23 @@
   .conta-dl-item { display: flex; align-items: center; gap: 10px; width: 100%; border: none; background: transparent; cursor: pointer;
     padding: 13px 16px; font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.03em; color: var(--ink); text-align: left; transition: background .14s var(--ease); }
   .conta-dl-item:hover { background: var(--beige-soft); }
+
+  /* ---------- Red de seguridad responsive (móvil) ---------- */
+  html, body { overflow-x: hidden; max-width: 100%; }
+  .sa-wrap, .sa-section, .sa-hero, .sa-card { min-width: 0; max-width: 100%; }
+  img, svg, canvas, video { max-width: 100%; }
+  table { max-width: 100%; }
+  @media (max-width: 759px) {
+    .sa-wrap { padding-left: 16px; padding-right: 16px; }
+    /* tablas anchas: se vuelven su propio contenedor con scroll, sin empujar la página */
+    .conta-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+    /* la campana de notificaciones no debe empujarse fuera del topbar */
+    .sa-topbar-right { flex-shrink: 0; }
+    /* KPIs a una sola columna en pantallas muy angostas para que respiren */
+  }
+  @media (max-width: 380px) {
+    .sa-kpi-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -386,34 +403,36 @@
   </template>
   <div id="app"></div>
 
-  <script src="sheets.js?v=20260812"></script>
-  <script src="files.js?v=20260812"></script>
-  <script src="facturas-batch.js?v=20260812"></script>
-  <script src="i18n.js?v=20260617"></script>
-  <script src="aggregate.js?v=20260617"></script>
-  <script src="insights.js?v=20260617"></script>
+  <script src="sheets.js?v=20260820"></script>
+  <script src="files.js?v=20260820"></script>
+  <script src="facturas-batch.js?v=20260820"></script>
+  <script src="i18n.js?v=20260820"></script>
+  <script src="aggregate.js?v=20260820"></script>
+  <script src="insights.js?v=20260820"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }</script>
-  <script src="pedidosya-parse.js?v=20260617"></script>
+  <script src="pedidosya-parse.js?v=20260820"></script>
   <script src="reportes-import.js?v=20260807"></script>
-  <script src="conta-data.js?v=20260617"></script>
-  <script src="conta-parse.js?v=20260617"></script>
-  <script src="conta-store.js?v=20260617"></script>
-  <script src="conta-live2026.js?v=20260617"></script>
-  <script src="conta-archive.js?v=20260617"></script>
-  <script src="conta-export.js?v=20260617"></script>
-  <script src="conta-pdfs.js?v=20260617"></script>
-  <script src="conta-opex.js?v=20260617"></script>
-  <script type="text/babel" src="ui.jsx?v=20260617"></script>
-  <script type="text/babel" src="charts.jsx?v=20260617"></script>
-  <script type="text/babel" src="login.jsx?v=20260617"></script>
-  <script type="text/babel" src="pedidosya-ui.jsx?v=20260617"></script>
-  <script type="text/babel" src="pedidosya.jsx?v=20260617"></script>
-  <script type="text/babel" src="dashboard.jsx?v=20260617"></script>
-  <script type="text/babel" src="sections.jsx?v=20260812"></script>
-  <script type="text/babel" src="conta.jsx?v=20260617"></script>
-  <script type="text/babel" src="conta-pl.jsx?v=20260619"></script>
+  <script src="conta-data.js?v=20260820"></script>
+  <script src="conta-parse.js?v=20260820"></script>
+  <script src="conta-store.js?v=20260820"></script>
+  <script src="conta-live2026.js?v=20260820"></script>
+  <script src="conta-archive.js?v=20260820"></script>
+  <script src="conta-export.js?v=20260820"></script>
+  <script src="conta-pdfs.js?v=20260820"></script>
+  <script src="conta-opex.js?v=20260820"></script>
+  <script type="text/babel" src="ui.jsx?v=20260820"></script>
+  <script src="noti-data.js?v=20260821"></script>
+  <script type="text/babel" src="noti-center.jsx?v=20260821"></script>
+  <script type="text/babel" src="charts.jsx?v=20260821"></script>
+  <script type="text/babel" src="login.jsx?v=20260820"></script>
+  <script type="text/babel" src="pedidosya-ui.jsx?v=20260820"></script>
+  <script type="text/babel" src="pedidosya.jsx?v=20260820"></script>
+  <script type="text/babel" src="dashboard.jsx?v=20260821"></script>
+  <script type="text/babel" src="sections.jsx?v=20260821"></script>
+  <script type="text/babel" src="conta.jsx?v=20260820"></script>
+  <script type="text/babel" src="conta-pl.jsx?v=20260820"></script>
 
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
@@ -438,6 +457,13 @@
       const [period, setPeriod] = useState("current");
       const [tab, setTab] = useState(() => { if (owner.isContador) return "conta"; try { return new URLSearchParams(location.search).get("tab") || "dashboard"; } catch (e) { return "dashboard"; } });
       const [navMore, setNavMore] = useState(false);
+      // ── Centro de notificaciones ──
+      const [notiOpen, setNotiOpen] = useState(false);
+      const [notiDismiss, setNotiDismiss] = useState(() => { try { return JSON.parse(localStorage.getItem("sam:notiDismiss") || "{}"); } catch (e) { return {}; } });
+      const [notiSnooze, setNotiSnooze] = useState(() => { try { return JSON.parse(localStorage.getItem("sam:notiSnooze") || "{}"); } catch (e) { return {}; } });
+      const notiPersist = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
+      const dismissNoti = (n) => setNotiDismiss(p => { const u = Object.assign({}, p, { [n.id]: 1 }); notiPersist("sam:notiDismiss", u); return u; });
+      const snoozeNoti = (n) => setNotiSnooze(p => { const u = Object.assign({}, p, { [n.id]: Date.now() + 86400000 }); notiPersist("sam:notiSnooze", u); return u; });
 
       const t = (k) => SpacioI18n.t(lang, k);
       const fmt = {
@@ -500,6 +526,20 @@
       })();
       const scrollToLiq = () => { try { const el = document.getElementById("sec-liquidation"); if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.pageYOffset - 70, behavior: "smooth" }); } catch (e) {} };
 
+      // ── Notificaciones: fuentes reales → items del centro ──
+      const notiOwnerLabel = (typeof ownerLabelFor !== "undefined")
+        ? ownerLabelFor({ scope: isAll ? "owner" : "property", property, activeProps, owner, isAdmin })
+        : (owner.name || owner.code);
+      const goToMonth = (y, m) => { setTab("dashboard"); setPeriod("ym:" + y + "-" + m); setTimeout(scrollToLiq, 90); };
+      const goToMonthStr = (ym) => { const p = String(ym).split("-"); goToMonth(+p[0], (+p[1]) - 1); };
+      const goToTab = (id) => { setTab(id); window.scrollTo({ top: 0, behavior: "smooth" }); };
+      const notiAll = useMemo(() => (window.SpacioNotis ? window.SpacioNotis.build({
+        months, owner, isAll, activeProps, isAdmin, isContador, lang,
+        SF: window.SpacioFiles, ownerLabel: notiOwnerLabel, goToMonth, goToMonthStr, goToLiq: scrollToLiq,
+        allProps: allOwnerProps, goToTab,
+      }) : []), [months, isAll, effSelProp, lang, tab, scopeKey]);
+      const notis = notiAll.filter(n => !notiDismiss[n.id] && !(notiSnooze[n.id] && notiSnooze[n.id] > Date.now()));
+
       const monthOpts = (months || []).filter(m => m.present).slice().reverse().map(m => ({
         value: "ym:" + m.y + "-" + m.m, label: cap(SpacioI18n.monthLong(lang, m.m)) + " " + m.y,
       }));
@@ -537,7 +577,10 @@
             propOptions={propOptions} selProp={effSelProp} setSelProp={setSelProp} period={period} setPeriod={setPeriod}
             months={months} periodText={periodText} hidePropSelect={isAdmin || isContador} hidePeriod={isContador}
             invoiceAlert={(tab === "dashboard" && !isAdmin && !isContador) ? invAlert : null} onAlertClick={scrollToLiq}
-            onLogout={onLogout} t={t} />
+            onLogout={onLogout} t={t} notiTotal={notis.length} onNotiOpen={() => setNotiOpen(true)} />
+
+          {window.NotiCenter && <NotiCenter open={notiOpen} onClose={() => setNotiOpen(false)} notis={notis} onDismiss={dismissNoti} onSnooze={snoozeNoti} />}
+          {window.NotiPush && <NotiPush notis={notis} storeKey="sam:notiSeen" onOpen={() => setNotiOpen(true)} />}
 
           <div className="sa-tabs-bar">
             <div className="sa-tabs-inner">
@@ -565,7 +608,7 @@
                 </h1>
                 {tab !== "account" && !isContador && (
                   <div className="sa-period-chip">
-                    <Icon name="calendar" size={13} stroke="var(--earth)" />
+                    <Icon name="calendar" size={13} stroke="var(--fg-muted)" />
                     <span>{t("period_showing")}</span><strong>{periodText}</strong>
                   </div>
                 )}
@@ -597,8 +640,8 @@
             {tab === "report" && (
               <div className="sa-section" style={{ marginTop: 28 }}>
                 {isAll && props.length > 1 && (
-                  <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.04em", color: "var(--earth)", margin: "0 0 18px", display: "flex", alignItems: "center", gap: 8 }}>
-                    <Icon name="info" size={14} stroke="var(--earth)" /> {t("report_pickall")}
+                  <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.04em", color: "var(--fg-muted)", margin: "0 0 18px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Icon name="info" size={14} stroke="var(--fg-muted)" /> {t("report_pickall")}
                   </p>
                 )}
                 {activeProps.map(p => {
@@ -626,8 +669,8 @@
             )}
 
             <footer style={{ marginTop: 64, paddingTop: 26, borderTop: "1px solid var(--warm-grey)", display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
-              <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--earth)" }}>© Spacio AM · MMXXVI</span>
-              <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--earth)" }}>{t("help")}</span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>© Spacio AM · MMXXVI</span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("help")}</span>
             </footer>
           </div>
 
@@ -673,7 +716,7 @@
           {state === "loading" && (
             <React.Fragment>
               <div className="sa-spin" style={{ width: 26, height: 26, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%" }} />
-              <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginTop: 22 }}>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 22 }}>
                 {es ? "Conectando con tu información…" : "Connecting to your data…"}
               </p>
             </React.Fragment>
@@ -684,7 +727,7 @@
               <p style={{ fontFamily: "var(--serif)", fontSize: 22, color: "var(--ink)", margin: "16px 0 6px", maxWidth: 420 }}>
                 {es ? "No pudimos leer la hoja en este momento." : "We couldn't read the sheet right now."}
               </p>
-              <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", maxWidth: 420, margin: "0 0 22px" }}>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", maxWidth: 420, margin: "0 0 22px" }}>
                 {es ? "Verifica que el documento esté publicado o compartido como “cualquiera con el enlace”, y vuelve a intentar." : "Make sure the document is published or shared as “anyone with the link”, then try again."}
               </p>
               <button onClick={onRetry} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 12, padding: "13px 26px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase" }}>

@@ -65,7 +65,7 @@ const LineChart = ({ series, labels, height = 240, formatY, formatTip, yTicks = 
         {ticks.map((tk, i) => (
           <g key={i}>
             <line x1={padL} x2={w - padR} y1={Y(tk)} y2={Y(tk)} stroke="var(--warm-grey)" strokeOpacity={i === 0 ? 0.9 : 0.4} strokeWidth="1" />
-            <text x={padL} y={Y(tk) - 6} fontFamily="var(--sans)" fontSize="10" letterSpacing="0.06em" fill="var(--earth)">{formatY ? formatY(tk) : Math.round(tk)}</text>
+            <text x={padL} y={Y(tk) - 6} fontFamily="var(--sans)" fontSize="10" letterSpacing="0.06em" fill="var(--fg-muted)">{formatY ? formatY(tk) : Math.round(tk)}</text>
           </g>
         ))}
         {/* areas + lines */}
@@ -85,7 +85,7 @@ const LineChart = ({ series, labels, height = 240, formatY, formatTip, yTicks = 
         {/* x labels */}
         {labels.map((l, i) => (
           (nx <= 8 || i % Math.ceil(nx / 8) === 0) &&
-          <text key={i} x={X(i)} y={height - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" letterSpacing="0.06em" fill="var(--earth)">{l}</text>
+          <text key={i} x={X(i)} y={height - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" letterSpacing="0.06em" fill="var(--fg-muted)">{l}</text>
         ))}
         {/* hover */}
         {hi != null && (
@@ -106,10 +106,10 @@ const LineChart = ({ series, labels, height = 240, formatY, formatTip, yTicks = 
           background: "var(--alabaster)", border: "1px solid var(--ink-08)", borderRadius: 12,
           boxShadow: "var(--shadow-md)", padding: "10px 12px", animation: "sa-fade .14s var(--ease)",
         }}>
-          <div style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{labels[hi]}</div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 8 }}>{labels[hi]}</div>
           {series.map(s => (
             <div key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 4 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", letterSpacing: "0.04em" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.04em" }}>
                 <span style={{ width: 8, height: 8, borderRadius: 2, background: s.color, opacity: s.opacity != null ? s.opacity : 1 }} />{s.name}
               </span>
               <span style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600, color: "var(--ink)", letterSpacing: "0.02em" }}>{s.values[hi] == null ? "—" : (formatTip ? formatTip(s.values[hi]) : s.values[hi])}</span>
@@ -125,7 +125,7 @@ const LineChart = ({ series, labels, height = 240, formatY, formatTip, yTicks = 
 const Legend = ({ items }) => (
   <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14 }}>
     {items.map(it => (
-      <span key={it.name} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.08em", color: "var(--earth)" }}>
+      <span key={it.name} style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.08em", color: "var(--fg-muted)" }}>
         <span style={{ width: 14, height: it.dash ? 0 : 8, borderTop: it.dash ? `2px dashed ${it.color}` : "none", borderRadius: 2, background: it.dash ? "none" : it.color, display: "inline-block" }} />
         {it.name}
       </span>
@@ -159,7 +159,7 @@ const OccBars = ({ data, height = 220, formatTip }) => {
               <rect x={x} y={padT + innerH - innerH} width={bw} height={innerH} rx={Math.min(7, bw / 2)} fill="var(--beige-soft)" />
               <rect x={x} y={padT + innerH - soldH} width={bw} height={soldH} rx={Math.min(7, bw / 2)}
                 fill={active ? "var(--peach)" : "var(--ink)"} style={{ transition: "fill .18s var(--ease)" }} />
-              <text x={x + bw / 2} y={height - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" letterSpacing="0.04em" fill="var(--earth)">{d.label}</text>
+              <text x={x + bw / 2} y={height - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" letterSpacing="0.04em" fill="var(--fg-muted)">{d.label}</text>
             </g>
           );
         })}
@@ -170,7 +170,7 @@ const OccBars = ({ data, height = 220, formatTip }) => {
           width: 132, pointerEvents: "none", background: "var(--alabaster)", border: "1px solid var(--ink-08)",
           borderRadius: 12, boxShadow: "var(--shadow-md)", padding: "10px 12px",
         }}>
-          <div style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 6 }}>{data[hi].label}</div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 6 }}>{data[hi].label}</div>
           {formatTip(data[hi])}
         </div>
       )}
@@ -207,7 +207,7 @@ const Donut = ({ segments, size = 200, thickness = 26, centerLabel, centerSub, o
         <span style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: hi != null ? 22 : 26, letterSpacing: "-0.02em", color: hi != null ? segments[hi].color : "var(--ink)", transition: "all .18s var(--ease)" }}>
           {hi != null ? segments[hi].pretty : centerLabel}
         </span>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginTop: 4 }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 4 }}>
           {hi != null ? segments[hi].label : centerSub}
         </span>
       </div>
@@ -248,7 +248,7 @@ const Gauge = ({ value, size = 220, label, sub }) => {
       </svg>
       <div style={{ position: "absolute", left: 0, right: 0, top: size / 2 - 34, textAlign: "center" }}>
         <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 38, letterSpacing: "-0.02em", color: over ? "var(--peach)" : "var(--ink)", lineHeight: 1 }}>{label}</div>
-        {sub && <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginTop: 6 }}>{sub}</div>}
+        {sub && <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 6 }}>{sub}</div>}
       </div>
     </div>
   );
@@ -270,7 +270,7 @@ const OccColumns = ({ data, height = 230, lang }) => {
       <svg width="100%" height={height} style={{ display: "block", overflow: "visible" }}>
         {/* 100% reference line */}
         <line x1="0" x2={w} y1={Y(1)} y2={Y(1)} stroke="var(--warm-grey)" strokeDasharray="3 4" />
-        <text x={w} y={Y(1) - 6} textAnchor="end" fontFamily="var(--sans)" fontSize="9.5" letterSpacing="0.1em" fill="var(--earth)">100%</text>
+        <text x={w} y={Y(1) - 6} textAnchor="end" fontFamily="var(--sans)" fontSize="9.5" letterSpacing="0.1em" fill="var(--fg-muted)">100%</text>
         <line x1="0" x2={w} y1={padT + innerH} y2={padT + innerH} stroke="var(--warm-grey)" />
         {data.map((d, i) => {
           const x = i * (bw + gap);
@@ -282,7 +282,7 @@ const OccColumns = ({ data, height = 230, lang }) => {
               <rect x={x} y={padT + innerH - h} width={bw} height={h} rx={Math.min(7, bw / 3)}
                 fill={over ? "var(--peach)" : active ? "var(--ink)" : "rgba(62,63,63,0.82)"} style={{ transition: "fill .18s var(--ease)" }} />
               <text x={x + bw / 2} y={padT + innerH - h - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" fontWeight="600" letterSpacing="0.02em" fill={over ? "var(--peach)" : "var(--ink)"}>{Math.round(d.occ * 100)}%</text>
-              <text x={x + bw / 2} y={height - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" letterSpacing="0.04em" fill="var(--earth)">{d.label}</text>
+              <text x={x + bw / 2} y={height - 8} textAnchor="middle" fontFamily="var(--sans)" fontSize="10.5" letterSpacing="0.04em" fill="var(--fg-muted)">{d.label}</text>
             </g>
           );
         })}

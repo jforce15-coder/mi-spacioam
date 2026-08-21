@@ -17,7 +17,7 @@
       forgot: "¿Olvidaste tu contraseña?",
       login_error: "Usuario o contraseña incorrectos.",
       demo_hint: "Acceso demo",
-      login_quote: "Hay espacios en donde sueñas con volver a despertar.",
+      login_quote: "Hay espacios donde despertar se siente como un sueño.",
       help: "¿Necesitas ayuda? hola@spacioam.com",
       // header / nav
       greeting: "Hola", logout: "Cerrar sesión",
@@ -153,7 +153,7 @@
       forgot: "Forgot your password?",
       login_error: "Incorrect user or password.",
       demo_hint: "Demo access",
-      login_quote: "There are spaces you dream of waking up in again.",
+      login_quote: "Some places make being awake feel like a dream.",
       help: "Need help? hola@spacioam.com",
       greeting: "Hi", logout: "Sign out",
       portfolio: "Portfolio", all_props: "All properties",

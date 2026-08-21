@@ -55,7 +55,7 @@ function TagPicker({ value, onPick, lang }) {
           background: "var(--alabaster)", border: "1px solid var(--ink-08)", borderRadius: 14, boxShadow: "var(--shadow-md)", padding: 8,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", marginBottom: 4, borderBottom: "1px solid var(--warm-grey)" }}>
-            <Icon name="search" size={14} stroke="var(--earth)" />
+            <Icon name="search" size={14} stroke="var(--fg-muted)" />
             <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={lang === "es" ? "Buscar tag…" : "Search tag…"}
               style={{ border: "none", outline: "none", background: "transparent", fontFamily: "var(--sans)", fontSize: 12.5, width: "100%", color: "var(--ink)" }} />
           </div>
@@ -69,7 +69,7 @@ function TagPicker({ value, onPick, lang }) {
             if (!tags.length) return null;
             return (
               <div key={cat} style={{ marginTop: 6 }}>
-                <div style={{ fontFamily: "var(--sans)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", padding: "4px 8px" }}>{cat}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", padding: "4px 8px" }}>{cat}</div>
                 {tags.map(tg => (
                   <button key={tg} onClick={() => { onPick(tg); setOpen(false); }} style={pickItemStyle(tg === value ? "var(--peach)" : "var(--ink)")}>
                     {tg === value && <Icon name="check" size={13} stroke="var(--peach)" />}
@@ -155,10 +155,10 @@ function ContaUpload({ ym, onSaved, lang, t }) {
   return (
     <div style={{ border: "1px solid var(--ink-08)", borderRadius: 20, padding: "22px 24px", marginBottom: 26, background: "var(--alabaster)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-        <Icon name="upload" size={17} stroke="var(--earth)" />
+        <Icon name="upload" size={17} stroke="var(--fg-muted)" />
         <h3 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: 18, margin: 0, color: "var(--ink)" }}>{tr("Subir estados de cuenta", "Upload statements")}</h3>
       </div>
-      <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "0 0 16px", maxWidth: 560 }}>
+      <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "0 0 16px", maxWidth: 560 }}>
         {tr("Arrastra los PDF de las 4 cuentas de Banco Industrial. El sistema reconoce la cuenta y el mes, clasifica automáticamente cada movimiento y marca los pendientes.",
             "Drop the 4 Banco Industrial PDFs. The system detects account and month, auto-classifies each line and flags what needs review.")}
       </p>
@@ -176,13 +176,13 @@ function ContaUpload({ ym, onSaved, lang, t }) {
             const auto = p.rows.length - pend;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", background: "var(--beige-soft)", borderRadius: 14, padding: "12px 16px" }}>
-                <Icon name="file" size={18} stroke="var(--earth)" />
+                <Icon name="file" size={18} stroke="var(--fg-muted)" />
                 <div style={{ flex: "1 1 220px", minWidth: 0 }}>
                   <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", letterSpacing: "0.02em" }}>
                     {p.error ? p.file.name : p.accName + (p.number ? " · " + p.number : "")}
                   </div>
-                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", letterSpacing: "0.03em", marginTop: 2 }}>
-                    {p.error ? <span style={{ color: "var(--peach)" }}>{p.error}</span>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.03em", marginTop: 2 }}>
+                    {p.error ? <span style={{ color: "var(--attention-text)" }}>{p.error}</span>
                       : (contaMonthLabel(p.ym) + " · " + p.rows.length + " " + tr("movimientos", "lines") + " · " + auto + " " + tr("auto", "auto") + (pend ? " · " + pend + " " + tr("pendientes", "pending") : ""))}
                   </div>
                 </div>
@@ -193,7 +193,7 @@ function ContaUpload({ ym, onSaved, lang, t }) {
                     {C.ACCOUNTS.map(a => <option key={a.id} value={a.id}>{a.name} · {a.number}</option>)}
                   </select>
                 )}
-                <button onClick={() => removePreview(i)} title={tr("Quitar", "Remove")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--earth)" }}>
+                <button onClick={() => removePreview(i)} title={tr("Quitar", "Remove")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--fg-muted)" }}>
                   <Icon name="trash" size={15} stroke="currentColor" />
                 </button>
               </div>
@@ -208,7 +208,7 @@ function ContaUpload({ ym, onSaved, lang, t }) {
           </div>
         </div>
       )}
-      {msg && <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", color: "var(--earth)", margin: "14px 0 0", display: "flex", alignItems: "center", gap: 7 }}><Icon name="info" size={14} stroke="var(--earth)" />{msg}</p>}
+      {msg && <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", color: "var(--fg-muted)", margin: "14px 0 0", display: "flex", alignItems: "center", gap: 7 }}><Icon name="info" size={14} stroke="var(--fg-muted)" />{msg}</p>}
     </div>
   );
 }
@@ -227,7 +227,7 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
   }).filter(s => s._rows.length || status !== "pending");
 
   if (!filtered.some(s => s._rows.length)) {
-    return <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--earth)", letterSpacing: "0.04em", padding: "30px 0" }}>
+    return <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--fg-muted)", letterSpacing: "0.04em", padding: "30px 0" }}>
       {status === "pending" ? tr("No hay movimientos pendientes. Todo está clasificado.", "Nothing pending — all classified.") : tr("No hay movimientos para este filtro.", "No lines for this filter.")}
     </p>;
   }
@@ -248,16 +248,16 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
                 <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--peach)" }} />
                 <div>
                   <div style={{ fontFamily: "var(--serif)", fontSize: 17, color: "var(--ink)" }}>{acc.name || s.accId}</div>
-                  <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--earth)", marginTop: 2 }}>{acc.number} · {s.currency}</div>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 2 }}>{acc.number} · {s.currency}</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" }}>
-                {pend > 0 && <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--peach)", letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={13} stroke="var(--peach)" />{pend} {tr("pendientes", "pending")}</span>}
-                <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--earth)", letterSpacing: "0.03em" }}>{tr("Debe", "Debit")} <strong style={{ color: "var(--ink)" }}>{contaMoney(td, s.currency)}</strong></span>
-                <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--earth)", letterSpacing: "0.03em" }}>{tr("Haber", "Credit")} <strong style={{ color: "var(--ink)" }}>{contaMoney(tc, s.currency)}</strong></span>
+                {pend > 0 && <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--attention-text)", letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={13} stroke="var(--peach)" />{pend} {tr("pendientes", "pending")}</span>}
+                <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", letterSpacing: "0.03em" }}>{tr("Debe", "Debit")} <strong style={{ color: "var(--ink)" }}>{contaMoney(td, s.currency)}</strong></span>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", letterSpacing: "0.03em" }}>{tr("Haber", "Credit")} <strong style={{ color: "var(--ink)" }}>{contaMoney(tc, s.currency)}</strong></span>
                 {pdfRec && pdfRec.url && <a className="sa-file-btn ghost" href={pdfRec.url} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 12px", fontSize: 11 }}><Icon name="download" size={13} stroke="currentColor" />PDF</a>}
                 {isAdmin && <button onClick={() => { if (window.confirm(tr("¿Quitar el estado de ", "Remove the ") + (acc.name || s.accId) + tr(" de este mes? Esto borra sus movimientos clasificados.", " statement for this month? This deletes its classified lines."))) onDeleteStatement(s.accId); }}
-                  title={tr("Quitar este estado", "Remove this statement")} style={{ border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 9, padding: "7px 9px", color: "var(--earth)", display: "inline-flex" }}>
+                  title={tr("Quitar este estado", "Remove this statement")} style={{ border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 9, padding: "7px 9px", color: "var(--fg-muted)", display: "inline-flex" }}>
                   <Icon name="trash" size={14} stroke="currentColor" />
                 </button>}
               </div>
@@ -275,16 +275,16 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
                   {s._rows.map(r => (
                     <tr key={r._idx} className={!r.tag ? "pend" : ""}>
                       <td style={{ whiteSpace: "nowrap" }}>{contaBIDate(r.date)}</td>
-                      <td style={{ color: "var(--earth)" }}>{r.doc}</td>
-                      <td>{r.desc}{r.amountCheck && <span title={tr("Verifica el monto", "Check amount")} style={{ color: "var(--peach)", marginLeft: 5 }}>⚠</span>}</td>
+                      <td style={{ color: "var(--fg-muted)" }}>{r.doc}</td>
+                      <td>{r.desc}{r.amountCheck && <span title={tr("Verifica el monto", "Check amount")} style={{ color: "var(--attention-text)", marginLeft: 5 }}>⚠</span>}</td>
                       <td className="num">{r.debit ? contaMoney(r.debit, s.currency) : ""}</td>
                       <td className="num">{r.credit ? contaMoney(r.credit, s.currency) : ""}</td>
-                      <td className="num" style={{ color: "var(--earth)" }}>{contaMoney(r.saldo, s.currency)}</td>
+                      <td className="num" style={{ color: "var(--fg-muted)" }}>{contaMoney(r.saldo, s.currency)}</td>
                       <td>{isAdmin
                         ? <TagPicker value={r.tag} lang={lang} onPick={(tag) => onEditTag(s.accId, r._idx, tag)} />
                         : <span style={{ color: r.tag ? "var(--ink)" : "var(--peach)", fontSize: 12 }}>{r.tag || tr("Sin clasificar", "Unclassified")}</span>}
                       </td>
-                      <td style={{ color: "var(--earth)", fontSize: 11.5 }}>{r.category}</td>
+                      <td style={{ color: "var(--fg-muted)", fontSize: 11.5 }}>{r.category}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -382,7 +382,7 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
           {[{ id: "estados", label: tr("Estados de cuenta", "Bank statements") }, { id: "pl", label: tr("Resumen contable", "Accounting summary") }].map(s => (
             <button key={s.id} onClick={() => setSubtab(s.id)} style={{
               border: "1px solid " + (subtab === s.id ? "var(--ink)" : "var(--warm-grey)"), cursor: "pointer",
-              background: subtab === s.id ? "var(--ink)" : "transparent", color: subtab === s.id ? "var(--alabaster)" : "var(--earth)",
+              background: subtab === s.id ? "var(--ink)" : "transparent", color: subtab === s.id ? "var(--alabaster)" : "var(--fg-muted)",
               borderRadius: 999, padding: "9px 18px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", transition: "all .18s var(--ease)",
             }}>{s.label}</button>
           ))}
@@ -407,9 +407,9 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
             </button>
             {dlOpen && (
               <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 70, minWidth: 220, background: "var(--alabaster)", border: "1px solid var(--ink-08)", borderRadius: 14, boxShadow: "var(--shadow-md)", overflow: "hidden" }}>
-                <button className="conta-dl-item" onClick={doXLSX}><Icon name="grid" size={15} stroke="var(--earth)" />{tr("Excel (.xlsx) con clasificación", "Excel (.xlsx)")}</button>
-                <button className="conta-dl-item" onClick={doCSV}><Icon name="file" size={15} stroke="var(--earth)" />{tr("CSV con clasificación", "CSV")}</button>
-                <button className="conta-dl-item" onClick={doPDF}><Icon name="file" size={15} stroke="var(--earth)" />{tr("PDF imprimible del reporte", "Printable PDF")}</button>
+                <button className="conta-dl-item" onClick={doXLSX}><Icon name="grid" size={15} stroke="var(--fg-muted)" />{tr("Excel (.xlsx) con clasificación", "Excel (.xlsx)")}</button>
+                <button className="conta-dl-item" onClick={doCSV}><Icon name="file" size={15} stroke="var(--fg-muted)" />{tr("CSV con clasificación", "CSV")}</button>
+                <button className="conta-dl-item" onClick={doPDF}><Icon name="file" size={15} stroke="var(--fg-muted)" />{tr("PDF imprimible del reporte", "Printable PDF")}</button>
               </div>
             )}
           </div>
@@ -423,7 +423,7 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
           {accChips.map(c => (
             <button key={c.value} onClick={() => setAccFilter(c.value)} style={{
               border: "1px solid " + (accFilter === c.value ? "var(--ink)" : "var(--warm-grey)"), cursor: "pointer",
-              background: accFilter === c.value ? "var(--ink)" : "transparent", color: accFilter === c.value ? "var(--alabaster)" : "var(--earth)",
+              background: accFilter === c.value ? "var(--ink)" : "transparent", color: accFilter === c.value ? "var(--alabaster)" : "var(--fg-muted)",
               borderRadius: 999, padding: "7px 14px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", transition: "all .18s var(--ease)",
             }}>{c.label}</button>
           ))}
@@ -431,7 +431,7 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
           {isAdmin && <Segmented size="sm" value={status} onChange={setStatus} options={[{ value: "all", label: tr("Todos", "All") }, { value: "pending", label: tr("Pendientes", "Pending") }]} />}
           <div style={{ display: "inline-flex", alignItems: "center", gap: 7, border: "1px solid var(--warm-grey)", borderRadius: 999, padding: "8px 14px", background: "var(--alabaster)" }}>
-            <Icon name="search" size={14} stroke="var(--earth)" />
+            <Icon name="search" size={14} stroke="var(--fg-muted)" />
             <input value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Buscar…", "Search…")}
               style={{ border: "none", outline: "none", background: "transparent", fontFamily: "var(--sans)", fontSize: 12.5, width: 130, color: "var(--ink)" }} />
           </div>
@@ -452,11 +452,11 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
           {liveBusy ? (
             <React.Fragment>
               <span className="sa-spin" style={{ width: 22, height: 22, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block", margin: "0 auto 14px" }} />
-              <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--earth)", letterSpacing: "0.04em", margin: 0 }}>{tr("Cargando clasificación del mes…", "Loading this month's classification…")}</p>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--fg-muted)", letterSpacing: "0.04em", margin: 0 }}>{tr("Cargando clasificación del mes…", "Loading this month's classification…")}</p>
             </React.Fragment>
           ) : (
           <React.Fragment>
-          <Icon name="file" size={26} stroke="var(--earth)" style={{ margin: "0 auto 14px" }} />
+          <Icon name="file" size={26} stroke="var(--fg-muted)" style={{ margin: "0 auto 14px" }} />
           <p style={{ fontFamily: "var(--serif)", fontSize: 19, color: "var(--ink)", margin: "0 0 6px" }}>{tr("Aún no hay clasificación para ", "Not classified yet — ") + contaMonthLabel(ym)}</p>
           {(() => {
             const pdfs = window.SpacioContaPdfs ? window.SpacioConta.ACCOUNTS.map(a => ({ a, p: window.SpacioContaPdfs.get(ym, a.id) })).filter(x => x.p) : [];
@@ -464,7 +464,7 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
             const hasLinks = pdfs.length || arch.length;
             return (
               <React.Fragment>
-                <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--earth)", letterSpacing: "0.03em", margin: "0 0 18px" }}>
+                <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--fg-muted)", letterSpacing: "0.03em", margin: "0 0 18px" }}>
                   {hasLinks
                     ? tr("Descarga los estados de cuenta originales del banco para este mes:", "Download this month's original bank statements:")
                     : (isAdmin ? tr("Sube los PDF del banco arriba.", "Upload the bank PDFs above.") : tr("El administrador aún no ha cargado este mes.", "The admin hasn't uploaded this month yet."))}

@@ -79,7 +79,7 @@ const Icon = ({ name, size = 20, stroke = "currentColor", width = 1.25, style = 
 );
 
 // ---- Eyebrow ----
-const Eyebrow = ({ children, color = "var(--earth)", style = {} }) => (
+const Eyebrow = ({ children, color = "var(--fg-muted)", style = {} }) => (
   <div style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.32em", textTransform: "uppercase", color, ...style }}>{children}</div>
 );
 
@@ -89,7 +89,7 @@ const SectionHead = ({ eyebrow, title, sub, right }) => (
     <div>
       {eyebrow && <Eyebrow style={{ marginBottom: 12 }}>{eyebrow}</Eyebrow>}
       <h2 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "clamp(24px,3.2vw,34px)", letterSpacing: "-0.01em", lineHeight: 1.1, margin: 0, color: "var(--ink)" }}>{title}</h2>
-      {sub && <p style={{ fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.06em", lineHeight: 1.7, color: "var(--earth)", margin: "10px 0 0", maxWidth: 520, textWrap: "pretty" }}>{sub}</p>}
+      {sub && <p style={{ fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.06em", lineHeight: 1.7, color: "var(--fg-muted)", margin: "10px 0 0", maxWidth: 520, textWrap: "pretty" }}>{sub}</p>}
     </div>
     {right}
   </div>
@@ -99,7 +99,7 @@ const SectionHead = ({ eyebrow, title, sub, right }) => (
 const Trend = ({ value, suffix = "%", invert = false, muted = false }) => {
   const up = value >= 0;
   const good = invert ? !up : up;
-  const color = muted ? "var(--earth)" : good ? "#5B8A6B" : "var(--peach)";
+  const color = muted ? "var(--fg-muted)" : good ? "var(--success)" : "var(--attention-text)";
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontFamily: "var(--sans)", fontSize: 11.5, fontWeight: 500, letterSpacing: "0.04em", color }}>
       <Icon name={up ? "trendUp" : "trendDown"} size={13} width={1.6} />
@@ -121,7 +121,7 @@ const Segmented = ({ options, value, onChange, size = "md" }) => {
             border: "none", cursor: "pointer", padding: pad, borderRadius: 999,
             fontFamily: "var(--sans)", fontSize: fs, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase",
             background: active ? "var(--alabaster)" : "transparent",
-            color: active ? "var(--ink)" : "var(--earth)",
+            color: active ? "var(--ink)" : "var(--fg-muted)",
             boxShadow: active ? "var(--shadow-xs)" : "none",
             transition: "all .18s var(--ease)", whiteSpace: "nowrap",
           }}>{o.label}</button>
@@ -148,9 +148,9 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
         padding: "10px 14px 10px 16px", fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.08em",
         color: "var(--ink)", boxShadow: "var(--shadow-xs)", transition: "border-color .18s var(--ease)",
       }}>
-        {icon && <Icon name={icon} size={15} stroke="var(--earth)" />}
+        {icon && <Icon name={icon} size={15} stroke="var(--fg-muted)" />}
         <span style={{ fontWeight: 500 }}>{cur ? cur.label : ""}</span>
-        <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
+        <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
       </button>
       {open && (
         <div style={{
@@ -173,7 +173,7 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
                 {o.sub ? (
                   <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <span style={{ fontWeight: 500 }}>{o.label}</span>
-                    <span style={{ fontSize: 10.5, color: "var(--earth)", letterSpacing: "0.06em" }}>{o.sub}</span>
+                    <span style={{ fontSize: 10.5, color: "var(--fg-muted)", letterSpacing: "0.06em" }}>{o.sub}</span>
                   </span>
                 ) : <span style={{ fontWeight: active ? 500 : 400 }}>{o.label}</span>}
                 {active && <Icon name="check" size={15} stroke="var(--peach)" style={{ marginLeft: "auto" }} />}
@@ -238,7 +238,7 @@ const FitText = ({ children, maxPx = 46, minPx = 20, weight = 600, color = "var(
 const KpiCard = ({ label, value, help, trend, accent = false, big = false, spark, onInfo }) => (
   <Card pad={big ? 26 : 20} style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative", minHeight: big ? 150 : 120 }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-      <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{label}</span>
+      <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
       {accent && <Sparkle size={12} color="var(--peach)" />}
     </div>
     <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: big ? 16 : 12 }}>
@@ -246,7 +246,7 @@ const KpiCard = ({ label, value, help, trend, accent = false, big = false, spark
       {trend != null && <Trend value={trend} />}
     </div>
     {spark && <div style={{ marginTop: 12 }}>{spark}</div>}
-    {help && <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.5, color: "var(--earth)", margin: "auto 0 0", paddingTop: 12, textWrap: "pretty" }}>{help}</p>}
+    {help && <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.5, color: "var(--fg-muted)", margin: "auto 0 0", paddingTop: 12, textWrap: "pretty" }}>{help}</p>}
   </Card>
 );
 

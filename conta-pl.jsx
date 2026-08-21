@@ -23,7 +23,7 @@
     return (
       <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.22 }}>
         <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: strong ? 700 : 500, color: light ? "var(--alabaster)" : "var(--ink)" }}>{fGTQ(usd)}</span>
-        <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 10.5, color: light ? "rgba(250,250,250,0.62)" : "var(--earth)" }}>{fUSD(usd)}</span>
+        <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 10.5, color: light ? "rgba(250,250,250,0.62)" : "var(--fg-muted)" }}>{fUSD(usd)}</span>
       </span>
     );
   }
@@ -95,7 +95,7 @@
           {view === "month"
             ? <Select value={ym} options={yms.map(k => ({ value: k, label: monthLabel(lang, +k.slice(0, 4), +k.slice(5) - 1) }))} onChange={setYm} icon="calendar" minWidth={170} />
             : <Select value={String(year)} options={years.map(y => ({ value: String(y), label: String(y) }))} onChange={(v) => setYear(+v)} icon="calendar" minWidth={130} />}
-          <span style={{ marginLeft: "auto", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>
+          <span style={{ marginLeft: "auto", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>
             {tr("Moneda", "Currency")}: {currency}
           </span>
         </div>
@@ -117,7 +117,7 @@
           border: "none", cursor: "pointer", background: accent ? "var(--beige-soft)" : "transparent", padding: "16px 20px", textAlign: "left",
         }}>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 11 }}>
-            <Icon name="chevronDown" size={15} stroke="var(--earth)" style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform .18s var(--ease)" }} />
+            <Icon name="chevronDown" size={15} stroke="var(--fg-muted)" style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform .18s var(--ease)" }} />
             <span style={{ fontFamily: "var(--serif)", fontSize: 18, color: "var(--ink)" }}>{title}</span>
           </span>
           <span style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.01em" }}><Amt usd={total} strong /></span>
@@ -153,7 +153,7 @@
   }
   const thStyle = (first) => ({
     textAlign: first ? "left" : "right", textTransform: "uppercase", letterSpacing: "0.1em", fontSize: 9.5, fontWeight: 600,
-    color: "var(--earth)", padding: "11px 16px", borderBottom: "1px solid var(--warm-grey)", whiteSpace: "nowrap", background: "var(--alabaster)",
+    color: "var(--fg-muted)", padding: "11px 16px", borderBottom: "1px solid var(--warm-grey)", whiteSpace: "nowrap", background: "var(--alabaster)",
   });
   const tdStyle = (first) => ({
     textAlign: first ? "left" : "right", padding: "10px 16px", borderTop: "1px solid var(--ink-08)",
@@ -167,10 +167,10 @@
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "18px 22px", marginBottom: 16,
         borderRadius: 18, background: accent ? "var(--ink)" : "var(--beige-soft)",
       }}>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: accent ? "rgba(250,250,250,0.7)" : "var(--earth)" }}>{label}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: accent ? "rgba(250,250,250,0.7)" : "var(--fg-muted)" }}>{label}</span>
         <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
           <span style={{ fontFamily: "var(--sans)", fontSize: 23, fontWeight: 600, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: accent ? "var(--alabaster)" : "var(--ink)" }}>{fGTQ(value)}</span>
-          <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 500, fontVariantNumeric: "tabular-nums", color: accent ? "rgba(250,250,250,0.62)" : "var(--earth)" }}>{fUSD(value)}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 500, fontVariantNumeric: "tabular-nums", color: accent ? "rgba(250,250,250,0.62)" : "var(--fg-muted)" }}>{fUSD(value)}</span>
         </span>
       </div>
     );
@@ -246,7 +246,7 @@
     const line = (sign, label, usd, neg) => (
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, padding: "13px 22px", borderTop: "1px solid var(--ink-08)" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 12 }}>
-          <span style={{ width: 18, textAlign: "center", fontFamily: "var(--sans)", fontSize: 16, fontWeight: 500, color: neg ? "var(--peach)" : "var(--earth)" }}>{sign}</span>
+          <span style={{ width: 18, textAlign: "center", fontFamily: "var(--sans)", fontSize: 16, fontWeight: 500, color: neg ? "var(--peach)" : "var(--fg-muted)" }}>{sign}</span>
           <span style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)", letterSpacing: "0.02em" }}>{label}</span>
         </span>
         <Amt usd={usd} />
@@ -301,10 +301,10 @@
     return (
       <div style={{ border: "1px dashed var(--warm-grey)", borderRadius: 18, padding: "16px 18px", marginBottom: 16, background: "var(--alabaster)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
-          <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--earth)" }}>{title}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{title}</span>
           <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: kind === "opex" ? "var(--peach)" : "var(--ink)", display: "inline-flex", alignItems: "baseline", gap: 7 }}>
             <span>{(kind === "opex" ? "− " : "+ ") + fGTQ(totalUsd)}</span>
-            <span style={{ fontSize: 11, color: "var(--earth)", fontWeight: 500 }}>{fUSD(totalUsd)}</span>
+            <span style={{ fontSize: 11, color: "var(--fg-muted)", fontWeight: 500 }}>{fUSD(totalUsd)}</span>
           </span>
         </div>
         {list.length > 0 && (
@@ -312,9 +312,9 @@
             {list.map(r => (
               <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", background: "var(--beige-soft)", borderRadius: 11 }}>
                 <span style={{ flex: 1, fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--ink)", letterSpacing: "0.02em" }}>{r.concepto}</span>
-                {r.fileUrl && <a href={r.fileUrl} target="_blank" rel="noopener noreferrer" title={r.fileName} style={{ color: "var(--earth)", display: "inline-flex" }}><Icon name="file" size={14} stroke="currentColor" /></a>}
+                {r.fileUrl && <a href={r.fileUrl} target="_blank" rel="noopener noreferrer" title={r.fileName} style={{ color: "var(--fg-muted)", display: "inline-flex" }}><Icon name="file" size={14} stroke="currentColor" /></a>}
                 <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", fontVariantNumeric: "tabular-nums" }}>{r.currency === "GTQ" ? "Q" : "$"}{(+r.monto).toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
-                <button onClick={() => { OX.remove(r.id); reload(); }} title={tr("Eliminar", "Delete")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--earth)", display: "inline-flex", padding: 2 }}><Icon name="x" size={14} stroke="currentColor" /></button>
+                <button onClick={() => { OX.remove(r.id); reload(); }} title={tr("Eliminar", "Delete")} style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--fg-muted)", display: "inline-flex", padding: 2 }}><Icon name="x" size={14} stroke="currentColor" /></button>
               </div>
             ))}
           </div>
@@ -325,7 +325,7 @@
           <input value={monto} onChange={e => setMonto(e.target.value)} inputMode="decimal" placeholder={tr("Monto", "Amount")}
             style={{ flex: "1 1 90px", minWidth: 80, border: "1px solid var(--warm-grey)", borderRadius: 10, padding: "10px 12px", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--ink)", background: "var(--alabaster)", textAlign: "right" }} />
           <Segmented size="sm" value={cur} onChange={setCur} options={[{ value: "GTQ", label: "GTQ" }, { value: "USD", label: "USD" }]} />
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", border: "1px solid var(--warm-grey)", borderRadius: 10, padding: "9px 12px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: file ? "var(--ink)" : "var(--earth)", background: "var(--alabaster)" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", border: "1px solid var(--warm-grey)", borderRadius: 10, padding: "9px 12px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: file ? "var(--ink)" : "var(--fg-muted)", background: "var(--alabaster)" }}>
             <Icon name="paperclip" size={14} stroke="currentColor" />{file ? (file.name.length > 14 ? file.name.slice(0, 12) + "…" : file.name) : tr("Adjuntar", "Attach")}
             <input ref={inputRef} type="file" accept="application/pdf,image/*" style={{ display: "none" }} onChange={e => setFile(e.target.files[0] || null)} />
           </label>
@@ -343,7 +343,7 @@
     const monthsPresent = [];
     for (let m = 0; m < 12; m++) if (ymsSet[ymStr(year, m)]) monthsPresent.push(m);
     if (!monthsPresent.length) {
-      return <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--earth)", letterSpacing: "0.04em", textAlign: "center", padding: "40px 0" }}>{tr("Sin datos para este año.", "No data for this year.")}</p>;
+      return <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--fg-muted)", letterSpacing: "0.04em", textAlign: "center", padding: "40px 0" }}>{tr("Sin datos para este año.", "No data for this year.")}</p>;
     }
     const aggs = monthsPresent.map(m => aggFor(year, m));
     const MONTHS = lang === "es" ? SpacioI18n.MONTHS_ES : SpacioI18n.MONTHS_EN;

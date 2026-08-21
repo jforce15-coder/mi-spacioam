@@ -1,13 +1,27 @@
-GITHUB — reemplaza estos archivos en la raiz del repositorio del sitio:
+GITHUB — mi-spacioam · Entrega consolidada (21 ago 2026)
+========================================================
+Reemplaza en la raíz del repo; los marcados NUEVO se agregan.
 
-  sheets.js                        (reemplazar)  conexion publica de subida
-  files.js                         (reemplazar)  ya no finge que guardo
-  sections.jsx                     (reemplazar)  subida en lote + vista grande
-  facturas-batch.js                (NUEVO)       clasificador de facturas por mes
-  Dashboard de Propietarios.html   (reemplazar)  carga facturas-batch.js
+DISEÑO / DS v2
+  spacio-tokens.css   graphite, escala de estados, Valky Light->Regular, slogan nuevo
+  i18n.js             slogan nuevo (ES/EN); se quitó nota de contraseña por defecto
+  ui.jsx              Trend: caída=attention-text, alza=success
+  dashboard.jsx       campana de notificaciones; serie "neto" en PEACH
+  sections.jsx        earth->fg-muted; Donut y Evolución en PEACH; subida en lote/OCR
+  charts.jsx          earth->fg-muted
+  login.jsx           glow+borde peach al enfocar; autofocus en correo; sin nota de contraseña
+  conta.jsx conta-pl.jsx pedidosya.jsx pedidosya-ui.jsx   earth->fg-muted
+  Correos a socios.html   earth->fg-muted
 
-sheets.js YA VIENE CONFIGURADO (linea 493-494): la URL /exec y el token de subida
-estan dentro. No hay que editar nada antes de subirlo.
+FACTURAS + OCR (cliente)
+  files.js            ya no finge que guardó; deja rastro de lo fallido
+  facturas-batch.js   NUEVO  clasificador de facturas por mes (texto + OCR)
+  sheets.js           conexión pública de subida (URL /exec + token ya dentro)
 
-En el Apps Script, SA_UPLOAD_TOKEN (linea 19) ya trae el mismo token. Solo falta
-guardar la llave ANTHROPIC_API_KEY en Propiedades del script y publicar version nueva.
+NOTIFICACIONES
+  noti-center.jsx     NUEVO  centro iOS (NotiBell/Center/Toast/Push)
+  noti-data.js        NUEVO  arma notis reales: socio + ADMIN (con fechas límite)
+
+  Dashboard de Propietarios.html   carga noti-*, cablea el centro, red responsive, ?v=20260821
+
+NOTA: sheets.js ya trae SA_PUBLIC_URL y SA_PUBLIC_TOKEN dentro. No editar.

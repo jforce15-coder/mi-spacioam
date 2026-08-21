@@ -3,7 +3,7 @@
 // ============================================================
 
 // ---- Top bar ----
-const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t }) => {
+const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t, notiTotal, onNotiOpen }) => {
   const [menu, setMenu] = useState(false);
   const mref = useRef(null);
   useEffect(() => {
@@ -31,6 +31,7 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
         </div>
 
         <div className="sa-topbar-right">
+          {window.NotiBell && <NotiBell total={notiTotal || 0} onOpen={onNotiOpen} />}
           <div className="sa-only-desktop"><Segmented size="sm" value={currency} onChange={setCurrency} options={[{ value: "USD", label: "USD" }, { value: "GTQ", label: "GTQ" }]} /></div>
           <div className="sa-only-desktop"><Segmented size="sm" value={lang} onChange={setLang} options={[{ value: "es", label: "ES" }, { value: "en", label: "EN" }]} /></div>
           <div ref={mref} style={{ position: "relative" }}>
@@ -41,20 +42,20 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
               <div className="sa-menu" style={{ animation: "sa-fade .18s var(--ease)" }}>
                 <div style={{ padding: "12px 14px 12px", borderBottom: "1px solid var(--warm-grey)" }}>
                   <div style={{ fontFamily: "var(--serif)", fontSize: 18, color: "var(--ink)", lineHeight: 1.1 }}>{owner.name}</div>
-                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--earth)", marginTop: 3 }}>{owner.email}</div>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--fg-muted)", marginTop: 3 }}>{owner.email}</div>
                 </div>
                 <div className="sa-only-mobile" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12, borderBottom: "1px solid var(--warm-grey)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("currency_label")}</span>
+                    <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("currency_label")}</span>
                     <Segmented size="sm" value={currency} onChange={setCurrency} options={[{ value: "USD", label: "USD" }, { value: "GTQ", label: "GTQ" }]} />
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("language_label")}</span>
+                    <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("language_label")}</span>
                     <Segmented size="sm" value={lang} onChange={setLang} options={[{ value: "es", label: "ES" }, { value: "en", label: "EN" }]} />
                   </div>
                 </div>
                 <button onClick={onLogout} className="sa-menu-item">
-                  <Icon name="logout" size={16} stroke="var(--earth)" /> {t("logout")}
+                  <Icon name="logout" size={16} stroke="var(--fg-muted)" /> {t("logout")}
                 </button>
               </div>
             )}
@@ -102,7 +103,7 @@ const Hero = ({ property, isAll, propsCount, periodText, contextLine, t, lang })
         <div className="sa-hero-all">
           <img src="logo-stamp.png" alt="Spacio AM" style={{ width: 72, height: 72, opacity: 0.85 }} />
           <div style={{ fontFamily: "var(--serif)", fontSize: "clamp(22px,3vw,30px)", color: "var(--ink)", marginTop: 16, letterSpacing: "-0.01em" }}>{t("all_props")}</div>
-          <div style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginTop: 8 }}>{propsCount} {propsCount === 1 ? (lang === "es" ? "propiedad" : "property") : (lang === "es" ? "propiedades" : "properties")}</div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 8 }}>{propsCount} {propsCount === 1 ? (lang === "es" ? "propiedad" : "property") : (lang === "es" ? "propiedades" : "properties")}</div>
         </div>
       ) : (
         <a className="sa-hero-photo" href={property.listing || undefined} target={property.listing ? "_blank" : undefined} rel="noreferrer" aria-label={property.listing ? t("view_listing") : property.name}>
@@ -178,12 +179,12 @@ const FinancialSection = ({ pdata, fmt, t, lang }) => {
         <Card pad={24}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, marginBottom: 8 }}>
             <div>
-              <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("net")}</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("net")}</div>
               <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 28, letterSpacing: "-0.02em", color: "var(--ink)", marginTop: 6 }}>{moneyEl(cur.ingresoNeto)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
-              <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("fee")}</div>
-              <div style={{ fontFamily: "var(--sans)", fontWeight: 500, fontSize: 20, color: "var(--earth)", marginTop: 6 }}>{moneyEl(cur.fee)}</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("fee")}</div>
+              <div style={{ fontFamily: "var(--sans)", fontWeight: 500, fontSize: 20, color: "var(--fg-muted)", marginTop: 6 }}>{moneyEl(cur.fee)}</div>
             </div>
           </div>
           <LineChart series={series} labels={labels} height={250} formatY={v => fmt.moneyShort(v)} formatTip={v => money(v)} />
@@ -196,7 +197,7 @@ const FinancialSection = ({ pdata, fmt, t, lang }) => {
               <span className="sa-highlight-ic"><Icon name={h.icon} size={17} stroke="var(--peach)" /></span>
               <div>
                 <div style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--ink)", marginBottom: 6 }}>{h.title}</div>
-                <p style={{ fontFamily: "var(--sans)", fontSize: 13, lineHeight: 1.65, letterSpacing: "0.03em", color: "var(--earth)", margin: 0, textWrap: "pretty" }}>{h.body}</p>
+                <p style={{ fontFamily: "var(--sans)", fontSize: 13, lineHeight: 1.65, letterSpacing: "0.03em", color: "var(--fg-muted)", margin: 0, textWrap: "pretty" }}>{h.body}</p>
               </div>
             </div>
           ))}
@@ -223,7 +224,7 @@ const OccupancySection = ({ pdata, fmt, t, lang }) => {
       <div className="sa-occ-grid">
         {/* left: gauge + stats */}
         <Card pad={26} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <span style={{ alignSelf: "flex-start", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("occ_adjusted")}</span>
+          <span style={{ alignSelf: "flex-start", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("occ_adjusted")}</span>
           <div style={{ margin: "18px 0 6px" }}>
             <Gauge value={cur.ocupacionAjustada} size={230} label={pct(cur.ocupacionAjustada)} sub={t("this_month")} />
           </div>
@@ -231,7 +232,7 @@ const OccupancySection = ({ pdata, fmt, t, lang }) => {
             {stats.map((s, i) => (
               <div key={i} style={{ textAlign: "center", padding: "12px 6px", background: "var(--beige-soft)", borderRadius: 14 }}>
                 <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 19, color: "var(--ink)", letterSpacing: "-0.01em" }}>{s.value}</div>
-                <div style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)", marginTop: 5, lineHeight: 1.3 }}>{s.label}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 500, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 5, lineHeight: 1.3 }}>{s.label}</div>
               </div>
             ))}
           </div>
@@ -239,10 +240,10 @@ const OccupancySection = ({ pdata, fmt, t, lang }) => {
         {/* right: monthly columns */}
         <Card pad={24}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("occ_adjusted")} · {lang === "es" ? "mensual" : "monthly"}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("occ_adjusted")} · {lang === "es" ? "mensual" : "monthly"}</span>
           </div>
           <OccColumns data={cols} height={250} lang={lang} />
-          <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, lineHeight: 1.65, letterSpacing: "0.03em", color: "var(--earth)", margin: "14px 0 0", textWrap: "pretty" }}>{SpacioInsights.occContext(lang, cur, pdata.hist)}</p>
+          <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, lineHeight: 1.65, letterSpacing: "0.03em", color: "var(--fg-muted)", margin: "14px 0 0", textWrap: "pretty" }}>{SpacioInsights.occContext(lang, cur, pdata.hist)}</p>
         </Card>
       </div>
     </section>
@@ -251,7 +252,7 @@ const OccupancySection = ({ pdata, fmt, t, lang }) => {
 
 const Row = ({ k, v }) => (
   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-    <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", letterSpacing: "0.04em" }}>{k}</span>
+    <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.04em" }}>{k}</span>
     <span style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>{v}</span>
   </div>
 );
@@ -285,9 +286,9 @@ const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang, hide }) 
         border: "1px solid var(--ink-08)", borderRadius: 999, padding: "10px 14px 10px 16px",
         fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.06em", color: "var(--ink)", boxShadow: "var(--shadow-xs)",
       }}>
-        <Icon name="calendar" size={15} stroke="var(--earth)" />
+        <Icon name="calendar" size={15} stroke="var(--fg-muted)" />
         <span style={{ fontWeight: 500 }}>{periodText}</span>
-        <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
+        <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
       </button>
       {open && (
         <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 60, width: 264,
@@ -314,7 +315,7 @@ const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang, hide }) 
             </div>
           ) : (
             <div>
-              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)", margin: "2px 0 7px" }}>{t("filt_year")}</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)", margin: "2px 0 7px" }}>{t("filt_year")}</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
                 {years.map(y => (
                   <button key={y} onClick={() => setSelYear(y)} style={{
@@ -324,7 +325,7 @@ const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang, hide }) 
                   }}>{y}</button>
                 ))}
               </div>
-              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)", margin: "2px 0 7px" }}>{t("filt_month")}</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)", margin: "2px 0 7px" }}>{t("filt_month")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
                 {monthsInYear.map(m => {
                   const v = "ym:" + m.y + "-" + m.m; const active = period === v;
@@ -336,7 +337,7 @@ const PeriodPicker = ({ period, setPeriod, months, periodText, t, lang, hide }) 
                     }}>{(lang === "es" ? SpacioI18n.MONTHS_ES : SpacioI18n.MONTHS_EN)[m.m]}</button>
                   );
                 })}
-                {!monthsInYear.length && <span style={{ gridColumn: "1/-1", fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--earth)", padding: "8px 0" }}>—</span>}
+                {!monthsInYear.length && <span style={{ gridColumn: "1/-1", fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", padding: "8px 0" }}>—</span>}
               </div>
             </div>
           )}

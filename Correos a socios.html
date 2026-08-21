@@ -1,0 +1,61 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Correos a socios — Spacio AM</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:'Valky';src:url('Valky-Regular.otf') format('opentype');font-weight:400;font-display:swap}
+:root{--alabaster:#FAFAFA;--beige-soft:#F5F3F0;--earth:#938B8A;--warm-grey:#D8D4CE;--ink:#3E3F3F;--peach:#E9826A;--sans:'Montserrat',sans-serif;--serif:'Valky',Georgia,serif}
+body{margin:0;background:#EDEAE6;font-family:var(--sans);color:var(--ink)}
+a{color:var(--ink)}a:hover{opacity:.6}
+.wrap{max-width:1400px;margin:0 auto;padding:56px 32px 96px}
+.head{text-align:center;margin-bottom:48px}
+.eyebrow{font-size:10px;font-weight:600;letter-spacing:.32em;text-transform:uppercase;color:var(--fg-muted)}
+.head h1{font-family:var(--serif);font-weight:400;font-size:38px;margin:14px 0 8px;letter-spacing:-.01em}
+.head p{font-size:13px;letter-spacing:.06em;color:var(--fg-muted);margin:0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:40px;align-items:start}
+.col h2{font-family:var(--serif);font-weight:400;font-size:20px;margin:0 0 4px}
+.col .note{font-size:11.5px;letter-spacing:.05em;color:var(--fg-muted);margin:0 0 18px;line-height:1.7}
+.mail{border-radius:20px;overflow:hidden;box-shadow:0 4px 16px rgba(62,63,63,.05)}
+.ph{background:var(--beige-soft);border:1px solid var(--warm-grey);display:flex;align-items:center;justify-content:center;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--fg-muted);text-align:center;padding:0 20px}
+</style></head><body>
+<div class="wrap">
+<div class="head"><div class="eyebrow">Plantilla de correos</div><h1>Los dos correos a socios</h1><p>Vista previa · fotografías generadas con Higgsfield · listas para subir a email-assets/</p></div>
+<div class="grid" id="grid"></div>
+</div>
+<script>
+const INK="#3E3F3F",EARTH="#938B8A",ALA="#FAFAFA",BEI="#F5F3F0",WARM="#D8D4CE",PEACH="#E9826A";
+const SANS="'Montserrat',Helvetica,Arial,sans-serif",SERIF="'Valky',Georgia,serif";
+const APP="mi.spacioam.com";
+function shell(o){const B=[];
+B.push('<tr><td align="center" style="padding:44px 32px 34px"><img src="email-assets/logo-wordmark.png" width="132" alt="Spacio AM" style="display:block;margin:0 auto;border:0;width:132px;height:auto"></td></tr>');
+if(o.eyebrow)B.push('<tr><td align="center" style="padding:0 40px 12px"><div style="font-family:'+SANS+';font-size:10px;font-weight:600;letter-spacing:.32em;text-transform:uppercase;color:'+(o.urgente?PEACH:EARTH)+'">'+o.eyebrow+'</div></td></tr>');
+B.push('<tr><td align="center" style="padding:0 40px 22px"><h1 style="margin:0;font-family:'+SERIF+';font-weight:400;font-size:30px;line-height:1.25;color:'+INK+';letter-spacing:-.01em">'+o.heading+'</h1></td></tr>');
+if(o.image)B.push('<tr><td style="padding:6px 32px 26px"><img src="email-assets/'+o.image+'" alt="" style="display:block;width:100%;height:auto;border-radius:18px"></td></tr>');
+(o.paras||[]).forEach(p=>B.push('<tr><td style="padding:0 44px 16px"><p style="margin:0;font-family:'+SANS+';font-size:14px;line-height:1.85;letter-spacing:.04em;color:'+INK+'">'+p+'</p></td></tr>'));
+if(o.band)B.push('<tr><td style="padding:12px 32px 24px"><img src="email-assets/'+o.band+'" alt="" style="display:block;width:100%;height:auto;border-radius:14px"></td></tr>');
+if(o.rows){const tr=o.rows.map((r,i)=>{const l=i===o.rows.length-1?'none':'1px solid '+WARM;return '<tr><td style="padding:13px 0;border-bottom:'+l+';font-family:'+SANS+';font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:'+EARTH+'">'+r[0]+'</td><td align="right" style="padding:13px 0;border-bottom:'+l+';font-family:'+SANS+';font-size:15px;font-weight:600;color:'+INK+'">'+r[1]+'</td></tr>'}).join("");
+B.push('<tr><td style="padding:10px 44px 26px"><table width="100%" cellpadding="0" cellspacing="0" style="background:'+BEI+';border-radius:16px;padding:6px 20px">'+tr+'</table></td></tr>')}
+if(o.stops){const c=o.stops.map(s=>'<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;background:'+ALA+';border:1px solid '+(s.urgente?PEACH:WARM)+';border-radius:14px"><tr><td width="46" align="center" valign="top" style="padding:16px 0 16px 16px;font-family:'+SERIF+';font-size:22px;color:'+(s.urgente?PEACH:EARTH)+'">'+s.n+'</td><td style="padding:16px 18px 16px 6px"><div style="font-family:'+SERIF+';font-size:17px;color:'+INK+';line-height:1.35">'+s.titulo+'</div><div style="margin-top:5px;font-family:'+SANS+';font-size:11.5px;letter-spacing:.08em;color:'+EARTH+'">'+s.meta+'</div></td></tr></table>').join("");
+B.push('<tr><td style="padding:0 44px 22px">'+c+'</td></tr>')}
+if(o.cta)B.push('<tr><td align="center" style="padding:8px 44px 34px"><a href="#" style="display:inline-block;background:'+INK+';color:'+ALA+';font-family:'+SANS+';font-size:12px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;text-decoration:none;padding:15px 34px;border-radius:999px">'+o.cta+'</a></td></tr>');
+if(o.signoff){const l=o.signoff.split("\n");B.push('<tr><td style="padding:0 44px 8px"><div style="font-family:'+SERIF+';font-size:17px;color:'+INK+';line-height:1.4">'+l[0]+'</div><div style="margin-top:4px;font-family:'+SANS+';font-size:12px;letter-spacing:.1em;color:'+EARTH+'">'+l.slice(1).join(" · ")+'</div></td></tr>')}
+if(o.footerNote)B.push('<tr><td style="padding:20px 44px 0"><div style="border-top:1px solid '+WARM+';padding-top:16px;font-family:'+SANS+';font-size:11px;line-height:1.7;letter-spacing:.05em;color:'+EARTH+'">'+o.footerNote+'</div></td></tr>');
+B.push('<tr><td align="center" style="padding:32px 44px 46px"><div style="font-family:'+SANS+';font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:'+EARTH+'">Spacio AM · Guatemala</div><div style="margin-top:8px;font-family:'+SANS+';font-size:10.5px;letter-spacing:.06em;color:'+EARTH+'">hola@spacioam.com</div></td></tr>');
+return '<table class="mail" width="100%" cellpadding="0" cellspacing="0" style="background:'+ALA+'">'+B.join("")+'</table>'}
+
+const cierre=shell({eyebrow:"Cierre de mes",heading:"El mes cerró. Aquí están tus números.",image:"hero-cierre-mes.jpg",
+paras:["Ya está listo el resultado de julio de 2026. Puedes entrar a la plataforma cuando quieras y ver el detalle completo: reservas, ocupación, gastos y el respaldo de cada movimiento.","Si algo no te cuadra, escríbenos y lo revisamos contigo."],
+rows:[["Propiedad","2 propiedades"],["Monto a facturar","$2,480.50"],["Retención","− $110.74"],["Monto a depositar","$2,369.76"]],
+cta:"Ver mi reporte",signoff:"Gracias por confiarnos tu espacio.\nEquipo Spacio AM",
+footerNote:"Propiedades consideradas: Casa Zona 10 · Loft Cayalá. Entras con tu correo y tu contraseña en "+APP+". Si la olvidaste, respóndenos este correo."});
+
+const factura=shell({eyebrow:"Recordatorio",heading:"Te falta subir una factura.",band:"band-factura.jpg",
+paras:["Para cerrar el mes necesitamos tu factura. Puedes subirla desde la plataforma en menos de un minuto.","Entra, elige el mes y súbela desde el bloque de facturación."],
+stops:[{n:1,titulo:"junio de 2026",meta:"Casa Zona 10"},{n:2,titulo:"julio de 2026",meta:"Casa Zona 10"}],
+cta:"Subir factura",signoff:"Quedamos pendientes.\nEquipo Spacio AM",
+footerNote:"Si ya la subiste en los últimos minutos, ignora este mensaje."});
+
+document.getElementById("grid").innerHTML=
+'<div class="col"><h2>1 · Cierre de mes</h2><p class="note">Automático o a botón. Va a cada socio con resultado en el mes. El monto vive en la tabla, no en el párrafo.</p>'+cierre+'</div>'+
+'<div class="col"><h2>2 · Recordatorio de factura</h2><p class="note">Solo a quienes tienen meses con ingreso y sin factura cargada. Con más de 2 meses pendientes cambia a tono "Última llamada" (acento durazno).</p>'+factura+'</div>';
+</script>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#F5F3F0"/><rect x="22" y="34" width="56" height="34" rx="4" fill="none" stroke="#3E3F3F" stroke-width="2"/><path d="M22 37l28 20 28-20" fill="none" stroke="#E9826A" stroke-width="2"/></svg></template>
+</body></html>

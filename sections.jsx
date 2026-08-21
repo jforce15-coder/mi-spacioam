@@ -12,7 +12,7 @@ const DistributionSection = ({ pdata, fmt, t, lang }) => {
   const raw = [
     { key: "net", label: t("dist_net"), value: c.ingresoNeto, color: "var(--ink)" },
     { key: "fee", label: t("dist_fee"), value: c.fee, color: "var(--peach)" },
-    { key: "exp", label: t("dist_exp"), value: c.insumos, color: "var(--earth)" },
+    { key: "exp", label: t("dist_exp"), value: c.insumos, color: "var(--fg-muted)" },
     { key: "rep", label: t("dist_rep"), value: c.reparaciones, color: "#C4B7AE" },
     { key: "iva", label: t("dist_iva"), value: c.ivaTotal, color: "var(--warm-grey)" },
     { key: "host", label: t("dist_host"), value: c.hostFee, color: "#B8AEA6" },
@@ -35,7 +35,7 @@ const DistributionSection = ({ pdata, fmt, t, lang }) => {
                   <span style={{ fontFamily: "var(--sans)", fontSize: 13.5, letterSpacing: "0.03em", color: "var(--ink)" }}>{s.label}</span>
                 </span>
                 <span style={{ display: "inline-flex", alignItems: "baseline", gap: 10 }}>
-                  <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.08em", color: "var(--earth)" }}>{s.pretty} {t("of_total")}</span>
+                  <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.08em", color: "var(--fg-muted)" }}>{s.pretty} {t("of_total")}</span>
                   <span style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", minWidth: 86, textAlign: "right" }}>{moneyEl(s.value)}</span>
                 </span>
               </div>
@@ -43,7 +43,7 @@ const DistributionSection = ({ pdata, fmt, t, lang }) => {
           </div>
         </div>
         {hasIva && (
-          <p style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "18px 0 0", textWrap: "pretty" }}>
+          <p style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "18px 0 0", textWrap: "pretty" }}>
             {lang === "es"
               ? "El IVA mostrado corresponde al IVA total recaudado (dueño + Spacio AM)."
               : "The VAT shown is the total VAT collected (owner + Spacio AM)."}
@@ -95,7 +95,7 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
   const cmpName = cmp === "year" ? t("evo_vs_year") : t("evo_vs_month");
   const series = [
     { key: "primary", name: md.label, color: "var(--peach)", values: primaryVals, width: 2.6, fill: 0.14, dots: true },
-    { key: "compare", name: cmpName, color: "var(--earth)", values: compareVals, width: 1.8, dash: "5 5", area: false, opacity: 0.9, dots: true },
+    { key: "compare", name: cmpName, color: "var(--fg-muted)", values: compareVals, width: 1.8, dash: "5 5", area: false, opacity: 0.9, dots: true },
   ];
   const rangeOpts = presentAll.map(m => ({ value: monthVal(m), label: monthLbl(m) }));
   // delta table (rango seleccionado)
@@ -113,21 +113,21 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
         right={<div style={{ minWidth: 200 }}><Select value={metricKey} onChange={setMetricKey} options={metricOpts} icon="trendUp" align="right" minWidth={200} /></div>} />
       <Card pad={24} style={{ marginBottom: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginBottom: 12 }}>
-          <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{md.label} · {lang === "es" ? "por mes" : "by month"}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{md.label} · {lang === "es" ? "por mes" : "by month"}</span>
           <Segmented size="sm" value={cmp} onChange={setCmp}
             options={[{ value: "year", label: t("evo_vs_year") }, { value: "month", label: t("evo_vs_month") }]} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
-          <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>{lang === "es" ? "Rango" : "Range"}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{lang === "es" ? "Rango" : "Range"}</span>
           <Select value={presentAll[fi] ? monthVal(presentAll[fi]) : ""} onChange={setFromYM} options={rangeOpts} icon="calendar" minWidth={138} />
-          <span style={{ color: "var(--earth)", fontFamily: "var(--sans)" }}>—</span>
+          <span style={{ color: "var(--fg-muted)", fontFamily: "var(--sans)" }}>—</span>
           <Select value={presentAll[ti] ? monthVal(presentAll[ti]) : ""} onChange={setToYM} options={rangeOpts} icon="calendar" minWidth={138} />
         </div>
         <LineChart series={series} labels={labels} height={250} formatY={md.short} formatTip={md.fmt} />
-        <Legend items={[{ name: md.label, color: "var(--peach)" }, { name: cmpName, color: "var(--earth)", dash: true }]} />
+        <Legend items={[{ name: md.label, color: "var(--peach)" }, { name: cmpName, color: "var(--fg-muted)", dash: true }]} />
         {cmp === "year" && !overlapWin && (
-          <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "14px 0 0", display: "flex", alignItems: "center", gap: 8 }}>
-            <Icon name="info" size={14} stroke="var(--earth)" /> {t("evo_yoy_note")}
+          <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "14px 0 0", display: "flex", alignItems: "center", gap: 8 }}>
+            <Icon name="info" size={14} stroke="var(--fg-muted)" /> {t("evo_yoy_note")}
           </p>
         )}
       </Card>
@@ -152,7 +152,7 @@ const EvolutionSection = ({ pdata, fmt, t, lang }) => {
           );
           return (
             <div key={i} className="sa-evo-row" style={{ borderTop: "1px solid var(--ink-08)" }}>
-              <span style={{ fontFamily: "var(--serif)", fontSize: 17, color: "var(--ink)" }}>{m.label[lang]} <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", letterSpacing: "0.06em" }}>'{String(m.y).slice(2)}</span></span>
+              <span style={{ fontFamily: "var(--serif)", fontSize: 17, color: "var(--ink)" }}>{m.label[lang]} <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.06em" }}>'{String(m.y).slice(2)}</span></span>
               {cell(net)}{cell(occ)}{cell(adr)}{cell(stays)}
             </div>
           );
@@ -181,35 +181,35 @@ const ExpenseEditModal = ({ exp, lang, allProps, onClose, onSave }) => {
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, maxWidth: 480, width: "100%", boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "22px 24px 14px", borderBottom: "1px solid var(--warm-grey)" }}>
           <div>
-            <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Editar gasto", "Edit expense")}</div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Editar gasto", "Edit expense")}</div>
             <div style={{ fontFamily: "var(--serif)", fontSize: 20, color: "var(--ink)", marginTop: 4, lineHeight: 1.15 }}>{exp.day} {SpacioI18n.monthLong(lang, exp.m).slice(0, 3)} · {exp._prop}</div>
           </div>
           <button onClick={onClose} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
         </div>
         <div style={{ padding: "18px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Comentario", "Comment")}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Comentario", "Comment")}</span>
             <input className="sa-setup-input" value={desc} onChange={e => setDesc(e.target.value)} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Categoría", "Category")}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Categoría", "Category")}</span>
             <select className="sa-setup-input" value={cat} onChange={e => setCat(e.target.value)}>{CATS.map(c => <option key={c} value={c}>{c}</option>)}</select>
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>Tag</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>Tag</span>
             <select className="sa-setup-input" value={tag} onChange={e => setTag(e.target.value)}>{TAGS.map(c => <option key={c} value={c}>{c || "—"}</option>)}</select>
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Valor (GTQ)", "Amount (GTQ)")}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Valor (GTQ)", "Amount (GTQ)")}</span>
             <input className="sa-setup-input" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Propiedad", "Property")}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Propiedad", "Property")}</span>
             <select className="sa-setup-input" value={prop} onChange={e => setProp(e.target.value)}>{[exp._prop].concat(names.filter(n => n !== exp._prop)).map(n => <option key={n} value={n}>{n}</option>)}</select>
           </label>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "14px 24px", borderTop: "1px solid var(--warm-grey)" }}>
-          <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--earth)", maxWidth: 220, lineHeight: 1.4 }}>{tr("Al guardar se recalcula el resumen del mes.", "Saving recalculates the month's summary.")}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", maxWidth: 220, lineHeight: 1.4 }}>{tr("Al guardar se recalcula el resumen del mes.", "Saving recalculates the month's summary.")}</span>
           <div style={{ display: "flex", gap: 10 }}>
             <button className="sa-chip-btn sa-chip-btn-ghost" onClick={onClose}>{tr("Cancelar", "Cancel")}</button>
             <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => onSave({ category: cat, desc, tag, amountGTQ: parseFloat(valor) || 0, property_name: prop })}><Icon name="check" size={13} stroke="var(--alabaster)" />{tr("Guardar", "Save")}</button>
@@ -348,11 +348,11 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
       {isAdmin && typeof PedidosYaImport !== "undefined" && <div style={{ marginBottom: 44 }}><PedidosYaImport lang={lang} /></div>}
       <SectionHead eyebrow={t("sec_expenses")} title={t("exp_title")} sub={t("exp_sub")}
         right={<div style={{ textAlign: "right" }}>
-          <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("exp_total")} · {lang === "es" ? "consolidado" : "consolidated"}</div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("exp_total")} · {lang === "es" ? "consolidado" : "consolidated"}</div>
           <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 26, color: "var(--ink)", marginTop: 4 }}>{money(total)}</div>
         </div>} />
       {rows.length > 0 && (
-        <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "-8px 0 18px", maxWidth: 560 }}>
+        <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "-8px 0 18px", maxWidth: 560 }}>
           {lang === "es"
             ? "El total consolidado proviene del resumen oficial. Abajo, el detalle de cada movimiento registrado en el período."
             : "The consolidated total comes from the official summary. Below, every movement recorded in the period."}
@@ -360,7 +360,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
       )}
       <Card pad={0}>
         {rows.length === 0 && (
-          <div style={{ padding: "40px 24px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.04em", color: "var(--earth)" }}>
+          <div style={{ padding: "40px 24px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.04em", color: "var(--fg-muted)" }}>
             {lang === "es" ? "No hay gastos registrados en este período." : "No expenses recorded for this period."}
           </div>
         )}
@@ -394,27 +394,27 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                     {window.SpacioReportes ? window.SpacioReportes.cleanComment(r.desc) || r.desc : r.desc}
                     {window.SpacioReportes && window.SpacioReportes.refOf(r.desc) && window.SpacioReportes.get(window.SpacioReportes.refOf(r.desc)) && (
                       <button onClick={() => setRepBox(window.SpacioReportes.get(window.SpacioReportes.refOf(r.desc)))}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", verticalAlign: "middle" }}>
                         <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver detalle" : "View detail"}
                       </button>
                     )}
-                    {!multiProp && activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--earth)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
-                    {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--peach)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
+                    {!multiProp && activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--fg-muted)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
+                    {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--attention-text)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
                     {(r.orderUrl || r.authProductos || r.authTarifa) && (
                       <button onClick={() => setInvBox({ orderUrl: r.orderUrl, authProductos: r.authProductos, authTarifa: r.authTarifa, desc: r.desc, vendor: r.desc })}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", verticalAlign: "middle" }}>
                         <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver factura" : "View invoice"}
                       </button>
                     )}
                     {soportesFor(r).map((f, fi) => (
                       <a key={fi} href={f.url} target="_blank" rel="noopener noreferrer"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle", textDecoration: "none" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", verticalAlign: "middle", textDecoration: "none" }}>
                         <Icon name="eye" size={12} stroke="currentColor" />{(lang === "es" ? "Factura" : "Invoice") + (soportesFor(r).length > 1 ? " " + (fi + 1) : "")}
                       </a>
                     ))}
                     {isAdmin && window.SpacioFiles && soportesFor(r).length < 2 && (
                       <label title={lang === "es" ? "Adjuntar factura (PDF o imagen) · máx. 2 por gasto" : "Attach invoice (PDF or image) · max 2 per expense"}
-                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 8, border: "1px dashed var(--warm-grey)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 7px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--earth)", verticalAlign: "middle" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 8, border: "1px dashed var(--warm-grey)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 7px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", verticalAlign: "middle" }}>
                         {facturaBusy === String(r.orderId || expenseKey(r))
                           ? <span className="sa-spin" style={{ width: 11, height: 11, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />
                           : <Icon name="paperclip" size={12} stroke="currentColor" />}
@@ -424,8 +424,8 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                     )}
                     {isAdmin && (
                       <span style={{ display: "inline-flex", gap: 4, marginLeft: 8, verticalAlign: "middle" }}>
-                        <button title={lang === "es" ? "Editar" : "Edit"} onClick={() => setEditExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--earth)" }}><Icon name="pencil" size={12} stroke="currentColor" /></button>
-                        <button title={lang === "es" ? "Eliminar" : "Delete"} onClick={() => deleteExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--earth)" }}><Icon name="trash" size={12} stroke="currentColor" /></button>
+                        <button title={lang === "es" ? "Editar" : "Edit"} onClick={() => setEditExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--fg-muted)" }}><Icon name="pencil" size={12} stroke="currentColor" /></button>
+                        <button title={lang === "es" ? "Eliminar" : "Delete"} onClick={() => deleteExp(r)} style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: "var(--fg-muted)" }}><Icon name="trash" size={12} stroke="currentColor" /></button>
                       </span>
                     )}
                   </span>
@@ -438,7 +438,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
           </div>
         ))}
         {expMsg && (
-          <div style={{ padding: "12px 20px", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", borderTop: "1px solid var(--warm-grey)" }}>{expMsg}</div>
+          <div style={{ padding: "12px 20px", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", borderTop: "1px solid var(--warm-grey)" }}>{expMsg}</div>
         )}
       </Card>
       {isAdmin && editExp && typeof ExpenseEditModal !== "undefined" && (
@@ -475,7 +475,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
     return (
       <Card pad={28} style={{ marginBottom: 18 }}>
         <ReporteHead property={property} ymLabel={ymLabel} lang={lang} />
-        <p style={{ fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.04em", color: "var(--earth)", textAlign: "center", padding: "30px 0 8px" }}>{t("report_empty")}</p>
+        <p style={{ fontFamily: "var(--sans)", fontSize: 13, letterSpacing: "0.04em", color: "var(--fg-muted)", textAlign: "center", padding: "30px 0 8px" }}>{t("report_empty")}</p>
       </Card>
     );
   }
@@ -511,7 +511,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
           ) : (
             <div className="sa-rf-block">
               <StatementRow label={t("row_ingreso_bruto")} nights={M.nochesReservadas || null} usd={M.ingresoBruto} n2={n2} rate={rate} kind="strong" />
-              <p style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "10px 0 0" }}>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "10px 0 0" }}>
                 {lang === "es" ? "El detalle por estadía de este mes aún no está disponible; mostramos el consolidado oficial." : "Per-stay detail isn't available for this month yet; showing the official consolidated figures."}
               </p>
             </div>
@@ -537,10 +537,10 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
             </div>
             {reservations.length > 0 && (
               <button className="sa-rf-pt-toggle" onClick={() => setShowPT(s => !s)}>
-                <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>{t("passthrough_title")}</span>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("passthrough_title")}</span>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", color: "var(--ink)" }}>
                   {showPT ? t("hide_detail") : t("show_detail")}
-                  <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: showPT ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
+                  <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" style={{ transform: showPT ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
                 </span>
               </button>
             )}
@@ -567,7 +567,7 @@ const ReporteFinanciero = ({ property, monthObj, reservations, t, lang }) => {
             <div className="sa-rf-side-lbl">{t("opp_cost_label")}</div>
             <div className="sa-rf-side-val">{n2(monthObj ? monthObj.costoOportunidad : 0)}</div>
             <div className="sa-rf-side-sub">USD</div>
-            <p style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--earth)", margin: "8px 0 0", textWrap: "pretty" }}>{t("opp_cost_note")}</p>
+            <p style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--fg-muted)", margin: "8px 0 0", textWrap: "pretty" }}>{t("opp_cost_note")}</p>
           </div>
           <div className="sa-rf-sidecard sa-rf-sidecard-soft">
             <div className="sa-rf-side-lbl">{t("kpi_stays")}</div>
@@ -585,8 +585,8 @@ const ReporteHead = ({ property, ymLabel, lang }) => (
     <img src="logo-stamp.png" alt="Spacio AM" style={{ width: 56, height: 56, flexShrink: 0 }} />
     <div>
       <h3 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "clamp(22px,2.6vw,30px)", letterSpacing: "-0.01em", color: "var(--ink)", margin: 0, lineHeight: 1.05 }}>{lang === "es" ? "Detalle del mes" : "Monthly detail"}</h3>
-      <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", color: "var(--earth)", marginTop: 6 }}>{property.name}</div>
-      <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.16em", color: "var(--earth)", marginTop: 2 }}>{ymLabel}</div>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", color: "var(--fg-muted)", marginTop: 6 }}>{property.name}</div>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.16em", color: "var(--fg-muted)", marginTop: 2 }}>{ymLabel}</div>
     </div>
   </div>
 );
@@ -594,13 +594,13 @@ const ReporteHead = ({ property, ymLabel, lang }) => (
 // ---- Account / profile (change email, secondary email, password — saved locally) ----
 const AccountField = ({ label, hint, value, onChange, type, placeholder }) => (
   <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-    <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--earth)" }}>{label}</span>
+    <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
     <input value={value} onChange={e => onChange(e.target.value)} type={type || "text"} placeholder={placeholder || ""}
       autoCapitalize="none" autoCorrect="off"
       style={{ width: "100%", boxSizing: "border-box", fontFamily: "var(--sans)", fontSize: 14.5, letterSpacing: "0.02em", color: "var(--ink)",
         padding: "14px 15px", background: "var(--alabaster)", border: "1px solid var(--warm-grey)", borderRadius: 13, outline: "none", transition: "border-color .18s var(--ease)" }}
       onFocus={e => e.target.style.borderColor = "var(--ink)"} onBlur={e => e.target.style.borderColor = "var(--warm-grey)"} />
-    {hint && <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", color: "var(--earth)", lineHeight: 1.5 }}>{hint}</span>}
+    {hint && <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", color: "var(--fg-muted)", lineHeight: 1.5 }}>{hint}</span>}
   </label>
 );
 
@@ -629,7 +629,7 @@ const ContaUsersCard = ({ lang }) => {
             <Sparkle size={13} color="var(--peach)" />
           </div>
           <h3 style={{ fontFamily: "var(--serif)", fontSize: 22, color: "var(--ink)", margin: 0, lineHeight: 1.2 }}>{tr("Usuarios de contabilidad", "Accounting users")}</h3>
-          <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--earth)", margin: "8px 0 0", textWrap: "pretty" }}>
+          <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "8px 0 0", textWrap: "pretty" }}>
             {tr("Estos correos entran directo a la pestaña Contabilidad. Todos comparten la misma contraseña.", "These emails go straight to the Accounting tab. They all share the same password.")}
           </p>
         </div>
@@ -637,24 +637,24 @@ const ContaUsersCard = ({ lang }) => {
           {emails.map((e, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <input type="email" value={e} onChange={(ev) => setAt(i, ev.target.value)} placeholder="contador@empresa.com" style={inputStyle} />
-              <button onClick={() => del(i)} title={tr("Quitar", "Remove")} style={{ border: "1px solid var(--ink-08)", background: "transparent", cursor: "pointer", borderRadius: 10, padding: "9px 10px", color: "var(--earth)", display: "inline-flex" }}>
+              <button onClick={() => del(i)} title={tr("Quitar", "Remove")} style={{ border: "1px solid var(--ink-08)", background: "transparent", cursor: "pointer", borderRadius: 10, padding: "9px 10px", color: "var(--fg-muted)", display: "inline-flex" }}>
                 <Icon name="trash" size={14} stroke="currentColor" />
               </button>
             </div>
           ))}
-          <button onClick={add} style={{ alignSelf: "flex-start", border: "1px solid var(--ink-08)", background: "transparent", cursor: "pointer", borderRadius: 11, padding: "9px 16px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--earth)" }}>
+          <button onClick={add} style={{ alignSelf: "flex-start", border: "1px solid var(--ink-08)", background: "transparent", cursor: "pointer", borderRadius: 11, padding: "9px 16px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--fg-muted)" }}>
             {tr("Añadir correo", "Add email")}
           </button>
         </div>
         <div>
-          <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Contraseña compartida", "Shared password")}</div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 8 }}>{tr("Contraseña compartida", "Shared password")}</div>
           <input type="text" value={pass} onChange={(ev) => setPass(ev.target.value)} style={Object.assign({}, inputStyle, { width: "100%" })} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <button onClick={save} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 13, padding: "14px 24px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 9 }}>
             {saved ? <React.Fragment><Icon name="check" size={15} stroke="var(--alabaster)" /> {tr("Guardado", "Saved")}</React.Fragment> : tr("Guardar", "Save")}
           </button>
-          <button onClick={reset} style={{ border: "1px solid var(--ink-08)", cursor: "pointer", background: "transparent", color: "var(--earth)", borderRadius: 13, padding: "14px 20px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+          <button onClick={reset} style={{ border: "1px solid var(--ink-08)", cursor: "pointer", background: "transparent", color: "var(--fg-muted)", borderRadius: 13, padding: "14px 20px", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.16em", textTransform: "uppercase" }}>
             {tr("Restaurar", "Reset")}
           </button>
         </div>
@@ -703,30 +703,30 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
             <AccountField label={t("acc_email")} hint={t("acc_email_hint")} value={email} onChange={setEmail} type="email" placeholder="tu@correo.com" />
             <AccountField label={t("acc_secondary")} hint={t("acc_secondary_hint")} value={secondary} onChange={setSecondary} type="email" placeholder="alterno@correo.com" />
             <AccountField label={t("acc_pass")} hint={t("acc_pass_hint")} value={pass} onChange={setPass} type="password" placeholder="••••••••" />
-            {err && <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 12, color: "var(--peach)" }}><Icon name="info" size={15} /> {err}</div>}
+            {err && <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 12, color: "var(--attention-text)" }}><Icon name="info" size={15} /> {err}</div>}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
               <button onClick={save} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 13, padding: "14px 24px",
                 fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", display: "inline-flex", alignItems: "center", gap: 9 }}>
                 {saved ? <React.Fragment><Icon name="check" size={15} stroke="var(--alabaster)" /> {t("acc_saved")}</React.Fragment> : t("acc_save")}
               </button>
-              <button onClick={reset} style={{ border: "1px solid var(--ink-08)", cursor: "pointer", background: "transparent", color: "var(--earth)", borderRadius: 13, padding: "14px 20px",
+              <button onClick={reset} style={{ border: "1px solid var(--ink-08)", cursor: "pointer", background: "transparent", color: "var(--fg-muted)", borderRadius: 13, padding: "14px 20px",
                 fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase" }}>{t("acc_reset")}</button>
             </div>
-            <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: 0, textWrap: "pretty", display: "flex", gap: 8 }}>
-              <Icon name="info" size={14} stroke="var(--earth)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("acc_note")}
+            <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: 0, textWrap: "pretty", display: "flex", gap: 8 }}>
+              <Icon name="info" size={14} stroke="var(--fg-muted)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("acc_note")}
             </p>
           </div>
         </Card>
         <Card pad={24} soft>
-          <div style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 16 }}>{t("acc_props")}</div>
+          <div style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 16 }}>{t("acc_props")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {props.map(p => (
               <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 10, borderBottom: "1px solid var(--ink-08)" }}>
                 <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
                   <span style={{ fontFamily: "var(--serif)", fontSize: 16, color: "var(--ink)", lineHeight: 1.1 }}>{p.name}</span>
-                  <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.08em", color: "var(--earth)" }}>{p.location}</span>
+                  <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.08em", color: "var(--fg-muted)" }}>{p.location}</span>
                 </span>
-                {p.listing && <a href={p.listing} target="_blank" rel="noreferrer" aria-label={t("view_listing")} style={{ flexShrink: 0, color: "var(--earth)", display: "flex" }}><Icon name="arrowUpRight" size={17} /></a>}
+                {p.listing && <a href={p.listing} target="_blank" rel="noreferrer" aria-label={t("view_listing")} style={{ flexShrink: 0, color: "var(--fg-muted)", display: "flex" }}><Icon name="arrowUpRight" size={17} /></a>}
               </div>
             ))}
           </div>
@@ -865,8 +865,8 @@ const SetupSection = ({ lang, t }) => {
           <Icon name="link" size={16} stroke="var(--ink)" />
           <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)" }}>{tr("Conexión de escritura", "Write connection")}</span>
           <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase",
-            color: conn === "ok" ? "#5B8A6B" : conn === "fail" ? "var(--peach)" : "var(--earth)" }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: conn === "ok" ? "#5B8A6B" : conn === "fail" ? "var(--peach)" : conn === "set" ? "var(--earth)" : "var(--warm-grey)" }} />
+            color: conn === "ok" ? "#5B8A6B" : conn === "fail" ? "var(--peach)" : "var(--fg-muted)" }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: conn === "ok" ? "#5B8A6B" : conn === "fail" ? "var(--peach)" : conn === "set" ? "var(--fg-muted)" : "var(--warm-grey)" }} />
             {conn === "ok" ? tr("Conectado", "Connected") : conn === "fail" ? tr("Sin respuesta", "No response") : conn === "testing" ? tr("Probando…", "Testing…") : conn === "set" ? tr("Configurado", "Configured") : tr("Sin conectar", "Not connected")}
           </span>
         </div>
@@ -876,15 +876,15 @@ const SetupSection = ({ lang, t }) => {
             <input className="sa-setup-input" style={{ flex: 1, minWidth: 180 }} value={apiToken} onChange={e => setApiToken(e.target.value)} placeholder="TOKEN" />
             <button className="sa-chip-btn sa-chip-btn-ghost" onClick={saveConn}>{tr("Guardar", "Save")}</button>
             <button className="sa-chip-btn sa-chip-btn-dark" onClick={testConn}>{tr("Probar conexión", "Test")}</button>
-            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={diagWrite}><Icon name="alert" size={13} stroke="var(--earth)" />{tr("Diagnóstico de escritura", "Write diagnostic")}</button>
+            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={diagWrite}><Icon name="alert" size={13} stroke="var(--fg-muted)" />{tr("Diagnóstico de escritura", "Write diagnostic")}</button>
           </div>
         </div>
         {diag && (
-          <div style={{ marginTop: 12, padding: "11px 13px", background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 10, fontFamily: "var(--sans)", fontSize: 10.5, lineHeight: 1.5, color: "var(--earth)", wordBreak: "break-word", maxHeight: 140, overflow: "auto" }}>{diag}</div>
+          <div style={{ marginTop: 12, padding: "11px 13px", background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 10, fontFamily: "var(--sans)", fontSize: 10.5, lineHeight: 1.5, color: "var(--fg-muted)", wordBreak: "break-word", maxHeight: 140, overflow: "auto" }}>{diag}</div>
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--warm-grey)" }}>
-          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={syncDeposits}><Icon name="coins" size={14} stroke="var(--earth)" />{tr("Sincronizar depósitos", "Sync deposits")}</button>
-          {syncMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{syncMsg}</span>}
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={syncDeposits}><Icon name="coins" size={14} stroke="var(--fg-muted)" />{tr("Sincronizar depósitos", "Sync deposits")}</button>
+          {syncMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{syncMsg}</span>}
         </div>
       </Card>
 
@@ -894,7 +894,7 @@ const SetupSection = ({ lang, t }) => {
           <Icon name="mail" size={16} stroke="var(--ink)" />
           <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--ink)" }}>{tr("Correos a socios", "Owner emails")}</span>
         </div>
-        <p style={{ margin: "0 0 14px", fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.7, letterSpacing: "0.03em", color: "var(--earth)" }}>
+        <p style={{ margin: "0 0 14px", fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.7, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>
           {tr("Se envían desde la hoja. El cierre de mes va a cada socio con resultado en ese mes; el recordatorio, solo a quienes tienen facturas pendientes.", "Sent from the sheet. Month close goes to every owner with results that month; the reminder only to those with pending invoices.")}
         </p>
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -903,17 +903,17 @@ const SetupSection = ({ lang, t }) => {
             <Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar cierre de mes", "Send month close")}
           </button>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => sendMail("sendRecordatoriosFactura")} disabled={mailBusy !== ""}>
-            <Icon name="alert" size={14} stroke="var(--earth)" />{tr("Recordar facturas pendientes", "Remind pending invoices")}
+            <Icon name="alert" size={14} stroke="var(--fg-muted)" />{tr("Recordar facturas pendientes", "Remind pending invoices")}
           </button>
-          {mailMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{mailMsg}</span>}
+          {mailMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{mailMsg}</span>}
         </div>
       </Card>
 
       <div className="sa-setup-toolbar">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder={t("setup_search")} className="sa-setup-input" style={{ maxWidth: 280 }} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setQuick(true)}><Icon name="eye" size={14} stroke="var(--earth)" />{tr("Vista rápida", "Quick view")}</button>
-          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={exportRows}><Icon name="arrowUpRight" size={14} stroke="var(--earth)" />{t("setup_export")}</button>
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setQuick(true)}><Icon name="eye" size={14} stroke="var(--fg-muted)" />{tr("Vista rápida", "Quick view")}</button>
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={exportRows}><Icon name="arrowUpRight" size={14} stroke="var(--fg-muted)" />{t("setup_export")}</button>
           <button className="sa-chip-btn sa-chip-btn-dark" onClick={addRow}><Icon name="check" size={14} stroke="var(--alabaster)" />{t("setup_add")}</button>
         </div>
       </div>
@@ -921,7 +921,7 @@ const SetupSection = ({ lang, t }) => {
       {/* lista de propiedades: solo al buscar o al pedirla explícitamente */}
       {!q && !showList && (
         <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setShowList(true)} style={{ width: "100%", justifyContent: "center", padding: "13px 18px" }}>
-          <Icon name="chevronDown" size={14} stroke="var(--earth)" />{tr("Ver las " + rows.length + " propiedades", "Show all " + rows.length + " properties")}
+          <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" />{tr("Ver las " + rows.length + " propiedades", "Show all " + rows.length + " properties")}
         </button>
       )}
       {(q || showList) && (
@@ -937,17 +937,17 @@ const SetupSection = ({ lang, t }) => {
             <button className="sa-chip-btn sa-chip-btn-dark" style={{ padding: "8px 16px" }} onClick={() => setEditing(i)}><Icon name="pencil" size={13} stroke="var(--alabaster)" />{tr("Editar", "Edit")}</button>
           </div>
         ))}
-        {filtered.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--earth)" }}>{tr("Sin resultados.", "No results.")}</div>}
+        {filtered.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--fg-muted)" }}>{tr("Sin resultados.", "No results.")}</div>}
         {!q && showList && (
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setShowList(false)} style={{ width: "100%", justifyContent: "center", marginTop: 10 }}>
-            <Icon name="chevronDown" size={14} stroke="var(--earth)" style={{ transform: "rotate(180deg)" }} />{tr("Ocultar lista", "Hide list")}
+            <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" style={{ transform: "rotate(180deg)" }} />{tr("Ocultar lista", "Hide list")}
           </button>
         )}
       </div>
       )}
 
-      <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "16px 0 0", display: "flex", gap: 8, maxWidth: 720 }}>
-        <Icon name="info" size={14} stroke="var(--earth)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("setup_note")}
+      <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "16px 0 0", display: "flex", gap: 8, maxWidth: 720 }}>
+        <Icon name="info" size={14} stroke="var(--fg-muted)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("setup_note")}
       </p>
 
       {/* modal de edición — todos los campos A–O */}
@@ -956,7 +956,7 @@ const SetupSection = ({ lang, t }) => {
           <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, padding: 0, maxWidth: 560, width: "100%", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "22px 24px 16px", borderBottom: "1px solid var(--warm-grey)" }}>
               <div>
-                <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Editar propiedad", "Edit property")}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Editar propiedad", "Edit property")}</div>
                 <div style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--ink)", marginTop: 4, lineHeight: 1.1 }}>{rows[editing]["property_name"] || tr("Nueva propiedad", "New property")}</div>
               </div>
               <button onClick={() => setEditing(null)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
@@ -964,7 +964,7 @@ const SetupSection = ({ lang, t }) => {
             <div style={{ overflowY: "auto", padding: "18px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
               {HEAD.map(h => (
                 <label key={h} style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: (h === "property_name" || h === "Listing link") ? "1 / -1" : "auto" }}>
-                  <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--earth)" }}>{niceLabel(h)}{h === "property_id" ? " · ID" : ""}</span>
+                  <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{niceLabel(h)}{h === "property_id" ? " · ID" : ""}</span>
                   <input className="sa-setup-input" value={rows[editing][h] != null ? rows[editing][h] : ""} disabled={h === "property_id" && !rows[editing]._new}
                     onChange={e => editField(h, e.target.value)} style={h === "property_id" && !rows[editing]._new ? { opacity: 0.6 } : null} />
                 </label>
@@ -1114,12 +1114,12 @@ function FacturaBatchUpload({ scope, ownerLabel, propName, lang, enforceYear }) 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ flex: "1 1 240px" }}>
           <strong style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600, letterSpacing: "0.03em", color: "var(--ink)" }}>{tr("Subir varias facturas a la vez", "Upload several invoices at once")}</strong>
-          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--earth)", marginTop: 3 }}>
+          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.5, color: "var(--fg-muted)", marginTop: 3 }}>
             {auto
               ? tr("Leemos la descripción de cada factura para ubicarla en el mes que corresponde. Revisa y corrige antes de subir.", "We read each invoice's description to file it under the right month. Review and correct before uploading.")
               : tr("Súbelas y clasifícalas tú: elige el mes de cada una viendo la imagen.", "Upload them and classify them yourself: pick each month while looking at the image.")}
           </span>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--earth)" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)" }}>
             <input type="checkbox" checked={auto} disabled={!!prog || busy} onChange={e => setAuto(e.target.checked)} style={{ width: 14, height: 14, accentColor: "var(--peach)" }} />
             {tr("Clasificar automáticamente", "Classify automatically")}
           </label>
@@ -1146,10 +1146,10 @@ function FacturaBatchUpload({ scope, ownerLabel, propName, lang, enforceYear }) 
                     style={{ flex: "0 0 auto", width: 54, height: 68, borderRadius: 8, border: "1px solid var(--warm-grey)", padding: 0, overflow: "hidden", background: "var(--beige-soft)", cursor: "zoom-in" }}>
                     <img src={r.preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                   </button>
-                : <span style={{ flex: "0 0 auto", width: 54, height: 68, borderRadius: 8, border: "1px solid var(--warm-grey)", background: "var(--beige-soft)", display: "grid", placeItems: "center" }}><Icon name="file" size={18} stroke="var(--earth)" /></span>}
+                : <span style={{ flex: "0 0 auto", width: 54, height: 68, borderRadius: 8, border: "1px solid var(--warm-grey)", background: "var(--beige-soft)", display: "grid", placeItems: "center" }}><Icon name="file" size={18} stroke="var(--fg-muted)" /></span>}
               <div style={{ flex: "1 1 160px", minWidth: 0 }}>
                 <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.descripcion || r.name}</span>
-                <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.05em", color: r.conf === "baja" ? "var(--peach)" : "var(--earth)", marginTop: 3 }}>
+                <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.05em", color: r.conf === "baja" ? "var(--peach)" : "var(--fg-muted)", marginTop: 3 }}>
                   {r.status === "done" ? tr("guardada en ", "saved under ") + monthLabel(r.ym) : r.status === "fail" ? tr("no se guardó", "not saved") : SRC[r.source] || ""}
                 </span>
               </div>
@@ -1163,8 +1163,8 @@ function FacturaBatchUpload({ scope, ownerLabel, propName, lang, enforceYear }) 
                 : <button className="sa-uplist-del" disabled={busy} onClick={() => drop(r.id)} title={tr("Quitar", "Remove")}><Icon name="trash" size={14} stroke="currentColor" /></button>}
             </div>
           ))}
-          {!!dudosas && !bad && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--earth)", letterSpacing: "0.03em" }}>{tr("Toca una imagen para verla en grande y confirmar el mes.", "Tap an image to view it larger and confirm the month.")}</span>}
-          {!!bad && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--peach)", letterSpacing: "0.03em" }}>{tr("Algunas no se guardaron. Vuelve a intentarlo o envíalas a hola@spacioam.com.", "Some were not saved. Try again or email them to hola@spacioam.com.")}</span>}
+          {!!dudosas && !bad && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", letterSpacing: "0.03em" }}>{tr("Toca una imagen para verla en grande y confirmar el mes.", "Tap an image to view it larger and confirm the month.")}</span>}
+          {!!bad && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--attention-text)", letterSpacing: "0.03em" }}>{tr("Algunas no se guardaron. Vuelve a intentarlo o envíalas a hola@spacioam.com.", "Some were not saved. Try again or email them to hola@spacioam.com.")}</span>}
         </div>
       )}
 
@@ -1246,13 +1246,13 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
         {stats.map((s, i) => (
           <Card key={i} pad={22} style={{ display: "flex", flexDirection: "column", gap: 0, minHeight: 120 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{s.label}</span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{s.label}</span>
               {s.accent && <Sparkle size={12} color="var(--peach)" />}
             </div>
             <div style={{ display: "flex", alignItems: "baseline", marginTop: 16 }}>
-              <FitText maxPx={s.accent ? 40 : 30} minPx={s.accent ? 22 : 18} color={s.accent ? "var(--ink)" : "var(--earth)"}>{s.value}</FitText>
+              <FitText maxPx={s.accent ? 40 : 30} minPx={s.accent ? 22 : 18} color={s.accent ? "var(--ink)" : "var(--fg-muted)"}>{s.value}</FitText>
             </div>
-            {s.help && <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.5, color: "var(--earth)", margin: "auto 0 0", paddingTop: 12 }}>{s.help}</p>}
+            {s.help && <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.5, color: "var(--fg-muted)", margin: "auto 0 0", paddingTop: 12 }}>{s.help}</p>}
           </Card>
         ))}
       </div>
@@ -1264,7 +1264,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
           <span className="ic"><Icon name="download" size={18} stroke={depAll.length ? "var(--ink)" : "var(--warm-grey)"} /></span>
           <span>
             <strong style={{ fontWeight: 600 }}>{t("liq_deposit_proof")}</strong>
-            <span style={{ display: "block", color: "var(--earth)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}{depAll.length > 1 ? " · " + depAll.length + (lang === "es" ? " depósitos" : " deposits") : ""}</span>
+            <span style={{ display: "block", color: "var(--fg-muted)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}{depAll.length > 1 ? " · " + depAll.length + (lang === "es" ? " depósitos" : " deposits") : ""}</span>
           </span>
         </span>
         {depAll.length
@@ -1273,7 +1273,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
                 ? <a key={d.fid || i} className="sa-file-btn ghost" href={d.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{depAll.length > 1 ? (t("liq_deposit_download") + " " + (i + 1)) : t("liq_deposit_download")}</a>
                 : null)}
             </div>
-          : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", maxWidth: 260, textAlign: "right" }}>{t("liq_deposit_none")}</span>}
+          : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", maxWidth: 260, textAlign: "right" }}>{t("liq_deposit_none")}</span>}
       </div>
 
       {usaNeto2 && (
@@ -1282,20 +1282,20 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
             <span className="ic"><Icon name="file" size={18} stroke={retCov && retCov.url ? "var(--ink)" : "var(--warm-grey)"} /></span>
             <span>
               <strong style={{ fontWeight: 600 }}>{lang === "es" ? "Constancia de retención" : "Withholding certificate"}</strong>
-              <span style={{ display: "block", color: "var(--earth)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}</span>
+              <span style={{ display: "block", color: "var(--fg-muted)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}</span>
             </span>
           </span>
           {retCov && retCov.url
             ? <a className="sa-file-btn ghost" href={retCov.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{lang === "es" ? "Descargar" : "Download"}</a>
-            : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", maxWidth: 280, textAlign: "right" }}>{lang === "es" ? "Aún no está cargada." : "Not uploaded yet."}</span>}
+            : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", maxWidth: 280, textAlign: "right" }}>{lang === "es" ? "Aún no está cargada." : "Not uploaded yet."}</span>}
         </div>
       )}
 
       <div className="sa-liq-invoice">
         <div className="sa-liq-invoice-amt">
-          <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--earth)" }}>{t("liq_invoice_label")}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("liq_invoice_label")}</span>
           <span style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 30, letterSpacing: "-0.02em", color: "var(--ink)", marginTop: 6 }}>{money(c.ingresoNeto)}</span>
-          <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", marginTop: 4 }}>{t("liq_invoice_help")}</span>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", marginTop: 4 }}>{t("liq_invoice_help")}</span>
         </div>
         <div className="sa-liq-invoice-body">
           <div className="sa-liq-line"><Icon name="file" size={15} stroke="var(--ink)" /><span><strong>{t("liq_invoice_to")}</strong></span></div>
@@ -1309,7 +1309,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
             <div className="sa-file-row">
               {canUpload
                 ? <FileUploadButton label={t("liq_invoice_upload")} onPick={doUpload} busy={busy === "inv"} dark />
-                : <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--earth)", letterSpacing: "0.02em" }}>{lang === "es" ? "Selecciona una propiedad o tu portafolio para subir la factura." : "Select a property or your portfolio to upload the invoice."}</span>}
+                : <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--fg-muted)", letterSpacing: "0.02em" }}>{lang === "es" ? "Selecciona una propiedad o tu portafolio para subir la factura." : "Select a property or your portfolio to upload the invoice."}</span>}
             </div>
           )}
           {upMsg && (
@@ -1324,7 +1324,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
               <span>
                 <strong>{lang === "es" ? "Facturas que no se guardaron" : "Invoices that were not saved"}</strong>
                 <span style={{ display: "block", marginTop: 3 }}>{lang === "es" ? "Vuelve a subirlas: el archivo nunca llegó a nuestro Drive." : "Please upload them again: the file never reached our Drive."}</span>
-                <span style={{ display: "block", marginTop: 4, color: "var(--earth)", fontSize: 11 }}>{pendInv.slice(0, 6).map(r => (r.ym || "") + " · " + (r.archivo || "")).join(" — ")}</span>
+                <span style={{ display: "block", marginTop: 4, color: "var(--fg-muted)", fontSize: 11 }}>{pendInv.slice(0, 6).map(r => (r.ym || "") + " · " + (r.archivo || "")).join(" — ")}</span>
               </span>
             </div>
           )}
@@ -1372,8 +1372,8 @@ const PendingInvoicesAlert = ({ activeProps, owner, isAdmin, isAll, lang, t, set
           <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, padding: 26, maxWidth: 460, width: "100%", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
               <div>
-                <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--peach)" }}>{t("pend_title")}</div>
-                <div style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.02em", color: "var(--earth)", marginTop: 6, lineHeight: 1.5, maxWidth: 320 }}>{t("pend_sub")}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--attention-text)" }}>{t("pend_title")}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.02em", color: "var(--fg-muted)", marginTop: 6, lineHeight: 1.5, maxWidth: 320 }}>{t("pend_sub")}</div>
               </div>
               <button onClick={() => setOpen(false)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
             </div>
@@ -1511,9 +1511,9 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
         <span className="sa-dep-drop-ic"><Icon name="upload" size={18} stroke="var(--ink)" /></span>
         <span>
           <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink)" }}>{tr("Subir comprobantes en lote", "Batch-upload receipts")}</span>
-          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", color: "var(--earth)", marginTop: 3, maxWidth: 460, lineHeight: 1.5, textWrap: "pretty" }}>{tr("Arrastra una o varias imágenes de depósitos. Leemos fecha y monto, y deducimos la propiedad por la descripción. Tú revisas antes de asignar.", "Drop one or many deposit images. We read date and amount, and guess the property from the description. You review before assigning.")}</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 7, fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--peach)" }}><Icon name="calendar" size={12} stroke="var(--peach)" />{tr("Se guardarán en: ", "Will be saved to: ")}{monthName}</span>
-          {busy === "ocr" && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6, fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("Leyendo imágenes…", "Reading images…")} {progress}%</span>}
+          <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.03em", color: "var(--fg-muted)", marginTop: 3, maxWidth: 460, lineHeight: 1.5, textWrap: "pretty" }}>{tr("Arrastra una o varias imágenes de depósitos. Leemos fecha y monto, y deducimos la propiedad por la descripción. Tú revisas antes de asignar.", "Drop one or many deposit images. We read date and amount, and guess the property from the description. You review before assigning.")}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 7, fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--attention-text)" }}><Icon name="calendar" size={12} stroke="var(--peach)" />{tr("Se guardarán en: ", "Will be saved to: ")}{monthName}</span>
+          {busy === "ocr" && <span style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 6, fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)" }}><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("Leyendo imágenes…", "Reading images…")} {progress}%</span>}
         </span>
       </label>
 
@@ -1551,20 +1551,20 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {d.status === "uploading"
-                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 5 }}><span className="sa-spin" style={{ width: 11, height: 11, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("subiendo…", "uploading…")}</span>
+                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--fg-muted)", display: "inline-flex", alignItems: "center", gap: 5 }}><span className="sa-spin" style={{ width: 11, height: 11, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("subiendo…", "uploading…")}</span>
                       : d.status === "error"
-                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={11} stroke="var(--peach)" />{tr("error — reintenta", "error — retry")}</span>
+                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--attention-text)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={11} stroke="var(--peach)" />{tr("error — reintenta", "error — retry")}</span>
                       : (() => { const assigned = d.scope === "owner" ? d.owner : d.property_name; return <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: assigned ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
                           <Icon name={assigned ? "check" : "info"} size={11} stroke={assigned ? "#5B8A6B" : "var(--peach)"} />{assigned ? (d.scope === "owner" ? tr("socio asignado", "owner assigned") : tr("propiedad deducida", "property guessed")) : (d.scope === "owner" ? tr("asigna el socio", "assign owner") : tr("asigna la propiedad", "assign property"))}
                         </span>; })()}
-                    <button onClick={() => removeItem(d.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--earth)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={11} stroke="currentColor" />{tr("quitar", "remove")}</button>
+                    <button onClick={() => removeItem(d.id)} style={{ marginLeft: "auto", border: "none", background: "none", cursor: "pointer", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--fg-muted)", display: "inline-flex", alignItems: "center", gap: 4 }}><Icon name="x" size={11} stroke="currentColor" />{tr("quitar", "remove")}</button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, marginTop: 14 }}>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--earth)", maxWidth: 420, lineHeight: 1.5 }}>{msg || tr("Cada comprobante se sube a la propiedad y mes que le asignes. El socio lo verá como descarga en su liquidación.", "Each receipt uploads to the property and month you assign. The owner sees it as a download in their settlement.")}</span>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 420, lineHeight: 1.5 }}>{msg || tr("Cada comprobante se sube a la propiedad y mes que le asignes. El socio lo verá como descarga en su liquidación.", "Each receipt uploads to the property and month you assign. The owner sees it as a download in their settlement.")}</span>
             <button className="sa-file-btn dark" onClick={saveAll} disabled={!ready.length || busy === "save"}>
               {busy === "save" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
               {tr("Asignar comprobantes", "Assign receipts")}{ready.length ? " · " + ready.length : ""}
@@ -1603,8 +1603,8 @@ function UploadedDepositsList({ lang, t, ym }) {
   return (
     <div style={{ marginBottom: 28 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Comprobantes cargados", "Uploaded receipts")}</span>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}>· {deps.length} · {monthKeys.length} {monthKeys.length === 1 ? tr("mes", "month") : tr("meses", "months")}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Comprobantes cargados", "Uploaded receipts")}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)" }}>· {deps.length} · {monthKeys.length} {monthKeys.length === 1 ? tr("mes", "month") : tr("meses", "months")}</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {monthKeys.map(k => {
@@ -1615,8 +1615,8 @@ function UploadedDepositsList({ lang, t, ym }) {
               <button onClick={() => toggle(k)} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", border: "none", background: open ? "var(--beige-soft)" : "transparent", cursor: "pointer", textAlign: "left" }}>
                 <Icon name="chevronRight" size={16} stroke="var(--ink)" style={{ flexShrink: 0, transition: "transform var(--d-fast) var(--ease)", transform: open ? "rotate(90deg)" : "none" }} />
                 <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, letterSpacing: "0.04em", color: "var(--ink)" }}>{monthLabel(k)}</span>
-                {k === ym && <span style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--peach)", border: "1px solid var(--peach)", borderRadius: 999, padding: "2px 9px" }}>{tr("En pantalla", "On screen")}</span>}
-                <span style={{ marginLeft: "auto", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--earth)" }}>{list.length} {list.length === 1 ? tr("comprobante", "receipt") : tr("comprobantes", "receipts")}</span>
+                {k === ym && <span style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--attention-text)", border: "1px solid var(--peach)", borderRadius: 999, padding: "2px 9px" }}>{tr("En pantalla", "On screen")}</span>}
+                <span style={{ marginLeft: "auto", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--fg-muted)" }}>{list.length} {list.length === 1 ? tr("comprobante", "receipt") : tr("comprobantes", "receipts")}</span>
               </button>
               {open && (
                 <div className="sa-uplist" style={{ padding: "6px 12px 12px" }}>
@@ -1704,7 +1704,7 @@ const MailNudgeCard = ({ lang }) => {
             <button className="sa-chip-btn sa-chip-btn-dark" onClick={send} disabled={busy}>{busy ? tr("Enviando…", "Sending…") : tr("Confirmar envío", "Confirm")}</button>
             <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => { setOpen(false); setMsg(""); }}>{tr("Cancelar", "Cancel")}</button>
           </div>}
-      {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)", width: "100%" }}>{msg}</span>}
+      {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", width: "100%" }}>{msg}</span>}
     </div>
   );
 };
@@ -1748,7 +1748,7 @@ const InvoiceControlTable = ({ allProps, lang }) => {
         right={<Segmented size="sm" value={onlyPending ? "pend" : "all"} onChange={v => setOnlyPending(v === "pend")}
           options={[{ value: "pend", label: tr("Pendientes", "Pending") }, { value: "all", label: tr("Todos", "All") }]} />} />
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--earth)" }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--fg-muted)" }}>
           {totalPend} {tr("socio(s) con facturas pendientes", "owner(s) with pending invoices")}
         </span>
         {totalPend > 0 && (
@@ -1756,7 +1756,7 @@ const InvoiceControlTable = ({ allProps, lang }) => {
             <Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Recordar a todos", "Remind everyone")}
           </button>
         )}
-        {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--earth)" }}>{msg}</span>}
+        {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{msg}</span>}
       </div>
       <div className="sa-setup-scroll">
         <table className="sa-setup-table sa-dep-table">
@@ -1775,24 +1775,24 @@ const InvoiceControlTable = ({ allProps, lang }) => {
               <tr key={s.code}>
                 <td><Farol ok={!s.missing.length} /></td>
                 <td style={{ fontWeight: 500 }}>{s.name}</td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: s.missing.length ? "var(--peach)" : "var(--earth)" }}>{s.missing.length}</td>
-                <td style={{ color: "var(--earth)" }}>
+                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: s.missing.length ? "var(--peach)" : "var(--fg-muted)" }}>{s.missing.length}</td>
+                <td style={{ color: "var(--fg-muted)" }}>
                   {s.missing.length
                     ? s.missing.map(m => longMonth(lang, m.y, m.m)).join(" · ")
                     : tr("Al día", "Up to date")}
                 </td>
-                <td style={{ color: "var(--earth)" }}>{s.email}</td>
+                <td style={{ color: "var(--fg-muted)" }}>{s.email}</td>
                 <td>
                   {s.missing.length > 0 && (
                     <button className="sa-chip-btn sa-chip-btn-ghost" style={{ padding: "7px 12px", fontSize: 11 }} onClick={() => remind(s.code)} disabled={busy !== ""}>
-                      <Icon name="mail" size={13} stroke="var(--earth)" />{busy === s.code ? tr("Enviando…", "Sending…") : tr("Recordar", "Remind")}
+                      <Icon name="mail" size={13} stroke="var(--fg-muted)" />{busy === s.code ? tr("Enviando…", "Sending…") : tr("Recordar", "Remind")}
                     </button>
                   )}
                 </td>
               </tr>
             ))}
             {shown.length === 0 && (
-              <tr><td colSpan={6} style={{ padding: "26px 16px", textAlign: "center", color: "var(--earth)" }}>{tr("Todos los socios están al día.", "Every owner is up to date.")}</td></tr>
+              <tr><td colSpan={6} style={{ padding: "26px 16px", textAlign: "center", color: "var(--fg-muted)" }}>{tr("Todos los socios están al día.", "Every owner is up to date.")}</td></tr>
             )}
           </tbody>
         </table>
@@ -1907,7 +1907,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
           <div key={mon} style={{ marginBottom: 26 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 999, fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em" }}>{mon}</span>
-              <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--earth)" }}>{groups.length} {view === "owner" ? tr("socios", "owners") : tr("propiedades", "properties")}</span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.1em", color: "var(--fg-muted)" }}>{groups.length} {view === "owner" ? tr("socios", "owners") : tr("propiedades", "properties")}</span>
             </div>
             <div className="sa-setup-scroll">
               <table className="sa-setup-table sa-dep-table">
@@ -1933,17 +1933,17 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                       <tr key={g.key}>
                         <td><Farol ok={!!dep} /></td>
                         <td style={{ fontWeight: 500 }}>{g.label}</td>
-                        {view === "prop" && <td style={{ color: "var(--earth)" }}>{g.owner}</td>}
-                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--earth)" }}>{g.retencion > 0.005 ? fmtMon(g.retencion, mon) : "—"}</td>
-                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--earth)" }}>{fmtMon(g.iva, mon)}</td>
+                        {view === "prop" && <td style={{ color: "var(--fg-muted)" }}>{g.owner}</td>}
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{g.retencion > 0.005 ? fmtMon(g.retencion, mon) : "—"}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{fmtMon(g.iva, mon)}</td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtMon(g.total, mon)}</td>
-                        <td style={{ color: g.cuenta ? "var(--ink)" : "var(--earth)" }}>{g.cuenta || t("dep_no_account")}</td>
-                        <td style={{ color: "var(--earth)" }}>{g.email}</td>
+                        <td style={{ color: g.cuenta ? "var(--ink)" : "var(--fg-muted)" }}>{g.cuenta || t("dep_no_account")}</td>
+                        <td style={{ color: "var(--fg-muted)" }}>{g.email}</td>
                         <td>{dep && dep.url
                           ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={dep.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{tr("Descargar", "Download")}</a>
                           : <FileUploadButton label={dep ? tr("Reemplazar", "Replace") : tr("Subir", "Upload")} onPick={(f) => uploadFor("deposito", g, f)} busy={busyKey === g.key + "deposito"} />}</td>
                         <td>{!g.needsRet
-                          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)" }}><Farol na /> {tr("No aplica", "N/A")}</span>
+                          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)" }}><Farol na /> {tr("No aplica", "N/A")}</span>
                           : ret && ret.url
                             ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={ret.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{tr("Descargar", "Download")}</a>
                             : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Farol ok={!!ret} /><FileUploadButton label={ret ? tr("Reemplazar", "Replace") : tr("Subir", "Upload")} onPick={(f) => uploadFor("retencion", g, f)} busy={busyKey === g.key + "retencion"} /></span>}</td>
@@ -1966,8 +1966,8 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
         );
       })}
       {!hasAccounts && (
-        <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--earth)", margin: "4px 0 0", display: "flex", gap: 8 }}>
-          <Icon name="info" size={14} stroke="var(--earth)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("dep_account_note")}
+        <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "4px 0 0", display: "flex", gap: 8 }}>
+          <Icon name="info" size={14} stroke="var(--fg-muted)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("dep_account_note")}
         </p>
       )}
       <div style={{ marginTop: 40 }}>

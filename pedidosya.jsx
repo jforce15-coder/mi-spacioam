@@ -164,7 +164,7 @@ const PedidosYaImport = ({ lang }) => {
             <h3 className="pya-head-title">{tr("Cargar gastos e insumos", "Load expenses & supplies")}</h3>
             {open && <p className="pya-head-sub">{tr("Sube el archivo del SAT para registrar las facturas de PedidosYa, agrega gastos manuales o carga depósitos bancarios. Nada se duplica.", "Upload the SAT file to register PedidosYa invoices, add manual expenses, or load bank deposits. Nothing is duplicated.")}</p>}
           </div>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0, fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--earth)" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0, fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>
             {open ? tr("Minimizar", "Collapse") : tr("Abrir", "Open")}
             <Icon name="chevronRight" size={16} stroke="var(--ink)" style={{ transition: "transform var(--d-fast) var(--ease)", transform: open ? "rotate(90deg)" : "none" }} />
           </span>
@@ -358,7 +358,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
             <p style={{ margin: 0 }}>{tr("¿No encuentras la factura de un pedido? El Market de PedidosYa suele facturar los productos con la NIT de la tienda, no con la de Delivery Hero. Actívalas para asignarlas:", "Can't find an order's invoice? PedidosYa Market often bills products under the store's own NIT, not Delivery Hero's. Turn them on to assign them:")}</p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
               {(satStats.otrosByNit || []).slice(0, 6).map((n, i) => (
-                <span key={i} style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.02em", color: "var(--earth)", background: "var(--alabaster)", border: "1px solid var(--warm-grey)", borderRadius: 8, padding: "4px 8px" }}>{(n.emisor || ("NIT " + n.nit)).slice(0, 28)} · {n.count}</span>
+                <span key={i} style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.02em", color: "var(--fg-muted)", background: "var(--alabaster)", border: "1px solid var(--warm-grey)", borderRadius: 8, padding: "4px 8px" }}>{(n.emisor || ("NIT " + n.nit)).slice(0, 28)} · {n.count}</span>
               ))}
             </div>
           </div>
@@ -377,14 +377,14 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                 <button key={f.k} className={"pya-fchip" + (filter === f.k ? " on" : "")} onClick={() => setFilter(f.k)}>{f.label} · {f.n}</button>
               ))}
             </div>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--earth)" }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--fg-muted)" }}>
               {selectedRows.length} {tr("listas para guardar", "ready to save")}{missingProp > 0 ? " · " + missingProp + tr(" sin propiedad", " missing property") : ""}
             </span>
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", margin: "0 0 14px" }}>
             <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
-              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--earth)" /></span>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--fg-muted)" /></span>
               <input className="pya-input" style={{ paddingLeft: 36 }} value={query} onChange={e => setQuery(e.target.value)} placeholder={tr("Buscar por fecha o monto (ej. 31 May, 76.56, 78.56)", "Search by date or amount (e.g. 31 May, 76.56)")} />
             </div>
             <label style={{ display: "inline-flex", alignItems: "center", gap: 9, cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--ink)" }}>
@@ -413,9 +413,9 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                 {visible.map(l => (
                   <tr key={l.id} className={l.alreadyImported ? "imported" : ""}>
                     <td>{!l.alreadyImported && <PyaCheck on={l.include} onClick={() => setLine(l.id, { include: !l.include })} />}</td>
-                    <td><Badge l={l} />{(l.prod && l.prod.kind === "otro" && l.prod.emisor) ? <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 9.5, letterSpacing: "0.02em", color: "var(--earth)", marginTop: 3, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.prod.emisor}</span> : null}</td>
+                    <td><Badge l={l} />{(l.prod && l.prod.kind === "otro" && l.prod.emisor) ? <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 9.5, letterSpacing: "0.02em", color: "var(--fg-muted)", marginTop: 3, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.prod.emisor}</span> : null}</td>
                     <td className="pya-num">{P.prettyDay(l.day, lang)}</td>
-                    <td className="pya-num" style={{ textAlign: "right", fontWeight: 600 }}>{P.money(l.consolidated)}{(l.prod && l.tar) ? <span style={{ display: "block", fontWeight: 400, fontSize: 9.5, color: "var(--earth)", marginTop: 2 }}>{tr("Prod", "Prod")} {P.money(l.prod.total)} · {tr("Tar", "Fee")} {P.money(l.tar.total)}</span> : null}</td>
+                    <td className="pya-num" style={{ textAlign: "right", fontWeight: 600 }}>{P.money(l.consolidated)}{(l.prod && l.tar) ? <span style={{ display: "block", fontWeight: 400, fontSize: 9.5, color: "var(--fg-muted)", marginTop: 2 }}>{tr("Prod", "Prod")} {P.money(l.prod.total)} · {tr("Tar", "Fee")} {P.money(l.tar.total)}</span> : null}</td>
                     <td><PyaMini value={l.property_name} options={propOptions} onChange={v => setLine(l.id, { property_name: v })} placeholder={tr("Asignar…", "Assign…")} search /></td>
                     <td><input className="pya-input" style={{ fontSize: 11.5, padding: "8px 10px" }} value={l.orderUrl} onChange={e => setLine(l.id, { orderUrl: e.target.value })} placeholder={tr("Pega el link del pedido", "Paste order link")} /></td>
                     <td><PyaMini value={l.categoria} options={catOptions} onChange={v => setLine(l.id, { categoria: v })} /></td>
@@ -436,15 +436,15 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
           </div>
 
           <div className="pya-footer">
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: saveMsg ? "var(--ink)" : "var(--earth)", maxWidth: 460, lineHeight: 1.5 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: saveMsg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 460, lineHeight: 1.5 }}>
               {saveMsg || tr("Cada factura va por separado. Asigna la propiedad y pega la MISMA URL del pedido en la factura de productos y en la de tarifa: así el propietario verá un solo monto y ambas facturas; tú las sigues viendo separadas.", "Each invoice is separate. Assign the property and paste the SAME order URL on the products invoice and on the service-fee invoice: the owner will see one amount and both invoices; you keep seeing them separate.")}
             </span>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Borrar el archivo cargado y empezar de cero?", "Clear the loaded file and start over?"))) { setInvoices(null); setLines([]); setSatStats(null); setWarnings([]); setSaveMsg(""); } }} disabled={!lines.length}><Icon name="x" size={14} stroke="var(--earth)" />{tr("Limpiar", "Clear")}</button>
-              <button className="pya-btn pya-btn-ghost" onClick={downloadTSV} disabled={!selectedRows.length}><Icon name="arrowUpRight" size={14} stroke="var(--earth)" />TSV</button>
+              <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Borrar el archivo cargado y empezar de cero?", "Clear the loaded file and start over?"))) { setInvoices(null); setLines([]); setSatStats(null); setWarnings([]); setSaveMsg(""); } }} disabled={!lines.length}><Icon name="x" size={14} stroke="var(--fg-muted)" />{tr("Limpiar", "Clear")}</button>
+              <button className="pya-btn pya-btn-ghost" onClick={downloadTSV} disabled={!selectedRows.length}><Icon name="arrowUpRight" size={14} stroke="var(--fg-muted)" />TSV</button>
               {autoCand.length > 0 && (
                 <button className="pya-btn" onClick={autoLink} disabled={busy === "fill"} title={tr("Empareja automáticamente cada factura del SAT con el gasto guardado que coincide en fecha y monto, y le agrega su factura (no duplica nada).", "Automatically pairs each SAT invoice with the saved expense matching date and amount (nothing is duplicated).")}>
-                  {busy === "fill" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="eye" size={14} stroke="var(--earth)" />}
+                  {busy === "fill" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="eye" size={14} stroke="var(--fg-muted)" />}
                   {tr("Vincular facturas automáticamente", "Auto-link invoices")} · {autoCand.length}
                 </button>
               )}
@@ -558,7 +558,7 @@ function PyaManualPanel({ lang, addImported, propOptions }) {
                     <button className={split === "each" ? "on" : ""} onClick={() => setSplit("each")}>{tr("Mismo monto a cada una", "Same amount each")}</button>
                     <button className={split === "divide" ? "on" : ""} onClick={() => setSplit("divide")}>{tr("Dividir en partes iguales", "Split equally")}</button>
                   </span>
-                  <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--earth)" }}>
+                  <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)" }}>
                     {manyProps.length} {tr("propiedades", "properties")}{valorNum > 0 ? " · " + P.money(split === "divide" ? valorNum / manyProps.length : valorNum) + tr(" c/u", " each") : ""}
                   </span>
                 </div>
@@ -568,7 +568,7 @@ function PyaManualPanel({ lang, addImported, propOptions }) {
       </div>
 
       <div className="pya-footer">
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--earth)", maxWidth: 440, lineHeight: 1.5 }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 440, lineHeight: 1.5 }}>
           {msg || tr("Categoría (col. E) = quién lo paga: 'insumos & gastos' y 'Mantenimiento e inversión' se le cobran al socio. El tag (col. G) es descriptivo, PERO 'Gasto Spacio AM', 'Compras ajenas a insumos' y 'Restaurante / comida' ocultan el gasto al socio. Monto en GTQ.", "Category (col. E) = who pays: 'insumos & gastos' and 'Maintenance & investment' are billed to the owner. The tag (col. G) is descriptive, BUT 'Spacio AM expense', 'Non-supply purchase' and 'Restaurant / food' hide the expense from the owner. Amount in GTQ.")}
         </span>
         <button className="pya-btn pya-btn-dark" onClick={save} disabled={!canSave || busy}>
@@ -706,7 +706,7 @@ function PyaDepositPanel({ lang, propOptions }) {
           </div>
 
           <div className="pya-footer">
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--earth)", maxWidth: 440, lineHeight: 1.5 }}>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 440, lineHeight: 1.5 }}>
               {msg || tr("Verifica fecha, monto y propiedad de cada depósito antes de guardar. El OCR es una ayuda, no es perfecto.", "Check date, amount and property of each deposit before saving. OCR is a help, not perfect.")}
             </span>
             <button className="pya-btn pya-btn-dark" onClick={save} disabled={!ready.length || busy === "save"}>
@@ -835,16 +835,16 @@ function PyaManagePanel({ lang, propOptions, active }) {
     <div style={{ marginTop: 20 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", marginBottom: 16 }}>
         <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
-          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--earth)" /></span>
+          <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--fg-muted)" /></span>
           <input className="pya-input" style={{ paddingLeft: 36 }} value={q} onChange={e => setQ(e.target.value)} placeholder={tr("Buscar propiedad, fecha, monto…", "Search property, date, amount…")} />
         </div>
         <button className="pya-btn pya-btn-ghost" onClick={load} disabled={busy === "load"}>
-          {busy === "load" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="arrowUpRight" size={14} stroke="var(--earth)" />}
+          {busy === "load" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="arrowUpRight" size={14} stroke="var(--fg-muted)" />}
           {tr("Actualizar", "Refresh")}
         </button>
         {dirty.length > 0 && (
           <button className="pya-btn pya-btn-ghost" onClick={cleanAplicado} disabled={busy === "clean"} title={tr("Quita el sufijo “(aplicado a N)” del comentario de los gastos ya guardados", "Removes the “(applied to N)” suffix from saved expense comments")}>
-            {busy === "clean" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="pencil" size={14} stroke="var(--earth)" />}
+            {busy === "clean" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="pencil" size={14} stroke="var(--fg-muted)" />}
             {tr("Limpiar “(aplicado a…)” · " + dirty.length, "Clean “(applied to…)” · " + dirty.length)}
           </button>
         )}
@@ -924,7 +924,7 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
   if (!rep) return null;
   const Field = ({ label, children }) => (
     <div style={{ background: "var(--beige-soft)", borderRadius: 14, padding: "12px 14px" }}>
-      <div style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 5 }}>{label}</div>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 9, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 5 }}>{label}</div>
       <div style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", lineHeight: 1.35 }}>{children}</div>
     </div>
   );
@@ -934,14 +934,14 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 24, maxWidth: 560, width: "100%", maxHeight: "86vh", overflow: "auto", boxShadow: "var(--shadow-lg)" }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 14, padding: "22px 24px 16px", borderBottom: "1px solid var(--warm-grey)", position: "sticky", top: 0, background: "var(--alabaster)", zIndex: 1 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)" }}>{tr("Detalle del trabajo", "Job detail")}</div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Detalle del trabajo", "Job detail")}</div>
             <div style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--ink)", marginTop: 4, lineHeight: 1.2 }}>{rep.propiedadRaw || rep.property_name}</div>
           </div>
           <button onClick={onClose} className="sa-file-btn" style={{ padding: "8px 16px", fontSize: 11, background: "var(--ink)", color: "var(--alabaster)", border: "none" }}>{tr("Cerrar", "Close")}</button>
         </div>
         <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
           <div>
-            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 10 }}>{tr("Resumen ejecutivo", "Executive summary")}</div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 10 }}>{tr("Resumen ejecutivo", "Executive summary")}</div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <Field label={tr("Técnico", "Technician")}>{rep.tecnico || "—"}</Field>
               <Field label={tr("Fecha", "Date")}>{rep.fecha || "—"}</Field>
@@ -950,17 +950,17 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
             </div>
           </div>
           <div>
-            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Categoría", "Category")}</div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 8 }}>{tr("Categoría", "Category")}</div>
             <span style={{ display: "inline-block", padding: "6px 14px", borderRadius: 999, background: "var(--peach-12)", color: "var(--ink)", fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600 }}>{rep.categoria || "Mantenimiento"}</span>
           </div>
           <div>
-            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Trabajo realizado", "Work performed")}</div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 8 }}>{tr("Trabajo realizado", "Work performed")}</div>
             <div style={{ background: "var(--beige-soft)", borderRadius: 14, padding: "14px 16px", fontFamily: "var(--sans)", fontSize: 13.5, lineHeight: 1.6, color: "var(--ink)", whiteSpace: "pre-wrap", textWrap: "pretty" }}>{rep.descripcion || "—"}</div>
-            {rep.comentarios && <div style={{ marginTop: 8, fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.6, color: "var(--earth)" }}>{rep.comentarios}</div>}
+            {rep.comentarios && <div style={{ marginTop: 8, fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.6, color: "var(--fg-muted)" }}>{rep.comentarios}</div>}
           </div>
           {fotos.length > 0 && (
             <div>
-              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--peach)", marginBottom: 10 }}>{tr("Fotos", "Photos")}</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--attention-text)", marginBottom: 10 }}>{tr("Fotos", "Photos")}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(120px,1fr))", gap: 10 }}>
                 {fotos.slice(0, 12).map((u, i) => (
                   <a key={i} href={u} target="_blank" rel="noreferrer" style={{ display: "block", aspectRatio: "4/3", borderRadius: 12, overflow: "hidden", border: "1px solid var(--warm-grey)" }}>
@@ -972,7 +972,7 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
           )}
           {rep.factura && (
             <div>
-              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--earth)", marginBottom: 8 }}>{tr("Factura adjunta", "Attached invoice")}</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 8 }}>{tr("Factura adjunta", "Attached invoice")}</div>
               {/^https?:/.test(rep.factura)
                 ? <a className="sa-file-btn ghost" href={rep.factura} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>{tr("Ver factura", "View invoice")}</a>
                 : <span style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)" }}>{rep.factura}</span>}
@@ -1054,7 +1054,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
             {tr("Conservar los " + ready.length + " listos", "Keep all " + ready.length + " ready")}
           </button>
         )}
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", letterSpacing: "0.04em" }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.04em" }}>
           {last ? tr("Última sincronización: ", "Last sync: ") + new Date(last).toLocaleString(es ? "es-GT" : "en-US") : tr("Sin sincronizar todavía", "Not synced yet")}
           {" · " + pending.length + " " + tr("por validar", "to validate")}
         </span>
@@ -1073,7 +1073,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ fontFamily: "var(--sans)", fontSize: 13.5, fontWeight: 600, color: "var(--ink)", lineHeight: 1.4 }}>{r.descripcion || tr("Mantenimiento", "Maintenance")}</div>
-                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--earth)", marginTop: 4, letterSpacing: "0.04em" }}>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", marginTop: 4, letterSpacing: "0.04em" }}>
                     {r.fecha}{r.tecnico ? " · " + r.tecnico : ""}{r.propiedadRaw ? " · " + r.propiedadRaw : ""}
                   </div>
                 </div>
