@@ -6,9 +6,11 @@
   var React = window.React;
   var useState = React.useState;
 
-  /* Icon: usa el set del dashboard (global de ui.jsx). */
+  /* Icon: usa el Icon del design system si el bundle está cargado
+     (window.SpacioAMDesignSystem_2c08fe.Icon); si no, cae al set del dashboard. */
   function NIcon(props) {
-    var I = window.Icon;
+    var ns = window.SpacioAMDesignSystem_2c08fe;
+    var I = (ns && ns.Icon) || window.Icon;
     if (!I) return null;
     return React.createElement(I, props);
   }
@@ -236,18 +238,27 @@
     function tStart(e) { startY.current = e.touches && e.touches[0] ? e.touches[0].clientY : null; dragging.current = true; }
     function tMove(e) { if (startY.current == null) return; var y = e.touches && e.touches[0] ? e.touches[0].clientY : null; if (y == null) return; setDy(Math.min(0, y - startY.current)); }
     function tEnd() { if (startY.current == null) return; var v = dy; startY.current = null; dragging.current = false; if (v < -36) { setShow(false); setDy(0); setTimeout(onClose, 300); } else { setDy(0); } }
-    return (
+    var GLASS = "data:image/svg+xml;utf8," + encodeURIComponent(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#n)" opacity="0.55"/></svg>');
+    var node = (
       <div onClick={function () { if (dy) return; onOpen && onOpen(); setShow(false); setTimeout(onClose, 200); }}
         onTouchStart={tStart} onTouchMove={tMove} onTouchEnd={tEnd}
-        style={{ position: "fixed", top: "max(12px,env(safe-area-inset-top))", left: "50%", width: "calc(100% - 24px)", maxWidth: 400, zIndex: 400, cursor: "pointer", touchAction: "pan-x", display: "flex", alignItems: "flex-start", gap: 12, borderRadius: 22, padding: "13px 16px", background: "rgba(58,58,60,.52)", backdropFilter: "blur(40px) saturate(180%) brightness(1.08)", WebkitBackdropFilter: "blur(40px) saturate(180%) brightness(1.08)", border: "1px solid " + W + ".14)", boxShadow: "0 18px 50px rgba(0,0,0,.35),inset 0 1px 0 " + W + ".45),inset 0 0 0 1px " + W + ".07)", willChange: "transform,backdrop-filter", transform: "translateX(-50%) translateY(" + (show ? dy + "px" : "-150%") + ")", opacity: show ? 1 : 0, transition: dragging.current ? "opacity .3s" : "transform .4s cubic-bezier(0.22,0.61,0.36,1),opacity .3s cubic-bezier(0.22,0.61,0.36,1)" }}>
-        <div style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 9, background: C.peach, display: "flex", alignItems: "center", justifyContent: "center" }}><NIcon name="alert" size={17} stroke="#fff" /></div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".16em", textTransform: "uppercase", color: W + ".6)", marginBottom: 2 }}>Spacio AM · ahora</div>
-          <div style={{ fontSize: 13.5, color: W + ".98)", lineHeight: 1.35, textWrap: "pretty" }}>{item.texto}</div>
-          {item.contexto && <div style={{ fontSize: 11.5, color: W + ".68)", marginTop: 2, lineHeight: 1.4 }}>{item.contexto}</div>}
+        style={{ position: "fixed", top: "max(12px,env(safe-area-inset-top))", left: "50%", width: "calc(100% - 24px)", maxWidth: 400, zIndex: 400, cursor: "pointer", touchAction: "pan-x", borderRadius: 22, overflow: "hidden", isolation: "isolate", background: "linear-gradient(135deg,rgba(255,255,255,.18),rgba(248,247,245,.08))", backdropFilter: "blur(14px) saturate(210%)", WebkitBackdropFilter: "blur(14px) saturate(210%)", border: "1px solid rgba(255,255,255,.45)", boxShadow: "0 22px 55px rgba(62,63,63,.22),inset 0 1px 0 rgba(255,255,255,.7),inset 0 0 0 1px rgba(255,255,255,.15)", willChange: "transform", transform: "translateX(-50%) translateY(" + (show ? dy + "px" : "-150%") + ")", opacity: show ? 1 : 0, transition: dragging.current ? "opacity .3s" : "transform .4s cubic-bezier(0.22,0.61,0.36,1),opacity .3s cubic-bezier(0.22,0.61,0.36,1)" }}>
+        {/* textura de vidrio esmerilado — no depende de backdrop-filter */}
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "url(\"" + GLASS + "\")", backgroundSize: "160px 160px", opacity: 0.12, mixBlendMode: "soft-light", pointerEvents: "none" }} />
+        {/* brillo especular superior */}
+        <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "55%", background: "linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,0))", pointerEvents: "none" }} />
+        <div style={{ position: "relative", display: "flex", alignItems: "flex-start", gap: 12, padding: "13px 16px" }}>
+          <div style={{ flexShrink: 0, width: 38, height: 38, borderRadius: 11, background: "linear-gradient(150deg,#F2926F,#E9826A 55%,#DE6F55)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(233,130,106,.35),inset 0 1px 0 rgba(255,255,255,.5),inset 0 -1px 2px rgba(140,60,45,.3)" }}>{(function(){var ns=window.SpacioAMDesignSystem_2c08fe;if(ns&&ns.Sparkle)return React.createElement(ns.Sparkle,{size:20,color:"#fff"});return React.createElement("svg",{width:20,height:20,viewBox:"0 0 24 24",fill:"#fff"},React.createElement("path",{d:"M12 1.6c.5 4.9 3.9 8.3 8.8 8.4-4.9.5-8.3 3.9-8.8 8.8-.5-4.9-3.9-8.3-8.8-8.8 4.9-.1 8.3-3.5 8.8-8.4z"}));})()}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--fg-muted,#6F6867)", marginBottom: 2 }}>Spacio AM · ahora</div>
+            <div style={{ fontSize: 13.5, color: "var(--ink,#3E3F3F)", lineHeight: 1.35, textWrap: "pretty", fontWeight: 600 }}>{item.texto}</div>
+            {item.contexto && <div style={{ fontSize: 11.5, color: "var(--fg-muted,#6F6867)", marginTop: 2, lineHeight: 1.4 }}>{item.contexto}</div>}
+          </div>
         </div>
       </div>
     );
+    return (window.ReactDOM && window.ReactDOM.createPortal) ? window.ReactDOM.createPortal(node, document.body) : node;
   }
 
   /* NotiPush — wrapper que aplica el hook oficial y renderiza el banner. */

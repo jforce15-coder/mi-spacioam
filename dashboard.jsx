@@ -3,7 +3,7 @@
 // ============================================================
 
 // ---- Top bar ----
-const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t, notiTotal, onNotiOpen }) => {
+const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t, notiTotal, onNotiOpen, isAdmin, isContador, onAccount, onSetup }) => {
   const [menu, setMenu] = useState(false);
   const mref = useRef(null);
   useEffect(() => {
@@ -13,9 +13,17 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
   return (
     <header className="sa-topbar">
       <div className="sa-topbar-inner">
-        <a className="sa-brand" href="#" onClick={e => e.preventDefault()} aria-label="Spacio AM">
-          <img src="logo-wordmark.png" alt="Spacio AM" className="sa-brand-logo" />
-        </a>
+        <div className="sa-brand-group" style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <a className="sa-brand" href="#" onClick={e => e.preventDefault()} aria-label="Spacio AM">
+            <img src="logo-wordmark.png" alt="Spacio AM" className="sa-brand-logo" />
+          </a>
+          {window.NotiBell && notiTotal > 0 && (
+            <React.Fragment>
+              <span aria-hidden="true" style={{ width: 1, height: 26, background: "var(--divider)", display: "inline-block", flexShrink: 0 }} />
+              <NotiBell total={notiTotal || 0} onOpen={onNotiOpen} />
+            </React.Fragment>
+          )}
+        </div>
 
         <div className="sa-topbar-controls">
           {!hidePropSelect && propOptions.length > 1 && (
@@ -31,12 +39,11 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
         </div>
 
         <div className="sa-topbar-right">
-          {window.NotiBell && <NotiBell total={notiTotal || 0} onOpen={onNotiOpen} />}
-          <div className="sa-only-desktop"><Segmented size="sm" value={currency} onChange={setCurrency} options={[{ value: "USD", label: "USD" }, { value: "GTQ", label: "GTQ" }]} /></div>
-          <div className="sa-only-desktop"><Segmented size="sm" value={lang} onChange={setLang} options={[{ value: "es", label: "ES" }, { value: "en", label: "EN" }]} /></div>
           <div ref={mref} style={{ position: "relative" }}>
-            <button onClick={() => setMenu(m => !m)} className="sa-avatar" aria-label="account">
-              {owner.name.split(" ").map(w => w[0]).slice(0, 2).join("")}
+            <button onClick={() => setMenu(m => !m)} className="sa-avatar" aria-label="account" style={owner.avatar ? { padding: 0, overflow: "hidden" } : undefined}>
+              {owner.avatar
+                ? <img src={owner.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                : owner.name.split(" ").map(w => w[0]).slice(0, 2).join("")}
             </button>
             {menu && (
               <div className="sa-menu" style={{ animation: "sa-fade .18s var(--ease)" }}>
@@ -44,7 +51,17 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
                   <div style={{ fontFamily: "var(--serif)", fontSize: 18, color: "var(--ink)", lineHeight: 1.1 }}>{owner.name}</div>
                   <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--fg-muted)", marginTop: 3 }}>{owner.email}</div>
                 </div>
-                <div className="sa-only-mobile" style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12, borderBottom: "1px solid var(--warm-grey)" }}>
+                {!isContador && (
+                  <button onClick={() => { setMenu(false); onAccount && onAccount(); }} className="sa-menu-item">
+                    <Icon name="user" size={16} stroke="var(--fg-muted)" /> {t("nav_account")}
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={() => { setMenu(false); onSetup && onSetup(); }} className="sa-menu-item">
+                    <Icon name="grid" size={16} stroke="var(--fg-muted)" /> {t("nav_setup")}
+                  </button>
+                )}
+                <div style={{ padding: "12px 14px", display: "flex", flexDirection: "column", gap: 12, borderTop: "1px solid var(--warm-grey)", borderBottom: "1px solid var(--warm-grey)" }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("currency_label")}</span>
                     <Segmented size="sm" value={currency} onChange={setCurrency} options={[{ value: "USD", label: "USD" }, { value: "GTQ", label: "GTQ" }]} />
@@ -356,15 +373,18 @@ const AdminFilters = ({ allProps, owner, setOwner, zona, setZona, edificio, setE
     const code = o ? o.code : p.code;
     if (!ownerMap[code]) ownerMap[code] = (o && o.name) || (p.code || "").replace(/_/g, " ");
   });
+  const zsel = Array.isArray(zona) ? zona : [];
+  const esel = Array.isArray(edificio) ? edificio : [];
+  const psel = Array.isArray(selProp) ? selProp : [];
   const ownerCodes = Object.keys(ownerMap).sort((a, b) => ownerMap[a].localeCompare(ownerMap[b]));
   const inOwner = owner === "all" ? allProps : allProps.filter(p => {
     const o = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf(p.code) >= 0);
     return (o ? o.code : p.code) === owner;
   });
   const zonas = [...new Set(inOwner.map(p => p.zona).filter(Boolean))].sort();
-  const inZona = zona === "all" ? inOwner : inOwner.filter(p => p.zona === zona);
+  const inZona = zsel.length === 0 ? inOwner : inOwner.filter(p => zsel.indexOf(p.zona) >= 0);
   const edificios = [...new Set(inZona.map(p => p.edificio).filter(Boolean))].sort();
-  const inEd = edificio === "all" ? inZona : inZona.filter(p => p.edificio === edificio);
+  const inEd = esel.length === 0 ? inZona : inZona.filter(p => esel.indexOf(p.edificio) >= 0);
   const ownerOpts = [{ value: "all", label: lang === "es" ? "Todos los socios" : "All owners", sub: ownerCodes.length + " " + (lang === "es" ? "socios" : "owners") }]
     .concat(ownerCodes.map(c => ({ value: c, label: ownerMap[c] })));
   const zonaOpts = [{ value: "all", label: t("admin_all_zonas") }].concat(zonas.map(z => ({ value: z, label: z })));
@@ -374,10 +394,10 @@ const AdminFilters = ({ allProps, owner, setOwner, zona, setZona, edificio, setE
   return (
     <div className="sa-admin-bar">
       <span className="sa-admin-badge"><Sparkle size={11} color="var(--alabaster)" />{t("admin_scope")}</span>
-      <Select value={owner} onChange={(v) => { setOwner(v); setZona("all"); setEdificio("all"); setSelProp("all"); }} options={ownerOpts} icon="user" minWidth={170} />
-      <Select value={zona} onChange={(v) => { setZona(v); setEdificio("all"); setSelProp("all"); }} options={zonaOpts} icon="pin" minWidth={140} />
-      <Select value={edificio} onChange={(v) => { setEdificio(v); setSelProp("all"); }} options={edOpts} icon="home" minWidth={160} />
-      <Select value={selProp} onChange={setSelProp} options={propOpts} icon="grid" minWidth={200} />
+      <Select value={owner} onChange={(v) => { setOwner(v); setZona([]); setEdificio([]); setSelProp([]); }} options={ownerOpts} icon="user" minWidth={170} />
+      <Select multi value={zsel} onChange={(v) => { setZona(v); setEdificio([]); setSelProp([]); }} options={zonaOpts} icon="pin" minWidth={150} placeholder={lang === "es" ? "zonas" : "zones"} />
+      <Select multi value={esel} onChange={(v) => { setEdificio(v); setSelProp([]); }} options={edOpts} icon="home" minWidth={160} placeholder={lang === "es" ? "edificios" : "buildings"} />
+      <Select multi value={psel} onChange={setSelProp} options={propOpts} icon="grid" minWidth={200} placeholder={lang === "es" ? "propiedades" : "properties"} />
     </div>
   );
 };

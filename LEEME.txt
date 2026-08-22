@@ -1,27 +1,31 @@
-GITHUB — mi-spacioam · Entrega consolidada (21 ago 2026)
-========================================================
-Reemplaza en la raíz del repo; los marcados NUEVO se agregan.
+DEPLOY A GITHUB — mi-spacioam
+=============================
+Repo: github.com/jforce15-coder/mi-spacioam
 
-DISEÑO / DS v2
-  spacio-tokens.css   graphite, escala de estados, Valky Light->Regular, slogan nuevo
-  i18n.js             slogan nuevo (ES/EN); se quitó nota de contraseña por defecto
-  ui.jsx              Trend: caída=attention-text, alza=success
-  dashboard.jsx       campana de notificaciones; serie "neto" en PEACH
-  sections.jsx        earth->fg-muted; Donut y Evolución en PEACH; subida en lote/OCR
-  charts.jsx          earth->fg-muted
-  login.jsx           glow+borde peach al enfocar; autofocus en correo; sin nota de contraseña
-  conta.jsx conta-pl.jsx pedidosya.jsx pedidosya-ui.jsx   earth->fg-muted
-  Correos a socios.html   earth->fg-muted
+Sube/reemplaza estos archivos en la RAÍZ del repo (en iPad: abre cada archivo →
+lápiz → pega el contenido → Commit; los nuevos con "Create new file").
 
-FACTURAS + OCR (cliente)
-  files.js            ya no finge que guardó; deja rastro de lo fallido
-  facturas-batch.js   NUEVO  clasificador de facturas por mes (texto + OCR)
-  sheets.js           conexión pública de subida (URL /exec + token ya dentro)
+CAMBIADOS EN ESTA ENTREGA
+- Dashboard de Propietarios.html   (carga sa-auth-client + versiones de caché)
+- login.jsx        login unificado + primer ingreso (crear contraseña)
+- sheets.js        fromProfile() para el auth unificado
+- sa-auth-client.js  NUEVO · cliente del control de usuarios
+- dashboard.jsx    NotiBell junto al logo · filtros con búsqueda/orden/multi
+- ui.jsx           Select con búsqueda, orden alfabético y multi-selección
+- noti-center.jsx  push liquid-glass (translúcido real) + ícono squircle sparkle
+- sections.jsx     Mi cuenta y Setup: nombre en 4 partes · Setup por socio
+- noti-data.js     (sin cambios funcionales nuevos; incluido por consistencia)
 
-NOTIFICACIONES
-  noti-center.jsx     NUEVO  centro iOS (NotiBell/Center/Toast/Push)
-  noti-data.js        NUEVO  arma notis reales: socio + ADMIN (con fechas límite)
+RESTO (incluidos por consistencia; súbelos solo si difieren de tu repo)
+- charts.jsx, files.js, facturas-batch.js, i18n.js, conta.jsx, conta-pl.jsx,
+  pedidosya.jsx, pedidosya-ui.jsx, spacio-tokens.css
 
-  Dashboard de Propietarios.html   carga noti-*, cablea el centro, red responsive, ?v=20260821
+ANTES DE PROBAR EL LOGIN UNIFICADO
+1) Publica el endpoint del control de usuarios (entrega-control-usuarios/03)
+   como App web y copia su URL /exec.
+2) En sa-auth-client.js reemplaza PEGA_AQUI_SA_AUTH_URL por esa URL /exec.
+   (Con el placeholder, el login usa el respaldo viejo y NO se rompe nada.)
 
-NOTA: sheets.js ya trae SA_PUBLIC_URL y SA_PUBLIC_TOKEN dentro. No editar.
+NOTA
+- El módulo de control de usuarios (hojas + Apps Script) va en su propia entrega:
+  carpeta entrega-control-usuarios (archivos 01–04). No es parte de este repo.

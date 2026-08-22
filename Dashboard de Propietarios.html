@@ -425,15 +425,15 @@
   <script src="conta-export.js?v=20260820"></script>
   <script src="conta-pdfs.js?v=20260820"></script>
   <script src="conta-opex.js?v=20260820"></script>
-  <script type="text/babel" src="ui.jsx?v=20260820"></script>
+  <script type="text/babel" src="ui.jsx?v=20260826"></script>
   <script src="noti-data.js?v=20260821"></script>
-  <script type="text/babel" src="noti-center.jsx?v=20260822"></script>
+  <script type="text/babel" src="noti-center.jsx?v=20260837"></script>
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
   <script type="text/babel" src="login.jsx?v=20260823"></script>
-  <script type="text/babel" src="pedidosya-ui.jsx?v=20260820"></script>
+  <script type="text/babel" src="pedidosya-ui.jsx?v=20260826"></script>
   <script type="text/babel" src="pedidosya.jsx?v=20260820"></script>
-  <script type="text/babel" src="dashboard.jsx?v=20260823"></script>
-  <script type="text/babel" src="sections.jsx?v=20260823"></script>
+  <script type="text/babel" src="dashboard.jsx?v=20260826"></script>
+  <script type="text/babel" src="sections.jsx?v=20260828"></script>
   <script type="text/babel" src="conta.jsx?v=20260820"></script>
   <script type="text/babel" src="conta-pl.jsx?v=20260820"></script>
 
@@ -446,13 +446,15 @@
       const isAdmin = !!owner.isAdmin;
       const isContador = !!owner.isContador;
       const allOwnerProps = SpacioData.ownerProps(owner);
-      const [adminZona, setAdminZona] = useState("all");
-      const [adminEdificio, setAdminEdificio] = useState("all");
+      const [adminZona, setAdminZona] = useState([]);
+      const [adminEdificio, setAdminEdificio] = useState([]);
+      const [adminProps, setAdminProps] = useState([]);
       const [adminOwner, setAdminOwner] = useState("all");
+      const inList = (arr, v) => !arr || arr.length === 0 || arr.indexOf(v) >= 0;
       // mapa propiedad → código de socio canónico (para filtrar por socio)
       const ownerOf = (p) => { const o = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf(p.code) >= 0); return o ? o.code : p.code; };
       const scopeProps = isAdmin
-        ? allOwnerProps.filter(p => (adminOwner === "all" || ownerOf(p) === adminOwner) && (adminZona === "all" || p.zona === adminZona) && (adminEdificio === "all" || p.edificio === adminEdificio))
+        ? allOwnerProps.filter(p => (adminOwner === "all" || ownerOf(p) === adminOwner) && inList(adminZona, p.zona) && inList(adminEdificio, p.edificio))
         : allOwnerProps;
       const props = scopeProps;
       const single = props.length === 1;
@@ -490,11 +492,13 @@
       // if current selection falls outside the admin scope, fall back to "all"
       const selInScope = selProp === "all" || props.some(p => p.id === selProp);
       const effSelProp = selInScope ? selProp : "all";
-      const isAll = effSelProp === "all";
-      const activeProps = isAll ? props : props.filter(p => p.id === effSelProp);
-      const property = isAll ? null : activeProps[0];
-      const scopeKey = isAdmin ? adminOwner + "|" + adminZona + "|" + adminEdificio : owner.code;
-      const months = useMemo(() => (isAll || !property) ? SpacioAgg.combineMonths(props.length ? props : allOwnerProps) : property.months, [effSelProp, scopeKey, owner.code]);
+      // admin: propiedades múltiples; socio: la del TopBar (una)
+      const selPropArr = isAdmin ? adminProps.filter(id => props.some(p => p.id === id)) : (effSelProp === "all" ? [] : [effSelProp]);
+      const isAll = selPropArr.length === 0;
+      const activeProps = isAll ? props : props.filter(p => selPropArr.indexOf(p.id) >= 0);
+      const property = (!isAll && activeProps.length === 1) ? activeProps[0] : null;
+      const scopeKey = isAdmin ? adminOwner + "|" + adminZona.join(",") + "|" + adminEdificio.join(",") + "|" + selPropArr.join(",") : owner.code + "|" + effSelProp;
+      const months = useMemo(() => property ? property.months : SpacioAgg.combineMonths(activeProps.length ? activeProps : (props.length ? props : allOwnerProps)), [scopeKey, owner.code]);
       const pdata = useMemo(() => SpacioAgg.periodData(months, period), [months, period]);
 
       const propOptions = (single ? [] : [{ value: "all", label: t("all_props"), sub: props.length + " " + (lang === "es" ? "propiedades" : "properties") }])
@@ -600,7 +604,7 @@
             )}
             {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && (
               <AdminFilters allProps={allOwnerProps} owner={adminOwner} setOwner={setAdminOwner} zona={adminZona} setZona={setAdminZona}
-                edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={effSelProp} setSelProp={setSelProp} t={t} lang={lang} />
+                edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={adminProps} setSelProp={setAdminProps} t={t} lang={lang} />
             )}
             <div className="sa-pagehead">
               <div>

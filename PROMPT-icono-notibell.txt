@@ -1,0 +1,76 @@
+PROMPT — Unificar el glifo del NotiBell con el del Design System
+================================================================
+
+CONTEXTO
+El centro de notificaciones (noti-center.jsx) dibuja el ícono de la campana
+(NotiBell) y otros íconos. En algunos proyectos ese ícono sale del set PROPIO
+de la app (window.Icon) y en otros del set del DESIGN SYSTEM
+(window.SpacioAMDesignSystem_2c08fe.Icon). El color es el mismo en ambos
+(trazo #3B6691, badge peach var(--accent,#E9826A)); lo que cambia es la FORMA
+del glifo, porque son dos sets de íconos distintos. Objetivo: que el NotiBell
+—y todo noti-center— use el Icon del Design System, para que se vea idéntico
+en todos los proyectos.
+
+TAREA
+Haz que noti-center use el Icon del Design System, con respaldo al Icon local
+si el bundle no está cargado. No cambies ningún color, tamaño ni layout.
+
+PASO 1 — Cargar el bundle del Design System en el HTML
+En el archivo HTML principal, DESPUÉS de los scripts de React y ReactDOM
+(el bundle los necesita) y ANTES de los scripts de la app (ui/noti-center/etc.),
+agrega:
+
+    <script src="_ds/<CARPETA-DEL-DESIGN-SYSTEM>/_ds_bundle.js"></script>
+
+- Reemplaza <CARPETA-DEL-DESIGN-SYSTEM> por la carpeta real del sistema
+  (p. ej. spacio-am-design-system-2c08fe78-561e-46a1-8758-5fd6396bf54d).
+- Es JS compilado normal: cárgalo con <script src> simple, SIN type="module"
+  ni type="text/babel".
+- No hace falta cargar los CSS de tokens del design system solo para el ícono:
+  el glifo es un SVG inline y su color se pasa por props. Si cargas los tokens,
+  cuida que no pisen los tokens propios de la app.
+
+PASO 2 — Preferir el Icon del Design System en noti-center.jsx
+Busca el wrapper de ícono al inicio del archivo. Suele verse así:
+
+    function NIcon(props){
+      var I = window.Icon;              // set propio de la app
+      if(!I) return null;
+      return React.createElement(I, props);
+    }
+
+Reemplázalo por:
+
+    function NIcon(props){
+      var ns = window.SpacioAMDesignSystem_2c08fe;   // ajusta al namespace real
+      var I = (ns && ns.Icon) || window.Icon;        // DS primero; si no, el local
+      if(!I) return null;
+      return React.createElement(I, props);
+    }
+
+- Ajusta "SpacioAMDesignSystem_2c08fe" al namespace real del bundle
+  (aparece al inicio del _ds_bundle.js, en "namespace":"...").
+- Si en tu noti-center el ícono se dibuja directo con <Icon .../> en vez de un
+  wrapper, crea este NIcon y usa <NIcon .../> en su lugar, o cambia el import
+  del Icon para que apunte a ns.Icon con el mismo fallback.
+
+PASO 3 — Verificar
+1. Abre la app y en la consola ejecuta:
+     !!(window.SpacioAMDesignSystem_2c08fe && window.SpacioAMDesignSystem_2c08fe.Icon)
+   Debe devolver true.
+2. La campana debe verse igual que en el proyecto de referencia.
+3. La consola no debe tener errores.
+
+PASO 4 — Deploy
+- Sube la carpeta _ds/<CARPETA-DEL-DESIGN-SYSTEM>/ al repositorio en la MISMA
+  ruta que referencia el <script>. Basta con _ds_bundle.js para el ícono.
+- Si esa carpeta no está en producción, el fallback (|| window.Icon) hace que
+  la campana use el glifo local automáticamente; el sitio no se rompe.
+
+NOTAS
+- No cambies colores: el trazo del bell (#3B6691) y el badge peach
+  (var(--accent,#E9826A)) ya son correctos y compartidos.
+- El bundle puede definir globales de ejemplo (window.KIT_DATA, window.EPI_DATA)
+  y funciones de demo; son inofensivas y no renderizan nada por sí solas.
+- Si cargas también los CSS de tokens del design system, revisa que no
+  sobreescriban --accent u otros tokens propios de la app.

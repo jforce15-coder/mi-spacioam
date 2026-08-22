@@ -665,32 +665,80 @@ const ContaUsersCard = ({ lang }) => {
 
 const AccountSection = ({ owner, lang, t, onUpdate }) => {
   const orig = (SpacioData.owners || []).find(o => o.code === owner.code) || owner;
+  // nombre en 4 partes (Guatemala). Si no hay partes guardadas, parte el nombre completo.
+  const splitName = (full) => {
+    const w = String(full || "").trim().split(/\s+/).filter(Boolean);
+    if (w.length <= 1) return { pn: w[0] || "", sn: "", pa: "", sa: "" };
+    if (w.length === 2) return { pn: w[0], sn: "", pa: w[1], sa: "" };
+    if (w.length === 3) return { pn: w[0], sn: "", pa: w[1], sa: w[2] };
+    return { pn: w[0], sn: w[1], pa: w[2], sa: w.slice(3).join(" ") };
+  };
+  const base = splitName(owner.name);
+  const [pNombre, setPNombre] = useState(owner.primerNombre != null ? owner.primerNombre : base.pn);
+  const [sNombre, setSNombre] = useState(owner.segundoNombre != null ? owner.segundoNombre : base.sn);
+  const [pApellido, setPApellido] = useState(owner.primerApellido != null ? owner.primerApellido : base.pa);
+  const [sApellido, setSApellido] = useState(owner.segundoApellido != null ? owner.segundoApellido : base.sa);
   const [email, setEmail] = useState(owner.email || "");
   const [secondary, setSecondary] = useState(owner.secondaryEmail || "");
   const [pass, setPass] = useState("");
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
+  const [avatar, setAvatar] = useState(owner.avatar || "");
+  const photoRef = useRef(null);
   const props = SpacioData.ownerProps(owner);
+  const initials = (owner.name || "").split(" ").map(w => w[0]).slice(0, 2).join("");
+
+  const pickPhoto = (file) => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const side = 320, cv = document.createElement("canvas");
+      cv.width = side; cv.height = side;
+      const k = Math.max(side / img.width, side / img.height);
+      const w = img.width * k, h = img.height * k;
+      cv.getContext("2d").drawImage(img, (side - w) / 2, (side - h) / 2, w, h);
+      const data = cv.toDataURL("image/jpeg", 0.8);
+      setAvatar(data);
+      SpacioProfile.set(owner.code, { avatar: data });
+      onUpdate && onUpdate(Object.assign({}, owner, { avatar: data }));
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
+  };
+  const removePhoto = () => {
+    setAvatar("");
+    SpacioProfile.set(owner.code, { avatar: "" });
+    onUpdate && onUpdate(Object.assign({}, owner, { avatar: "" }));
+  };
 
   const save = () => {
     if (!email || !/.+@.+\..+/.test(email)) { setErr(t("acc_invalid_email")); return; }
     setErr("");
-    const patch = { email: email.trim(), secondaryEmail: secondary.trim() };
+    const fullName = [pNombre, sNombre, pApellido, sApellido].map(s => (s || "").trim()).filter(Boolean).join(" ");
+    const patch = { email: email.trim(), secondaryEmail: secondary.trim(), name: fullName,
+      primerNombre: pNombre.trim(), segundoNombre: sNombre.trim(), primerApellido: pApellido.trim(), segundoApellido: sApellido.trim() };
     if (pass) patch.pass = pass;
     SpacioProfile.set(owner.code, patch);
     setSaved(true); setTimeout(() => setSaved(false), 2600);
-    onUpdate && onUpdate(Object.assign({}, owner, { email: patch.email, secondaryEmail: patch.secondaryEmail }, pass ? { pass } : {}));
-    // write-back to the sheet if the Apps Script is connected
+    onUpdate && onUpdate(Object.assign({}, owner, { email: patch.email, secondaryEmail: patch.secondaryEmail, name: fullName, primerNombre: patch.primerNombre, segundoNombre: patch.segundoNombre, primerApellido: patch.primerApellido, segundoApellido: patch.segundoApellido }, pass ? { pass } : {}));
     if (SpacioWrite.enabled()) {
-      SpacioWrite.post("saveProfile", { codes: owner.codes || [owner.code], email: patch.email, secondary: patch.secondaryEmail, password: pass || "" })
+      SpacioWrite.post("saveProfile", { codes: owner.codes || [owner.code], email: patch.email, secondary: patch.secondaryEmail, name: fullName, primerNombre: patch.primerNombre, segundoNombre: patch.segundoNombre, primerApellido: patch.primerApellido, segundoApellido: patch.segundoApellido, password: pass || "" })
         .then(r => { if (!r.ok && !r.offline) console.warn("saveProfile", r); });
     }
+    if (window.SAAuth && owner.email && patch.email && patch.email.toLowerCase() !== (owner.email || "").toLowerCase()) window.SAAuth.setEmail(owner.email, patch.email);
     setPass("");
   };
   const reset = () => {
     SpacioProfile.reset(owner.code);
+    const b = splitName(orig.name);
+    setPNombre(orig.primerNombre != null ? orig.primerNombre : b.pn);
+    setSNombre(orig.segundoNombre != null ? orig.segundoNombre : b.sn);
+    setPApellido(orig.primerApellido != null ? orig.primerApellido : b.pa);
+    setSApellido(orig.segundoApellido != null ? orig.segundoApellido : b.sa);
     setEmail(orig.email || ""); setSecondary(orig.secondaryEmail || ""); setPass(""); setErr(""); setSaved(false);
-    onUpdate && onUpdate(Object.assign({}, owner, { email: orig.email, secondaryEmail: orig.secondaryEmail, pass: orig.pass }));
+    onUpdate && onUpdate(Object.assign({}, owner, { name: orig.name, email: orig.email, secondaryEmail: orig.secondaryEmail, pass: orig.pass }));
   };
 
   return (
@@ -700,6 +748,26 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
         {owner.isAdmin && <ContaUsersCard lang={lang} />}
         <Card pad={28}>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <button type="button" onClick={() => photoRef.current && photoRef.current.click()} title={lang === "es" ? "Cambiar foto" : "Change photo"}
+                style={{ flexShrink: 0, width: 72, height: 72, borderRadius: 999, border: "1px solid var(--warm-grey)", background: "var(--beige-soft)", overflow: "hidden", cursor: "pointer", padding: 0, display: "grid", placeItems: "center", fontFamily: "var(--serif)", fontSize: 24, color: "var(--fg-muted)" }}>
+                {avatar ? <img src={avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : initials}
+              </button>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{lang === "es" ? "Foto de perfil" : "Profile photo"}</span>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <input ref={photoRef} type="file" accept="image/*" style={{ display: "none" }} onChange={e => { pickPhoto(e.target.files[0]); e.target.value = ""; }} />
+                  <button type="button" onClick={() => photoRef.current && photoRef.current.click()} style={{ border: "1px solid var(--ink-08)", cursor: "pointer", background: "transparent", color: "var(--ink)", borderRadius: 999, padding: "9px 16px", fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase" }}>{avatar ? (lang === "es" ? "Cambiar" : "Change") : (lang === "es" ? "Subir foto" : "Upload")}</button>
+                  {avatar && <button type="button" onClick={removePhoto} style={{ border: "none", cursor: "pointer", background: "transparent", color: "var(--fg-muted)", borderRadius: 999, padding: "9px 12px", fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase" }}>{lang === "es" ? "Quitar" : "Remove"}</button>}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <AccountField label={lang === "es" ? "Primer nombre" : "First name"} value={pNombre} onChange={setPNombre} type="text" placeholder={lang === "es" ? "Primer nombre" : "First name"} />
+              <AccountField label={lang === "es" ? "Segundo nombre" : "Middle name"} value={sNombre} onChange={setSNombre} type="text" placeholder={lang === "es" ? "Segundo nombre" : "Middle name"} />
+              <AccountField label={lang === "es" ? "Primer apellido" : "First surname"} value={pApellido} onChange={setPApellido} type="text" placeholder={lang === "es" ? "Primer apellido" : "First surname"} />
+              <AccountField label={lang === "es" ? "Segundo apellido" : "Second surname"} value={sApellido} onChange={setSApellido} type="text" placeholder={lang === "es" ? "Segundo apellido" : "Second surname"} />
+            </div>
             <AccountField label={t("acc_email")} hint={t("acc_email_hint")} value={email} onChange={setEmail} type="email" placeholder="tu@correo.com" />
             <AccountField label={t("acc_secondary")} hint={t("acc_secondary_hint")} value={secondary} onChange={setSecondary} type="email" placeholder="alterno@correo.com" />
             <AccountField label={t("acc_pass")} hint={t("acc_pass_hint")} value={pass} onChange={setPass} type="password" placeholder="••••••••" />
@@ -717,7 +785,7 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
             </p>
           </div>
         </Card>
-        <Card pad={24} soft>
+        {!owner.isAdmin && <Card pad={24} soft>
           <div style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 16 }}>{t("acc_props")}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {props.map(p => (
@@ -730,13 +798,131 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
               </div>
             ))}
           </div>
-        </Card>
+        </Card>}
       </div>
     </section>
   );
 };
 
 // ---- Admin: SETUP editor (edit rows, add property — saved locally; export to paste back) ----
+// Campos que pertenecen al SOCIO (se repiten en todas sus propiedades) vs a la PROPIEDAD.
+const SOCIO_HEAD = ["Usuario ID", "User email", "secondary user email", "Nombre", "Primer nombre", "Segundo nombre", "Primer apellido", "Segundo apellido", "Password"];
+const socioKeyOf = (r) => ((r["Usuario ID"] || r["User email"] || "").trim());
+
+// Modal de edición de un SOCIO: datos de identidad + sus propiedades.
+function SetupSocioModal({ socio, onClose, onSaveSocio, onEditProp, onAddProp, tr }) {
+  const [d, setD] = useState({
+    key: socio.key, usuario: socio.usuario || "", email: socio.email || "",
+    secondary: socio.secondary || "", pass: "",
+    pn: socio.pn || "", sn: socio.sn || "", pa: socio.pa || "", sa: socio.sa || "",
+  });
+  const f = (k) => (e) => { const v = e.target.value; setD(x => Object.assign({}, x, { [k]: v })); };
+  const [saved, setSaved] = useState(false);
+  const doSave = () => { onSaveSocio(d); setSaved(true); setTimeout(() => setSaved(false), 1600); };
+  const field = (label, key, type, ph) => (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
+      <input className="sa-setup-input" type={type || "text"} value={d[key]} onChange={f(key)} placeholder={ph || ""} autoCapitalize="none" autoCorrect="off" />
+    </label>
+  );
+  return (
+    <div className="pya-overlay" onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.46)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, maxWidth: 600, width: "100%", maxHeight: "88vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-lg)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "22px 24px 16px", borderBottom: "1px solid var(--warm-grey)" }}>
+          <div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Socio", "Owner")}</div>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 21, color: "var(--ink)", marginTop: 4, lineHeight: 1.1 }}>{socio.name || socio.usuario || tr("Nuevo socio", "New owner")}</div>
+          </div>
+          <button onClick={onClose} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
+        </div>
+        <div style={{ overflowY: "auto", padding: "18px 24px", display: "flex", flexDirection: "column", gap: 20 }}>
+          {/* datos del socio */}
+          <div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 12 }}>{tr("Datos del socio", "Owner details")}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Primer nombre", "First name")}</span>
+                <input className="sa-setup-input" value={d.pn} onChange={f("pn")} placeholder={tr("Primer nombre", "First name")} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Segundo nombre", "Middle name")}</span>
+                <input className="sa-setup-input" value={d.sn} onChange={f("sn")} placeholder={tr("Segundo nombre", "Middle name")} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Primer apellido", "First surname")}</span>
+                <input className="sa-setup-input" value={d.pa} onChange={f("pa")} placeholder={tr("Primer apellido", "First surname")} />
+              </label>
+              <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Segundo apellido", "Second surname")}</span>
+                <input className="sa-setup-input" value={d.sa} onChange={f("sa")} placeholder={tr("Segundo apellido", "Second surname")} />
+              </label>
+              {field(tr("Usuario", "Username"), "usuario", "text", "usuario_id")}
+              {field(tr("Correo", "Email"), "email", "email", "socio@correo.com")}
+              {field(tr("Correo secundario", "Secondary email"), "secondary", "email", "alterno@correo.com")}
+              {field(tr("Contraseña (opcional)", "Password (optional)"), "pass", "text", "••••••••")}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
+              <button className="sa-chip-btn sa-chip-btn-dark" onClick={doSave}>
+                {saved ? <React.Fragment><Icon name="check" size={13} stroke="var(--alabaster)" />{tr("Guardado", "Saved")}</React.Fragment> : tr("Guardar datos del socio", "Save owner details")}
+              </button>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{tr("Aplica a todas sus propiedades.", "Applies to all their properties.")}</span>
+            </div>
+          </div>
+          {/* propiedades del socio */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12 }}>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Propiedades", "Properties")} · {socio.items.length}</span>
+              <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => onAddProp(socio)}><Icon name="check" size={13} stroke="var(--fg-muted)" />{tr("Agregar propiedad", "Add property")}</button>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {(() => {
+                // agrupa por nombre: 2 filas del mismo nombre = 1 propiedad con 2 anuncios
+                const groups = {}; const order = [];
+                socio.items.forEach(({ r, i }) => {
+                  const nk = (r["property_name"] || "").trim().toLowerCase() || ("__" + i);
+                  if (!groups[nk]) { groups[nk] = []; order.push(nk); }
+                  groups[nk].push({ r, i });
+                });
+                return order.map(nk => {
+                  const g = groups[nk]; const first = g[0].r;
+                  return (
+                    <div key={nk} style={{ background: "var(--surface)", border: "1px solid var(--warm-grey)", borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: g.length > 1 ? 10 : 0 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ display: "inline-flex", flexShrink: 0 }}><Icon name="home" size={15} stroke="var(--ink)" /></span>
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontFamily: "var(--serif)", fontSize: 15.5, color: "var(--ink)", lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{first["property_name"] || tr("(sin nombre)", "(no name)")}</div>
+                          <div style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", marginTop: 2 }}>{[first["Moneda"], first["SPACIOAMFEE"] ? "fee " + first["SPACIOAMFEE"] : "", yesShort(first["iva"]) ? "IVA" : "", yesShort(first["RETENCION"]) ? "ret." : ""].filter(Boolean).join(" · ")}</div>
+                        </div>
+                        {g.length > 1 && <span style={{ flexShrink: 0, fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--attention-text)", background: "var(--attention-tint)", borderRadius: 999, padding: "4px 9px" }}>{g.length} {tr("anuncios", "listings")}</span>}
+                        {g.length === 1 && <button className="sa-chip-btn sa-chip-btn-dark" style={{ padding: "8px 15px" }} onClick={() => onEditProp(g[0].i)}><Icon name="pencil" size={13} stroke="var(--alabaster)" />{tr("Editar", "Edit")}</button>}
+                      </div>
+                      {g.length > 1 && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--ink-08)", paddingTop: 10 }}>
+                          {g.map(({ r, i }, gi) => (
+                            <div key={r.property_id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)", flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tr("Anuncio", "Listing")} {gi + 1}{r["Listing link"] ? " · " + String(r["Listing link"]).replace(/^https?:\/\//, "").slice(0, 34) : ""}</span>
+                              <button className="sa-chip-btn sa-chip-btn-ghost" style={{ padding: "7px 13px" }} onClick={() => onEditProp(i)}><Icon name="pencil" size={12} stroke="var(--fg-muted)" />{tr("Editar", "Edit")}</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
+              {socio.items.length === 0 && <div style={{ padding: "20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12, color: "var(--fg-muted)" }}>{tr("Sin propiedades. Agrega la primera.", "No properties yet. Add the first one.")}</div>}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--warm-grey)" }}>
+          <button className="sa-chip-btn sa-chip-btn-ghost" onClick={onClose}>{tr("Cerrar", "Close")}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+function yesShort(v) { return /^(s[ií]|yes|true|1|x)$/i.test(String(v || "").trim()); }
+
 const SETUP_COLS = [
   { k: "property_name", label: "col_prop", w: 200 },
   { k: "usuario", label: "col_owner", w: 110 },
@@ -772,6 +958,7 @@ const SetupSection = ({ lang, t }) => {
   });
   const [q, setQ] = useState("");
   const [editing, setEditing] = useState(null); // index being edited
+  const [socioSel, setSocioSel] = useState(null); // socio key being edited
   const [quick, setQuick] = useState(false);
   const [showList, setShowList] = useState(false);   // la lista completa se pide, no se impone
   const [savedId, setSavedId] = useState(null);
@@ -840,9 +1027,41 @@ const SetupSection = ({ lang, t }) => {
     setEditing(null);
   };
   const addRow = () => {
+    // Nuevo SOCIO: fila en blanco (identidad vacía) y abre el editor de socio.
     const id = "new-" + Date.now();
     const r = { _new: true }; HEAD.forEach(h => r[h] = ""); r.property_id = id;
-    setRows(rs => [r].concat(rs)); SpacioSetup.addRowRaw(r); setEditing(0);
+    setRows(rs => [r].concat(rs)); SpacioSetup.addRowRaw(r); setSocioSel("");
+  };
+  const addPropToSocio = (socio) => {
+    const id = "new-" + Date.now();
+    const r = { _new: true }; HEAD.forEach(h => r[h] = ""); r.property_id = id;
+    r["Usuario ID"] = socio.usuario; r["User email"] = socio.email;
+    r["secondary user email"] = socio.secondary; r["Nombre"] = socio.name; r["Password"] = socio.pass;
+    r["Primer nombre"] = socio.pn; r["Segundo nombre"] = socio.sn; r["Primer apellido"] = socio.pa; r["Segundo apellido"] = socio.sa;
+    setRows(rs => [r].concat(rs)); SpacioSetup.addRowRaw(r);
+    setSocioSel(null); setEditing(0);
+  };
+  // Guarda la identidad del socio en TODAS sus filas (propiedades).
+  const saveSocio = (draft) => {
+    const touched = [];
+    const fullName = [draft.pn, draft.sn, draft.pa, draft.sa].map(s => (s || "").trim()).filter(Boolean).join(" ");
+    setRows(rs => rs.map(row => {
+      if (socioKeyOf(row) !== draft.key) return row;
+      const nr = Object.assign({}, row, {
+        "Usuario ID": draft.usuario, "User email": draft.email,
+        "secondary user email": draft.secondary, "Nombre": fullName,
+        "Primer nombre": draft.pn, "Segundo nombre": draft.sn,
+        "Primer apellido": draft.pa, "Segundo apellido": draft.sa,
+      });
+      if (draft.pass) nr["Password"] = draft.pass;
+      touched.push(nr);
+      return nr;
+    }));
+    touched.forEach(nr => {
+      SpacioSetup.saveEditRaw(nr.property_id, nr);
+      if (SpacioWrite.enabled()) SpacioWrite.post("saveSetupRaw", { property_id: nr.property_id, values: nr });
+    });
+    if (SpacioWrite.enabled() && draft.usuario) SpacioWrite.post("saveProfile", { codes: [draft.usuario], email: draft.email, secondary: draft.secondary, name: fullName, primerNombre: draft.pn, segundoNombre: draft.sn, primerApellido: draft.pa, segundoApellido: draft.sa, password: draft.pass || "" });
   };
   const exportRows = () => {
     const lines = [HEAD.join("\t")].concat(rows.map(r => HEAD.map(h => r[h] != null ? r[h] : "").join("\t")));
@@ -850,6 +1069,29 @@ const SetupSection = ({ lang, t }) => {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "setup-spacioam.tsv"; a.click();
   };
   const filtered = rows.map((r, i) => ({ r, i })).filter(({ r }) => !q || (r["property_name"] || "").toLowerCase().includes(q.toLowerCase()) || (r["Usuario ID"] || "").toLowerCase().includes(q.toLowerCase()));
+
+  // Agrupa las filas por SOCIO (Usuario ID / correo).
+  const socios = (() => {
+    const m = {};
+    rows.forEach((r, i) => {
+      const k = socioKeyOf(r);
+      const owner = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf((r["Usuario ID"] || "").trim()) >= 0);
+      const s = m[k] || (m[k] = {
+        key: k, usuario: r["Usuario ID"] || "", email: r["User email"] || "",
+        secondary: r["secondary user email"] || "", pass: r["Password"] || "",
+        name: r["Nombre"] || (owner && owner.name) || "",
+        pn: r["Primer nombre"] || (owner && owner.primerNombre) || "",
+        sn: r["Segundo nombre"] || (owner && owner.segundoNombre) || "",
+        pa: r["Primer apellido"] || (owner && owner.primerApellido) || "",
+        sa: r["Segundo apellido"] || (owner && owner.segundoApellido) || "",
+        items: [],
+      });
+      s.items.push({ r, i });
+    });
+    return Object.values(m);
+  })();
+  const filteredSocios = socios.filter(s => !q || [s.name, s.usuario, s.email].some(v => (v || "").toLowerCase().includes(q.toLowerCase())) || s.items.some(({ r }) => (r["property_name"] || "").toLowerCase().includes(q.toLowerCase())));
+  const activeSocio = socioSel != null ? (socios.find(s => s.key === socioSel) || { key: socioSel, usuario: "", email: "", secondary: "", name: "", pass: "", items: [] }) : null;
 
   // etiqueta amigable para un encabezado
   const niceLabel = (h) => h;
@@ -914,30 +1156,29 @@ const SetupSection = ({ lang, t }) => {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setQuick(true)}><Icon name="eye" size={14} stroke="var(--fg-muted)" />{tr("Vista rápida", "Quick view")}</button>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={exportRows}><Icon name="arrowUpRight" size={14} stroke="var(--fg-muted)" />{t("setup_export")}</button>
-          <button className="sa-chip-btn sa-chip-btn-dark" onClick={addRow}><Icon name="check" size={14} stroke="var(--alabaster)" />{t("setup_add")}</button>
+          <button className="sa-chip-btn sa-chip-btn-dark" onClick={addRow}><Icon name="check" size={14} stroke="var(--alabaster)" />{tr("Agregar socio", "Add owner")}</button>
         </div>
       </div>
 
-      {/* lista de propiedades: solo al buscar o al pedirla explícitamente */}
+      {/* lista de SOCIOS: solo al buscar o al pedirla explícitamente */}
       {!q && !showList && (
         <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setShowList(true)} style={{ width: "100%", justifyContent: "center", padding: "13px 18px" }}>
-          <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" />{tr("Ver las " + rows.length + " propiedades", "Show all " + rows.length + " properties")}
+          <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" />{tr("Ver los " + socios.length + " socios", "Show all " + socios.length + " owners")}
         </button>
       )}
       {(q || showList) && (
       <div className="sa-setup-list">
-        {filtered.map(({ r, i }) => (
-          <div className="sa-setup-listrow" key={r.property_id}>
-            <span className="sa-setup-listic"><Icon name="home" size={15} stroke="var(--ink)" /></span>
+        {filteredSocios.map(s => (
+          <div className="sa-setup-listrow" key={s.key || "__blank"}>
+            <span className="sa-setup-listic"><Icon name="user" size={15} stroke="var(--ink)" /></span>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <span className="sa-setup-listname">{r["property_name"] || tr("(sin nombre)", "(no name)")}</span>
-              <span className="sa-setup-listmeta">{[r["Usuario ID"], r["Moneda"], r["Numero de cuenta"] || r["Número de cuenta"]].filter(Boolean).join(" · ")}</span>
+              <span className="sa-setup-listname">{s.name || s.usuario || tr("(sin nombre)", "(no name)")}</span>
+              <span className="sa-setup-listmeta">{[s.email || s.usuario, s.items.length + " " + (s.items.length === 1 ? tr("propiedad", "property") : tr("propiedades", "properties"))].filter(Boolean).join(" · ")}</span>
             </div>
-            {savedId === r.property_id && <span className="sa-file-ok" style={{ marginRight: 4 }}><Icon name="check" size={14} stroke="#5B8A6B" />{tr("Guardado", "Saved")}</span>}
-            <button className="sa-chip-btn sa-chip-btn-dark" style={{ padding: "8px 16px" }} onClick={() => setEditing(i)}><Icon name="pencil" size={13} stroke="var(--alabaster)" />{tr("Editar", "Edit")}</button>
+            <button className="sa-chip-btn sa-chip-btn-dark" style={{ padding: "8px 16px" }} onClick={() => setSocioSel(s.key)}><Icon name="pencil" size={13} stroke="var(--alabaster)" />{tr("Editar", "Edit")}</button>
           </div>
         ))}
-        {filtered.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--fg-muted)" }}>{tr("Sin resultados.", "No results.")}</div>}
+        {filteredSocios.length === 0 && <div style={{ padding: "30px 20px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--fg-muted)" }}>{tr("Sin resultados.", "No results.")}</div>}
         {!q && showList && (
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => setShowList(false)} style={{ width: "100%", justifyContent: "center", marginTop: 10 }}>
             <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" style={{ transform: "rotate(180deg)" }} />{tr("Ocultar lista", "Hide list")}
@@ -947,12 +1188,21 @@ const SetupSection = ({ lang, t }) => {
       )}
 
       <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "16px 0 0", display: "flex", gap: 8, maxWidth: 720 }}>
-        <Icon name="info" size={14} stroke="var(--fg-muted)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("setup_note")}
+        <Icon name="info" size={14} stroke="var(--fg-muted)" style={{ flexShrink: 0, marginTop: 2 }} /> {tr("Los datos del socio (usuario, correo, nombre) se editan una vez y aplican a todas sus propiedades. El IVA, el fee de Spacio AM, la retención y demás se editan en cada propiedad.", "Owner details (username, email, name) are edited once and apply to all their properties. VAT, Spacio AM fee, withholding and the rest are edited per property.")}
       </p>
 
-      {/* modal de edición — todos los campos A–O */}
+      {/* modal de SOCIO */}
+      {activeSocio && (
+        <SetupSocioModal socio={activeSocio} tr={tr}
+          onClose={() => setSocioSel(null)}
+          onSaveSocio={saveSocio}
+          onEditProp={(i) => { setSocioSel(null); setEditing(i); }}
+          onAddProp={addPropToSocio} />
+      )}
+
+      {/* modal de edición de PROPIEDAD — solo campos de la propiedad */}
       {editing != null && rows[editing] && (
-        <div className="pya-overlay" onClick={() => setEditing(null)} style={{ position: "fixed", inset: 0, zIndex: 90, background: "rgba(62,63,63,0.46)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div className="pya-overlay" onClick={() => setEditing(null)} style={{ position: "fixed", inset: 0, zIndex: 91, background: "rgba(62,63,63,0.46)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: "var(--alabaster)", borderRadius: 22, padding: 0, maxWidth: 560, width: "100%", maxHeight: "86vh", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-lg)" }}>
             <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "22px 24px 16px", borderBottom: "1px solid var(--warm-grey)" }}>
               <div>
@@ -962,7 +1212,7 @@ const SetupSection = ({ lang, t }) => {
               <button onClick={() => setEditing(null)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
             </div>
             <div style={{ overflowY: "auto", padding: "18px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              {HEAD.map(h => (
+              {HEAD.filter(h => SOCIO_HEAD.indexOf(h) < 0).map(h => (
                 <label key={h} style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: (h === "property_name" || h === "Listing link") ? "1 / -1" : "auto" }}>
                   <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{niceLabel(h)}{h === "property_id" ? " · ID" : ""}</span>
                   <input className="sa-setup-input" value={rows[editing][h] != null ? rows[editing][h] : ""} disabled={h === "property_id" && !rows[editing]._new}

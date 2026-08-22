@@ -132,14 +132,43 @@ const Segmented = ({ options, value, onChange, size = "md" }) => {
 };
 
 // ---- Dropdown select (custom, editorial) ----
-const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180 }) => {
+// Select editorial. Ahora con: búsqueda (cuando hay muchas opciones), orden
+// alfabético (dejando fija la opción "Todos") y modo múltiple opcional.
+// - multi=false (por defecto): value = string; onChange(value).
+// - multi=true: value = array de valores; onChange(nextArray). La opción "all"
+//   limpia la selección (equivale a "todas").
+const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180, multi = false, searchable, placeholder }) => {
   const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
   const ref = useRef(null);
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQ(""); } };
     document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
   }, []);
-  const cur = options.find(o => o.value === value);
+  const sel = multi ? (Array.isArray(value) ? value : []) : value;
+  const isActive = (v) => multi ? (v === "all" ? sel.length === 0 : sel.indexOf(v) >= 0) : v === value;
+  // orden alfabético, dejando "all" (Todos) siempre primero
+  const sentinel = options.filter(o => o.value === "all");
+  const rest = options.filter(o => o.value !== "all").slice()
+    .sort((a, b) => String(a.label).localeCompare(String(b.label), "es", { numeric: true, sensitivity: "base" }));
+  const ordered = sentinel.concat(rest);
+  const showSearch = searchable != null ? searchable : options.length > 6;
+  const shown = q ? ordered.filter(o => (String(o.label) + " " + (o.sub || "")).toLowerCase().includes(q.toLowerCase())) : ordered;
+  // etiqueta del disparador
+  let triggerLabel;
+  if (multi) {
+    triggerLabel = sel.length === 0 ? (sentinel[0] ? sentinel[0].label : (placeholder || "")) :
+      sel.length === 1 ? ((options.find(o => o.value === sel[0]) || {}).label || "") :
+        (sel.length + " " + (placeholder || "seleccionados"));
+  } else {
+    const cur = options.find(o => o.value === value); triggerLabel = cur ? cur.label : (placeholder || "");
+  }
+  const pick = (v) => {
+    if (!multi) { onChange(v); setOpen(false); setQ(""); return; }
+    if (v === "all") { onChange([]); return; }
+    const next = sel.indexOf(v) >= 0 ? sel.filter(x => x !== v) : sel.concat(v);
+    onChange(next);
+  };
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button onClick={() => setOpen(o => !o)} style={{
@@ -149,7 +178,8 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
         color: "var(--ink)", boxShadow: "var(--shadow-xs)", transition: "border-color .18s var(--ease)",
       }}>
         {icon && <Icon name={icon} size={15} stroke="var(--fg-muted)" />}
-        <span style={{ fontWeight: 500 }}>{cur ? cur.label : ""}</span>
+        <span style={{ fontWeight: 500 }}>{triggerLabel}</span>
+        {multi && sel.length > 0 && <span style={{ minWidth: 17, height: 17, padding: "0 5px", borderRadius: 999, background: "var(--peach)", color: "#fff", fontSize: 9.5, fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{sel.length}</span>}
         <Icon name="chevronDown" size={14} stroke="var(--fg-muted)" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} />
       </button>
       {open && (
@@ -157,12 +187,23 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
           position: "absolute", top: "calc(100% + 8px)", [align]: 0, zIndex: 60, minWidth,
           background: "var(--alabaster)", border: "1px solid var(--ink-08)", borderRadius: 16,
           boxShadow: "var(--shadow-md)", padding: 6, animation: "sa-fade .18s var(--ease)",
-          maxHeight: 340, overflowY: "auto",
+          maxHeight: 360, display: "flex", flexDirection: "column",
         }}>
-          {options.map(o => {
-            const active = o.value === value;
+          {showSearch && (
+            <div style={{ padding: "4px 4px 8px", position: "sticky", top: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 10, padding: "9px 11px" }}>
+                <Icon name="search" size={14} stroke="var(--fg-muted)" />
+                <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={placeholder || "Buscar…"}
+                  style={{ border: "none", outline: "none", background: "transparent", width: "100%", fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", color: "var(--ink)" }} />
+                {q && <button onClick={() => setQ("")} style={{ border: "none", background: "transparent", cursor: "pointer", display: "inline-flex", color: "var(--fg-muted)" }}><Icon name="x" size={13} stroke="currentColor" /></button>}
+              </div>
+            </div>
+          )}
+          <div style={{ overflowY: "auto", minHeight: 0 }}>
+          {shown.map(o => {
+            const active = isActive(o.value);
             return (
-              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false); }} style={{
+              <button key={o.value} onClick={() => pick(o.value)} style={{
                 display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
                 border: "none", cursor: "pointer", background: active ? "var(--beige-soft)" : "transparent",
                 borderRadius: 11, padding: "11px 12px", fontFamily: "var(--sans)", fontSize: 12.5,
@@ -170,16 +211,23 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
               }}
                 onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--beige-30)"; }}
                 onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}>
+                {multi && o.value !== "all" && (
+                  <span style={{ flexShrink: 0, width: 17, height: 17, borderRadius: 5, border: "1.5px solid " + (active ? "var(--peach)" : "var(--warm-grey)"), background: active ? "var(--peach)" : "transparent", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                    {active && <Icon name="check" size={12} stroke="#fff" />}
+                  </span>
+                )}
                 {o.sub ? (
                   <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <span style={{ fontWeight: 500 }}>{o.label}</span>
                     <span style={{ fontSize: 10.5, color: "var(--fg-muted)", letterSpacing: "0.06em" }}>{o.sub}</span>
                   </span>
                 ) : <span style={{ fontWeight: active ? 500 : 400 }}>{o.label}</span>}
-                {active && <Icon name="check" size={15} stroke="var(--peach)" style={{ marginLeft: "auto" }} />}
+                {active && !multi && <Icon name="check" size={15} stroke="var(--peach)" style={{ marginLeft: "auto" }} />}
               </button>
             );
           })}
+          {shown.length === 0 && <div style={{ padding: "16px 12px", textAlign: "center", fontFamily: "var(--sans)", fontSize: 12, color: "var(--fg-muted)" }}>Sin resultados</div>}
+          </div>
         </div>
       )}
     </div>
