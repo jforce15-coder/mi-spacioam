@@ -10,17 +10,8 @@
      (window.SpacioAMDesignSystem_2c08fe.Icon); si no, cae al set del dashboard. */
   function NIcon(props) {
     var ns = window.SpacioAMDesignSystem_2c08fe;
-    var dsIcon = ns && ns.Icon;
-    var I = dsIcon || window.Icon;
+    var I = (ns && ns.Icon) || window.Icon;
     if (!I) return null;
-    // El Icon del DS lee `color` (no `stroke`). Traducimos para que el color
-    // funcione igual con el set del DS y con el set local del dashboard.
-    if (dsIcon && props && props.stroke && props.color == null) {
-      var p = {};
-      for (var k in props) if (k !== "stroke") p[k] = props[k];
-      p.color = props.stroke;
-      props = p;
-    }
     return React.createElement(I, props);
   }
   var C = { peach: "#E9826A" };
