@@ -419,17 +419,24 @@
       live: true, rate: GTQ_RATE, monthKeys, MONTHS_ES, MONTHS_EN, setupHead: setup.head || [],
       properties: byId, propertyList: Object.values(propByName), owners, admin, contador,
       effCreds: eff,
-      // Convierte el perfil del auth unificado en un "owner" del dashboard
+      // Convierte el perfil del auth unificado en un "owner" del dashboard.
+      // Vincula por LLAVE ESTABLE (user_id), luego código de socio, y solo al
+      // final por correo — así cambiar el correo nunca desvincula al usuario.
       fromProfile(p) {
         const email = (p.email || "").toLowerCase();
+        const uid = p.user_id || p.userId || "";
+        const codes = [].concat(p.codes || p.usuario || p.code || []).map(c => String(c).toLowerCase());
         const rol = (p.apps && p.apps.mi) || "";
-        if (rol === "admin_principal") return Object.assign({}, admin, { email: p.email, avatar: p.foto || "" });
-        if (rol === "contador") return Object.assign({}, contador, { email: p.email });
-        const found = owners.find(o => {
+        if (rol === "admin_principal") return Object.assign({}, admin, { user_id: uid, email: p.email, avatar: p.foto || "" });
+        if (rol === "contador") return Object.assign({}, contador, { user_id: uid, email: p.email });
+        const byUid = uid && owners.find(o => (o.user_id || "") === uid);
+        const byCode = !byUid && codes.length && owners.find(o => (o.codes || [o.code]).some(c => codes.indexOf(String(c).toLowerCase()) >= 0));
+        const byEmail = !byUid && !byCode && owners.find(o => {
           const e = eff(o);
           return (e.email || "").toLowerCase() === email || (e.secondaryEmail || "").toLowerCase() === email;
         });
-        return found ? Object.assign({}, found, { avatar: p.foto || found.avatar || "" }) : Object.assign({ code: "__u__", name: p.nombre || p.email, email: p.email, props: [], avatar: p.foto || "" });
+        const found = byUid || byCode || byEmail;
+        return found ? Object.assign({}, found, { user_id: uid || found.user_id || "", avatar: p.foto || found.avatar || "" }) : Object.assign({ code: "__u__", user_id: uid, name: p.nombre || p.email, email: p.email, props: [], avatar: p.foto || "" });
       },
       auth(login, pass) {
         const L = String(login || "").trim().toLowerCase();

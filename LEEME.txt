@@ -6,7 +6,9 @@ Sube/reemplaza estos archivos en la RAÍZ del repo (en iPad: abre cada archivo �
 lápiz → pega el contenido → Commit; los nuevos con "Create new file").
 
 CAMBIADOS EN ESTA ENTREGA
-- Dashboard de Propietarios.html   (carga sa-auth-client + versiones de caché)
+- index.html        AHORA es el dashboard completo (antes solo redirigía)
+- sheets.js        fromProfile vincula por user_id → código → correo
+                   (cambiar el correo ya NO desvincula al usuario)
 - login.jsx        login unificado + primer ingreso (crear contraseña)
 - sheets.js        fromProfile() para el auth unificado
 - sa-auth-client.js  NUEVO · cliente del control de usuarios
@@ -29,3 +31,10 @@ ANTES DE PROBAR EL LOGIN UNIFICADO
 NOTA
 - El módulo de control de usuarios (hojas + Apps Script) va en su propia entrega:
   carpeta entrega-control-usuarios (archivos 01–04). No es parte de este repo.
+
+PARA QUE TODO CARGUE EN https://mi.spacioam.com (sin /Dashboard...html)
+- Sube index.html (ES el dashboard). En el repo, BORRA estos archivos:
+    · Dashboard de Propietarios.html   (el nombre con espacios que se veía en la URL)
+  Ya no hace falta el index.html viejo de redirección: al reemplazarlo por este,
+  GitHub Pages sirve el dashboard en la raíz del dominio.
+- Mantén CNAME (mi.spacioam.com) como está.
