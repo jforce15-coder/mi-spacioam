@@ -32,6 +32,14 @@ NOTA
 - El módulo de control de usuarios (hojas + Apps Script) va en su propia entrega:
   carpeta entrega-control-usuarios (archivos 01–04). No es parte de este repo.
 
+DESIGN SYSTEM — OBLIGATORIO PARA EL COLOR/GLIFO DEL NOTIBELL
+- El index.html carga _ds/spacio-am-design-system-2c08fe78-.../
+  _ds_bundle.js. Si esa carpeta NO está en el repo, en producción da 404 y el
+  NotiBell cae al set local (glifo distinto). POR ESO esta entrega YA incluye:
+    _ds/spacio-am-design-system-2c08fe78-561e-46a1-8758-5fd6396bf54d/_ds_bundle.js
+  Súbela al repo en ESA MISMA RUTA (respeta las carpetas). Con eso el bell se ve
+  igual que en producción de las otras apps.
+
 PARA QUE TODO CARGUE EN https://mi.spacioam.com (sin /Dashboard...html)
 - Sube index.html (ES el dashboard). En el repo, BORRA estos archivos:
     · Dashboard de Propietarios.html   (el nombre con espacios que se veía en la URL)
