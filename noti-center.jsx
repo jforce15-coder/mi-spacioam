@@ -42,7 +42,7 @@
     return (
       <button onClick={function (e) { e.stopPropagation(); onOpen && onOpen(); }} title={total + " pendiente" + (total === 1 ? "" : "s")} aria-label={"Notificaciones (" + total + ")"}
         style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", flexShrink: 0, padding: 0, color: "#0088FF" }}>
-        <NIcon name="alert" size={23} stroke="#0088FF" color="#0088FF" />
+        <NIcon name="alert" size={23} strokeWidth={1.5} stroke="#0088FF" color="#0088FF" />
         <span style={{ position: "absolute", top: -1, right: -1, minWidth: 18, height: 18, boxSizing: "border-box", padding: "0 5px", borderRadius: 999, background: "var(--accent,#E9826A)", color: "#fff", fontSize: 10.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 3px rgba(0,0,0,.28)" }}>{total > 99 ? "99+" : total}</span>
       </button>
     );
