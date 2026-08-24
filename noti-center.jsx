@@ -42,7 +42,10 @@
     return (
       <button onClick={function (e) { e.stopPropagation(); onOpen && onOpen(); }} title={total + " pendiente" + (total === 1 ? "" : "s")} aria-label={"Notificaciones (" + total + ")"}
         style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, borderRadius: 999, border: "none", background: "transparent", cursor: "pointer", flexShrink: 0, padding: 0, color: "#0088FF" }}>
-        <NIcon name="alert" size={23} strokeWidth={1.5} stroke="#0088FF" color="#0088FF" />
+        {(function(){return React.createElement("svg",{width:23,height:23,viewBox:"0 0 24 24",fill:"none",stroke:"#0088FF",strokeWidth:1.5,strokeLinecap:"round",strokeLinejoin:"round"},
+          React.createElement("path",{d:"M12 3.2L2.4 19.6a1 1 0 00.87 1.5h17.46a1 1 0 00.87-1.5L12 3.2z"}),
+          React.createElement("path",{d:"M12 9v5"}),
+          React.createElement("path",{d:"M12 17.2v.05"}));})()}
         <span style={{ position: "absolute", top: -1, right: -1, minWidth: 18, height: 18, boxSizing: "border-box", padding: "0 5px", borderRadius: 999, background: "var(--accent,#E9826A)", color: "#fff", fontSize: 10.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 3px rgba(0,0,0,.28)" }}>{total > 99 ? "99+" : total}</span>
       </button>
     );
