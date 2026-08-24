@@ -427,7 +427,7 @@
   <script src="conta-opex.js?v=20260820"></script>
   <script type="text/babel" src="ui.jsx?v=20260826"></script>
   <script src="noti-data.js?v=20260821"></script>
-  <script type="text/babel" src="noti-center.jsx?v=20260846"></script>
+  <script type="text/babel" src="noti-center.jsx?v=20260851"></script>
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
   <script type="text/babel" src="login.jsx?v=20260823"></script>
   <script type="text/babel" src="pedidosya-ui.jsx?v=20260826"></script>
@@ -718,7 +718,7 @@
       const es = lang !== "en";
       return (
         <div style={{ minHeight: "100dvh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "var(--alabaster)", padding: 24, textAlign: "center" }}>
-          <div style={{ marginBottom: 30 }}><img src="logo-wordmark.png" alt="Spacio AM" style={{ height: 72, width: "auto", display: "block" }} /></div>
+          <div style={{ marginBottom: 30 }}><img src="logo-wordmark.png" alt="Spacio AM" style={{ width: 172, maxWidth: "70vw", height: "auto", display: "block" }} /></div>
           {state === "loading" && (
             <React.Fragment>
               <div className="sa-spin" style={{ width: 26, height: 26, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%" }} />
