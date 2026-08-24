@@ -268,9 +268,15 @@
   function NotiPush(props) {
     var notis = props.notis || [];
     var onOpen = props.onOpen;
-    var push = useNotiPush(notis, props.storeKey);
+    /* Delay de 10s al cargar: el primer banner no aparece hasta pasados 10s. */
+    var rd = useState(false); var ready = rd[0], setReady = rd[1];
+    React.useEffect(function () {
+      var t = setTimeout(function () { setReady(true); }, 10000);
+      return function () { clearTimeout(t); };
+    }, []);
+    var push = useNotiPush(ready ? notis : [], props.storeKey);
     var item = push.toasts[0];
-    if (!item) return null;
+    if (!ready || !item) return null;
     return React.createElement(NotiToast, { key: notiKey(item), item: item,
       onOpen: function () { onOpen && onOpen(); push.close(item); },
       onClose: function () { push.close(item); } });
