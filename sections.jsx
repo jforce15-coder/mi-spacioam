@@ -231,6 +231,11 @@ function expenseKey(r) {
 
 const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const { money } = fmt;
+  // insumos & gastos se registra en GTQ: en modo GTQ se muestra el valor crudo
+  // (amountGTQ) sin la conversión USD↔GTQ, que introducía un desfase de redondeo.
+  const expGTQ = (r) => (r.amountGTQ != null ? r.amountGTQ : (r.amount || 0) * SpacioI18n.GTQ_RATE);
+  const expAmt = (r) => fmt.currency === "GTQ" ? fmt.gtq(expGTQ(r)) : money(r.amount);
+  const expSum = (rs) => fmt.currency === "GTQ" ? fmt.gtq(rs.reduce((a, r) => a + expGTQ(r), 0)) : money(rs.reduce((a, r) => a + (r.amount || 0), 0));
   const [open, setOpen] = useState(false);
   const [invBox, setInvBox] = useState(null);
   const [repBox, setRepBox] = useState(null);   // detalle del reporte de mantenimiento
@@ -290,6 +295,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const rowsTotal = rows.reduce((a, r) => a + (r.amount || 0), 0);
   const resumenTotal = pdata.cur.insumos + pdata.cur.reparaciones;
   const total = rows.length ? rowsTotal : resumenTotal;
+  const totalDisplay = fmt.currency === "GTQ" ? (rows.length ? expSum(rows) : money(resumenTotal)) : money(total);
   // mes (número 1–12) del período visto, para disparar el recálculo en la hoja
   const recalcMonth = (sliceMonths[sliceMonths.length - 1] || {}).m;
   const recalcYear = (sliceMonths[sliceMonths.length - 1] || {}).y;
@@ -349,7 +355,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
       <SectionHead eyebrow={t("sec_expenses")} title={t("exp_title")} sub={t("exp_sub")}
         right={<div style={{ textAlign: "right" }}>
           <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("exp_total")} · {lang === "es" ? "consolidado" : "consolidated"}</div>
-          <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 26, color: "var(--ink)", marginTop: 4 }}>{money(total)}</div>
+          <div style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 26, color: "var(--ink)", marginTop: 4 }}>{totalDisplay}</div>
         </div>} />
       {rows.length > 0 && (
         <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "-8px 0 18px", maxWidth: 560 }}>
@@ -372,7 +378,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                   <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--peach)" }}></span>
                   <span style={{ fontFamily: "var(--serif)", fontSize: 16.5, color: "var(--ink)" }}>{pk}</span>
                 </span>
-                <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{money(byProp[pk].reduce((s, r) => s + r.amount, 0))}</span>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{expSum(byProp[pk])}</span>
               </div>
             )}
             {catGroups(byProp[pk]).map(([k, items0], gi) => {
@@ -385,7 +391,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                   <span className="sa-exp-ic"><Icon name={iconFor(k)} size={16} stroke="var(--ink)" /></span>
                   <span style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--ink)" }}>{k}</span>
                 </span>
-                <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{money(sub)}</span>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>{expSum(items)}</span>
               </div>
               {items.map((r, i) => (
                 <div key={i} className="sa-exp-row">
@@ -429,7 +435,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                       </span>
                     )}
                   </span>
-                  <span className="sa-exp-amt">{money(r.amount)}</span>
+                  <span className="sa-exp-amt">{expAmt(r)}</span>
                 </div>
               ))}
             </div>

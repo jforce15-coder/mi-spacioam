@@ -1,48 +1,18 @@
-DEPLOY A GITHUB — mi-spacioam
-=============================
-Repo: github.com/jforce15-coder/mi-spacioam
+ENTREGA · Facturas SAT + Contabilidad · 25 ago 2026
 
-Sube/reemplaza estos archivos en la RAÍZ del repo (en iPad: abre cada archivo →
-lápiz → pega el contenido → Commit; los nuevos con "Create new file").
+SUBIR AL HOSTING / REPO (8 archivos, reemplazan los actuales):
+  index.html          versiones nuevas de scripts + fflate
+  pedidosya-parse.js  lector XML DTE + auto-conciliacion (+-2 dias)
+  pedidosya.jsx       panel "Facturas SAT": zip -> auto + manual (solo
+                      comentario "insumos") + sobrantes vs contabilidad +
+                      retenciones ISR en Depositos
+  pedidosya-ui.jsx    estilos (barra fija, split manual, scroll contenido)
+  sections.jsx        monto GTQ exacto (175.55, no 177)
+  sheets.js           lee la columna "factura" de Contabilidad
+  conta-store.js      dedupe de movimientos (arregla los 135 sin clasificar)
+  conta.jsx           columna "Factura" con link "Ver" en Estados de cuenta
 
-CAMBIADOS EN ESTA ENTREGA
-- index.html        AHORA es el dashboard completo (antes solo redirigía)
-- sheets.js        fromProfile vincula por user_id → código → correo
-                   (cambiar el correo ya NO desvincula al usuario)
-- login.jsx        login unificado + primer ingreso (crear contraseña)
-- sheets.js        fromProfile() para el auth unificado
-- sa-auth-client.js  NUEVO · cliente del control de usuarios
-- dashboard.jsx    NotiBell junto al logo · filtros con búsqueda/orden/multi
-- ui.jsx           Select con búsqueda, orden alfabético y multi-selección
-- noti-center.jsx  push liquid-glass (translúcido real) + ícono squircle sparkle
-- sections.jsx     Mi cuenta y Setup: nombre en 4 partes · Setup por socio
-- noti-data.js     (sin cambios funcionales nuevos; incluido por consistencia)
-
-RESTO (incluidos por consistencia; súbelos solo si difieren de tu repo)
-- charts.jsx, files.js, facturas-batch.js, i18n.js, conta.jsx, conta-pl.jsx,
-  pedidosya.jsx, pedidosya-ui.jsx, spacio-tokens.css
-
-ANTES DE PROBAR EL LOGIN UNIFICADO
-1) Publica el endpoint del control de usuarios (entrega-control-usuarios/03)
-   como App web y copia su URL /exec.
-2) En sa-auth-client.js reemplaza PEGA_AQUI_SA_AUTH_URL por esa URL /exec.
-   (Con el placeholder, el login usa el respaldo viejo y NO se rompe nada.)
-
-NOTA
-- El módulo de control de usuarios (hojas + Apps Script) va en su propia entrega:
-  carpeta entrega-control-usuarios (archivos 01–04). No es parte de este repo.
-
-DESIGN SYSTEM — OBLIGATORIO PARA EL COLOR/GLIFO DEL NOTIBELL
-- El index.html carga _ds/spacio-am-design-system-2c08fe78-.../
-  _ds_bundle.js. Si esa carpeta NO está en el repo, en producción da 404 y el
-  NotiBell cae al set local (glifo distinto). POR ESO esta entrega YA incluye:
-    _ds/spacio-am-design-system-2c08fe78-561e-46a1-8758-5fd6396bf54d/_ds_bundle.js
-  Súbela al repo en ESA MISMA RUTA (respeta las carpetas). Con eso el bell se ve
-  igual que en producción de las otras apps.
-
-PARA QUE TODO CARGUE EN https://mi.spacioam.com (sin /Dashboard...html)
-- Sube index.html (ES el dashboard). En el repo, BORRA estos archivos:
-    · Dashboard de Propietarios.html   (el nombre con espacios que se veía en la URL)
-  Ya no hace falta el index.html viejo de redirección: al reemplazarlo por este,
-  GitHub Pages sirve el dashboard en la raíz del dominio.
-- Mantén CNAME (mi.spacioam.com) como está.
+DESPUES DE SUBIR
+1. Despliega tambien el Apps Script (carpeta entrega-appscript).
+2. Recarga con cache limpio (Cmd+Shift+R).
+3. Vuelve a subir el consulta.zip la primera vez.

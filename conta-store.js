@@ -28,11 +28,20 @@
   function backendStatement(ym, accId) {
     const rs = backendRows().filter(r => r.ym === ym && r.account === accId);
     if (!rs.length) return null;
-    const pdfUrl = (rs.find(r => r.pdfUrl) || {}).pdfUrl || "";
+    // DEDUPE: versiones viejas del Apps Script acumulaban filas en vez de
+    // reemplazarlas. Mismo movimiento (fecha|doc|desc|debe|haber|saldo) → se
+    // queda la ÚLTIMA escritura, salvo que pierda un tag que otra sí tenía.
+    const seen = {}; const uniq = [];
+    rs.forEach(r => {
+      const k = [r.date, r.doc, r.desc, r.debit, r.credit, r.saldo].join("|");
+      if (seen[k] == null) { seen[k] = uniq.length; uniq.push(r); }
+      else { const prev = uniq[seen[k]]; if (!(prev.tag && !r.tag)) uniq[seen[k]] = r; else if (!prev.factura && r.factura) prev.factura = r.factura; }
+    });
+    const pdfUrl = (uniq.find(r => r.pdfUrl) || {}).pdfUrl || "";
     return {
-      ym, accId, currency: rs[0].currency || "", fromBackend: true,
+      ym, accId, currency: uniq[0].currency || "", fromBackend: true,
       pdf: pdfUrl ? { url: pdfUrl, name: "" } : null,
-      rows: rs.map(r => ({ date: r.date, doc: r.doc, desc: r.desc, debit: r.debit, credit: r.credit, saldo: r.saldo, tt: r.tt, tag: r.tag, category: r.category, source: r.tag ? "backend" : null, reviewed: !!r.tag })),
+      rows: uniq.map(r => ({ date: r.date, doc: r.doc, desc: r.desc, debit: r.debit, credit: r.credit, saldo: r.saldo, tt: r.tt, tag: r.tag, category: r.category, factura: r.factura || "", source: r.tag ? "backend" : null, reviewed: !!r.tag })),
     };
   }
   function backendKeys() {
@@ -70,7 +79,7 @@
           totals: stmt.totals || null, pdf: stmt.pdf || null,
           rows: (stmt.rows || []).map(r => ({
             date: r.date, doc: r.doc, desc: r.desc, debit: r.debit, credit: r.credit,
-            saldo: r.saldo, tt: r.tt, tag: r.tag || "", categoria: r.category || "",
+            saldo: r.saldo, tt: r.tt, tag: r.tag || "", categoria: r.category || "", factura: r.factura || "",
           })),
         }).catch(() => {});
       }

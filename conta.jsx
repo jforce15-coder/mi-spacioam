@@ -214,7 +214,7 @@ function ContaUpload({ ym, onSaved, lang, t }) {
 }
 
 // ---------- tabla de movimientos ----------
-function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDeleteStatement, filesTick }) {
+function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDeleteStatement, filesTick, onViewFactura }) {
   const tr = (es, en) => (lang === "es" ? es : en);
   const ql = (q || "").trim().toLowerCase();
   const filtered = statements.map(s => {
@@ -268,7 +268,7 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
                   <tr>
                     <th>{tr("Fecha", "Date")}</th><th>{tr("Doc", "Doc")}</th><th style={{ minWidth: 220 }}>{tr("Descripción", "Description")}</th>
                     <th className="num">{tr("Debe", "Debit")}</th><th className="num">{tr("Haber", "Credit")}</th><th className="num">{tr("Saldo", "Balance")}</th>
-                    <th style={{ minWidth: 180 }}>{tr("Tag", "Tag")}</th><th>{tr("Categoría", "Category")}</th>
+                    <th style={{ minWidth: 180 }}>{tr("Tag", "Tag")}</th><th>{tr("Categoría", "Category")}</th><th>{tr("Factura", "Invoice")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -285,6 +285,11 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
                         : <span style={{ color: r.tag ? "var(--ink)" : "var(--peach)", fontSize: 12 }}>{r.tag || tr("Sin clasificar", "Unclassified")}</span>}
                       </td>
                       <td style={{ color: "var(--fg-muted)", fontSize: 11.5 }}>{r.category}</td>
+                      <td>{r.factura ? (
+                        <button onClick={() => onViewFactura && onViewFactura(r.factura)} title={r.factura} style={{ display: "inline-flex", alignItems: "center", gap: 5, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 9, padding: "5px 10px", fontFamily: "var(--sans)", fontSize: 11, color: "var(--ink)", whiteSpace: "nowrap" }}>
+                          <Icon name="eye" size={13} stroke="currentColor" />{tr("Ver", "View")}
+                        </button>
+                      ) : null}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -334,6 +339,12 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
   const [accFilter, setAccFilter] = useState("all");
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
+  const [facturaBox, setFacturaBox] = useState(null);
+  const onViewFactura = (auth) => {
+    const inv = window.pyaSatInvoiceByAuth ? window.pyaSatInvoiceByAuth(auth) : null;
+    if (inv) setFacturaBox(inv);
+    else window.alert(tr("La factura " + auth + " no está en el ZIP cargado. Súbelo de nuevo en Gastos e inversiones → Facturas SAT para poder verla.", "Invoice " + auth + " is not in the loaded ZIP."));
+  };
   const [dlOpen, setDlOpen] = useState(false);
   const dlRef = useRef(null);
   useEffect(() => {
@@ -494,8 +505,9 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
           )}
         </div>
       ) : (
-        <ContaLedger statements={statements} isAdmin={isAdmin} q={q} status={status} lang={lang} onEditTag={onEditTag} onDeleteStatement={onDeleteStatement} filesTick={tick} />
+        <ContaLedger statements={statements} isAdmin={isAdmin} q={q} status={status} lang={lang} onEditTag={onEditTag} onDeleteStatement={onDeleteStatement} filesTick={tick} onViewFactura={onViewFactura} />
       )}
+      {facturaBox && window.PyaDteBox && <window.PyaDteBox inv={facturaBox} lang={lang} onClose={() => setFacturaBox(null)} />}
       </React.Fragment>
       )}
     </div>

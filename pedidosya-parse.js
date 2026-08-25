@@ -624,6 +624,124 @@
   function readText(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsText(file); }); }
   function readArrayBuffer(file) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsArrayBuffer(file); }); }
 
+  // ============================================================
+  // 4) DTE XML individual (consulta.zip del SAT) → factura con DETALLE
+  //    Cada XML trae emisor, cada línea (desc/precio/desc/IVA), total y
+  //    número de autorización. Es lo que el resumen (xls) NO trae.
+  // ============================================================
+  function _dteT(el, tag) { if (!el) return ""; const n = el.getElementsByTagName("dte:" + tag)[0]; return n ? n.textContent.trim() : ""; }
+  function _dteDay(iso) { const m = String(iso || "").match(/(\d{4})-(\d{2})-(\d{2})/); return m ? m[1] + "-" + m[2] + "-" + m[3] : null; }
+
+  function parseDTEText(text, fileName) {
+    let doc; try { doc = new DOMParser().parseFromString(text, "application/xml"); } catch (e) { return null; }
+    if (!doc || doc.getElementsByTagName("parsererror").length) return null;
+    const de = doc.getElementsByTagName("dte:DatosEmision")[0]; if (!de) return null;
+    const dg = de.getElementsByTagName("dte:DatosGenerales")[0];
+    const em = de.getElementsByTagName("dte:Emisor")[0];
+    const re = de.getElementsByTagName("dte:Receptor")[0];
+    const cert = doc.getElementsByTagName("dte:Certificacion")[0];
+    const autEl = cert ? cert.getElementsByTagName("dte:NumeroAutorizacion")[0] : null;
+    const items = [].slice.call(de.getElementsByTagName("dte:Item")).map(function (it) {
+      const imp = it.getElementsByTagName("dte:Impuesto")[0];
+      return { linea: +(it.getAttribute("NumeroLinea") || 0), cant: numQ(_dteT(it, "Cantidad")), unidad: _dteT(it, "UnidadMedida"),
+        desc: _dteT(it, "Descripcion"), pu: numQ(_dteT(it, "PrecioUnitario")), descuento: numQ(_dteT(it, "Descuento")),
+        gravable: imp ? numQ(_dteT(imp, "MontoGravable")) : 0, iva: imp ? numQ(_dteT(imp, "MontoImpuesto")) : 0, total: numQ(_dteT(it, "Total")) };
+    });
+    const nit = digits(em ? em.getAttribute("NITEmisor") : "");
+    const ivaEl = de.getElementsByTagName("dte:TotalImpuesto")[0];
+    const dir = em ? em.getElementsByTagName("dte:DireccionEmisor")[0] : null;
+    const totales = de.getElementsByTagName("dte:Totales")[0];
+    const uuid = autEl ? autEl.textContent.trim() : String(fileName || "").replace(/\.xml$/i, "");
+    return {
+      id: uuid || ("x" + Math.random().toString(36).slice(2)),
+      auth: uuid, serie: autEl ? autEl.getAttribute("Serie") : "", autNum: autEl ? autEl.getAttribute("Numero") : "",
+      raw: text, file: fileName || "",
+      tipo: dg ? dg.getAttribute("Tipo") : "", moneda: dg ? dg.getAttribute("CodigoMoneda") : "GTQ",
+      fechaISO: dg ? dg.getAttribute("FechaHoraEmision") : "", day: _dteDay(dg ? dg.getAttribute("FechaHoraEmision") : ""),
+      nit: nit, emisor: em ? em.getAttribute("NombreEmisor") : "", comercial: em ? em.getAttribute("NombreComercial") : "",
+      establec: em ? em.getAttribute("CodigoEstablecimiento") : "",
+      dir: dir ? _dteT(dir, "Direccion") : "", municipio: dir ? _dteT(dir, "Municipio") : "", depto: dir ? _dteT(dir, "Departamento") : "",
+      receptor: re ? re.getAttribute("NombreReceptor") : "", nitReceptor: re ? digits(re.getAttribute("IDReceptor")) : "",
+      items: items, ivaTotal: ivaEl ? numQ(ivaEl.getAttribute("TotalMontoImpuesto")) : 0,
+      total: numQ(_dteT(totales, "GranTotal")),
+      certificador: cert ? _dteT(cert, "NombreCertificador") : "", certDate: cert ? _dteDay(_dteT(cert, "FechaHoraCertificacion")) : "",
+      kind: nit === NIT_PRODUCTOS ? "productos" : nit === NIT_TARIFA ? "tarifa" : "otro",
+      vigente: true,
+    };
+  }
+
+  // acepta .zip (fflate) y .xml sueltos; dedupe por nº de autorización (UUID)
+  async function parseDTEFiles(files) {
+    const invoices = [], seen = {}; let dup = 0, bad = 0;
+    const add = (text, fn) => { const inv = parseDTEText(text, fn); if (!inv) { bad++; return; } if (seen[inv.id]) { dup++; return; } seen[inv.id] = 1; invoices.push(inv); };
+    for (const f of files) {
+      const name = (f.name || "").toLowerCase();
+      if (/\.zip$/.test(name)) {
+        if (!window.fflate) { bad++; continue; }
+        try { const buf = new Uint8Array(await f.arrayBuffer()); const unz = window.fflate.unzipSync(buf); const dec = new TextDecoder();
+          Object.keys(unz).forEach(fnm => { if (/\.xml$/i.test(fnm)) add(dec.decode(unz[fnm]), fnm.split("/").pop()); });
+        } catch (e) { bad++; }
+      } else if (/\.xml$/.test(name)) {
+        try { add(await f.text(), f.name); } catch (e) { bad++; }
+      }
+    }
+    invoices.sort((a, b) => (a.day < b.day ? 1 : a.day > b.day ? -1 : 0) || (b.total - a.total));
+    return { invoices, stats: { count: invoices.length, dup, bad,
+      productos: invoices.filter(x => x.kind === "productos").length,
+      tarifa: invoices.filter(x => x.kind === "tarifa").length,
+      otros: invoices.filter(x => x.kind === "otro").length } };
+  }
+
+  // Auto-conciliación: empareja los gastos "insumos & gastos" (SIN factura) con
+  // las facturas del ZIP por FECHA + MONTO. Primero 1 factura; luego combos de 2.
+  // Ventana de fecha ±2 días (el proveedor a veces factura 1-2 días después).
+  function autoConciliate(expenses, invoices, opts) {
+    opts = opts || {};
+    const WIN = opts.dayWindow != null ? opts.dayWindow : 2;
+    const _r = (n) => Math.round(n * 100) / 100;
+    const TOL = 0.06;
+    const used = {}, matches = [];
+    const exps = (expenses || []).map(e => Object.assign({}, e, { target: _r(e.valor * (e.mult > 1 ? e.mult : 1)) }));
+    const near = (e) => (invoices || []).filter(inv => !used[inv.id] && e.fecha && inv.day && dayDiff(inv.day, e.fecha) <= WIN);
+    // pass 1 — una factura (la más cercana en fecha)
+    exps.forEach(e => {
+      if (e._done) return;
+      const c = near(e).filter(inv => Math.abs(inv.total - e.target) <= TOL);
+      if (c.length) { c.sort((a, b) => dayDiff(a.day, e.fecha) - dayDiff(b.day, e.fecha)); const hit = c[0]; used[hit.id] = 1; e._done = 1; matches.push({ expense: e, invoices: [hit], sum: hit.total, kind: "single" }); }
+    });
+    // pass 2 — combos de 2 facturas
+    exps.forEach(e => {
+      if (e._done) return;
+      const c = near(e);
+      for (let i = 0; i < c.length; i++) for (let j = i + 1; j < c.length; j++) {
+        if (Math.abs(c[i].total + c[j].total - e.target) <= TOL) {
+          used[c[i].id] = 1; used[c[j].id] = 1; e._done = 1;
+          matches.push({ expense: e, invoices: [c[i], c[j]], sum: _r(c[i].total + c[j].total), kind: "pair" });
+          return;
+        }
+      }
+    });
+    return {
+      matches,
+      unmatchedExpenses: exps.filter(e => !e._done),
+      unmatchedInvoices: (invoices || []).filter(inv => !used[inv.id]),
+    };
+  }
+
+  // Construye el payload de linkFacturas para una conciliación (1 o 2 facturas).
+  function linkPayload(expense, invs) {
+    const prod = invs.find(x => x.kind === "productos") || invs[0];
+    const tar = invs.find(x => x.kind === "tarifa") || (invs[1] || null);
+    return {
+      fecha: expense.fecha,
+      total: Math.round((invs.reduce((s, x) => s + x.total, 0)) * 100) / 100,
+      orderId: (prod && prod.auth) || (tar && tar.auth) || "",
+      orderUrl: "",
+      authProductos: prod ? prod.auth : "",
+      authTarifa: tar ? tar.auth : "",
+    };
+  }
+
   window.PedidosYa = {
     NIT_PRODUCTOS, NIT_TARIFA, TOL, REVIEW_TOL,
     parseOrderFiles, parseSATFile, parseOrdersText,
@@ -631,6 +749,8 @@
     // SAT-only flow + manual + deposits
     pairSATInvoices, buildCommentLine, toSheetRowFromLine,
     manualSheetRows, extractDeposit, matchProperty, parseSpanishDate,
+    // DTE detalle + auto-conciliación (consulta.zip)
+    parseDTEText, parseDTEFiles, autoConciliate, linkPayload,
     links, money, prettyDay, mesLargoES, localDayGT, numQ,
   };
 })();

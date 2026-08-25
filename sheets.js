@@ -677,6 +677,7 @@
         credit: parseFloat(String(r["haber"] || "").replace(/[^0-9.\-]/g, "")) || 0,
         saldo: parseFloat(String(r["saldo"] || "").replace(/[^0-9.\-]/g, "")) || 0,
         tt: (r["tt"] || "").trim(), tag: (r["tag"] || "").trim(), category: (r["categoria"] || "").trim(),
+        factura: (r["factura"] || "").trim(),
         pdfUrl: (r["pdf_url"] || "").trim(), savedAt: (r["savedAt"] || "").trim(),
       })).filter(r => r.ym && r.account);
     } catch (e) { data.conta = []; }

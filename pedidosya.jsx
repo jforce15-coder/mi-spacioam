@@ -30,15 +30,41 @@ const PYA_LOCAL_KEY = "sa-pya-imported";
 function pyaLocalImported() { try { return new Set(JSON.parse(localStorage.getItem(PYA_LOCAL_KEY)) || []); } catch (e) { return new Set(); } }
 function pyaLocalAdd(ids) { const s = pyaLocalImported(); ids.forEach(id => s.add(String(id))); localStorage.setItem(PYA_LOCAL_KEY, JSON.stringify([...s])); }
 
-// normaliza fechas de la hoja a "yyyy-mm-dd" (acepta dd/mm/yyyy y yyyy-mm-dd)
-function pyaNormFecha(v) {
+// Borrador de la conciliación SAT: sobrevive a recargas y cambios de pestaña.
+// Guarda las facturas leídas (sin el XML crudo) + el estado de conciliación.
+const PYA_SAT_DRAFT_KEY = "sa-pya-sat-draft";
+const PYA_SAT_DRAFT_VER = 2;
+function pyaSatDraftLoad() {
+  try {
+    const d = JSON.parse(localStorage.getItem(PYA_SAT_DRAFT_KEY));
+    if (!d || d.v !== PYA_SAT_DRAFT_VER || !Array.isArray(d.invoices)) return null;
+    // descarta borradores de versiones viejas/corruptos (evita “undefined NaN”)
+    const ok = d.invoices.every(x => x && x.id && typeof x.total === "number" && !isNaN(x.total) && x.emisor != null && x.day);
+    return ok ? d : null;
+  } catch (e) { return null; }
+}
+
+// normaliza fechas de la hoja a "yyyy-mm-dd" (acepta dd/mm/yyyy, yyyy-mm-dd y “1 Jul”)
+function pyaNormFecha(v, yearHint) {
   const s = String(v || "").trim();
   let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
   m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+  // “1 Jul” / “14 ago” / “1 de julio de 2026” — así guarda la hoja las fechas
+  m = s.match(/^(\d{1,2})\s*(?:de\s+)?([A-Za-z\u00c0-\u00ff]{3,})\.?\s*(?:de\s+)?(\d{4})?$/);
+  if (m) {
+    const MM = { ene:1, jan:1, feb:2, mar:3, abr:4, apr:4, may:5, jun:6, jul:7, ago:8, aug:8, sep:9, set:9, oct:10, nov:11, dic:12, dec:12 };
+    const mo = MM[m[2].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").slice(0, 3)];
+    if (mo) {
+      const y = m[3] ? parseInt(m[3], 10) : (yearHint || new Date().getFullYear());
+      return y + "-" + ("0" + mo).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+    }
+  }
   return s;
 }
+// Año de una celda “Mes” tipo “Julio 2026”; null si no trae año.
+function pyaYearOfMes(v) { const m = String(v || "").match(/(20\d{2})/); return m ? parseInt(m[1], 10) : null; }
 
 // memoria local de depósitos ya guardados (firma archivo|tamaño) para no re-cargarlos
 const PYA_DEP_KEY = "sa-pya-deposits";
@@ -114,22 +140,25 @@ const PedidosYaImport = ({ lang }) => {
     fetch(url).then(r => r.text()).then(txt => {
       const parsed = pyaParseCSV(txt); if (!parsed.length) return;
       const head = parsed[0].map(h => h.trim().toLowerCase());
+      const mesCol = head.indexOf("mes");
       const oidCol = head.findIndex(h => h === "orderid" || h === "order id");
       const apCol = head.findIndex(h => h === "authproductos");
       const atCol = head.findIndex(h => h === "authtarifa");
       const fCol = head.findIndex(h => h === "fecha de pedido");
       const vCol = head.findIndex(h => h === "valor");
       const cCol = head.findIndex(h => h === "comentario");
+      const pCol = head.findIndex(h => h === "property_name");
+      const catCol = head.findIndex(h => h === "categoria");
       const ids = new Set(), rows = [];
       for (let i = 1; i < parsed.length; i++) {
         const r = parsed[i];
         [oidCol, apCol, atCol].forEach(c => { if (c > -1 && r[c] && String(r[c]).trim()) ids.add(String(r[c]).trim()); });
         const hasAuth = (apCol > -1 && String(r[apCol] || "").trim()) || (atCol > -1 && String(r[atCol] || "").trim());
-        const fecha = fCol > -1 ? pyaNormFecha(r[fCol]) : "";
+        const fecha = fCol > -1 ? pyaNormFecha(r[fCol], mesCol > -1 ? pyaYearOfMes(r[mesCol]) : null) : "";
         const valor = vCol > -1 ? (parseFloat(String(r[vCol]).replace(/[^0-9.\-]/g, "")) || 0) : 0;
         const cm = cCol > -1 ? String(r[cCol] || "") : "";
         const mm = cm.match(/\(compartido ÷(\d+)\)/);
-        if (fecha && valor) rows.push({ fecha, valor, mult: mm ? parseInt(mm[1], 10) : 1, hasAuth: !!hasAuth });
+        if (fecha && valor) rows.push({ fecha, valor, mult: mm ? parseInt(mm[1], 10) : 1, hasAuth: !!hasAuth, property_name: pCol > -1 ? String(r[pCol] || "").trim() : "", comentario: cm, orderId: oidCol > -1 ? String(r[oidCol] || "").trim() : "", category: catCol > -1 ? String(r[catCol] || "").trim() : "" });
       }
       setSheetExpenses(rows);
       if (ids.size) setImported(prev => { const n = new Set(prev); ids.forEach(x => n.add(x)); return n; });
@@ -144,7 +173,7 @@ const PedidosYaImport = ({ lang }) => {
   }, []);
 
   const modes = [
-    { k: "sat", label: tr("SAT · PedidosYa", "SAT · PedidosYa"), icon: "file" },
+    { k: "sat", label: tr("Facturas SAT", "SAT invoices"), icon: "file" },
     { k: "manual", label: tr("Gasto manual", "Manual expense"), icon: "coins" },
     { k: "deposit", label: tr("Depósitos", "Deposits"), icon: "wrench" },
     { k: "reportes", label: tr("Reportes", "Reports"), icon: "wrench" },
@@ -190,6 +219,7 @@ const PedidosYaImport = ({ lang }) => {
           </div>
           <div style={{ display: mode === "deposit" ? "block" : "none" }}>
             <PyaDepositPanel lang={lang} propOptions={propOptions} />
+            <PyaRetencionesPanel lang={lang} propOptions={propOptions} />
           </div>
           <div style={{ display: mode === "reportes" ? "block" : "none" }}>
             <PyaReportesPanel lang={lang} propOptions={propOptions} addImported={addImported} active={mode === "reportes"} />
@@ -204,264 +234,393 @@ const PedidosYaImport = ({ lang }) => {
   );
 };
 
-// ============================================================
-// 1) Panel SAT
-// ============================================================
-function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }) {
-  const P = window.PedidosYa;
-  const es = lang !== "en";
-  const tr = (a, b) => (es ? a : b);
-  const [invoices, setInvoices] = pyUseState(null);
-  const [satStats, setSatStats] = pyUseState(null);
-  const [warnings, setWarnings] = pyUseState([]);
-  const [lines, setLines] = pyUseState([]);
-  const [busy, setBusy] = pyUseState("");
-  const [filter, setFilter] = pyUseState("all");
-  const [box, setBox] = pyUseState(null);
-  const [saveMsg, setSaveMsg] = pyUseState("");
-  const [drag, setDrag] = pyUseState(false);
-  const [showOther, setShowOther] = pyUseState(false); // incluir facturas de otras NITs
-  const [query, setQuery] = pyUseState("");            // búsqueda por fecha / monto / emisor
-
-  const catOptions = [
-    { value: "insumos & gastos", label: tr("Insumos & gastos", "Supplies & expenses") },
-    { value: "Reparaciones o inversión", label: tr("Mantenimiento e inversión", "Maintenance & investment") },
-  ];
-  const tagOptions = [
-    { value: "", label: tr("— (es insumo)", "— (is a supply)") },
-    { value: "Restaurante / comida", label: tr("Restaurante / comida", "Restaurant / food") },
-    { value: "Compras ajenas a insumos", label: tr("Compras ajenas a insumos", "Non-supply purchase") },
-    { value: "Gasto Spacio AM", label: tr("Gasto Spacio AM", "Spacio AM expense") },
-  ];
-
-  // re-empareja cuando cambian facturas, importados o el toggle de otras NITs
-  pyUseEffect(() => {
-    if (!invoices) return;
-    setLines(prev => {
-      const fresh = P.pairSATInvoices(invoices, imported, { includeOther: showOther });
-      const byId = {}; prev.forEach(l => byId[l.id] = l);
-      return fresh.map(l => { const old = byId[l.id]; return old ? Object.assign(l, { property_name: old.property_name, orderUrl: old.orderUrl, categoria: old.categoria, tag: old.tag, comentario: old.comentario, include: old.include }) : l; });
-    });
-  }, [invoices, imported, showOther]);
-
-  const onSAT = async (files) => {
-    if (!files || !files.length) return;
-    setBusy("sat"); setWarnings([]);
-    let allInv = [], allWarn = [], stat = { productos: 0, tarifa: 0, total: 0, otros: 0, otrosByNit: [] };
-    for (const f of files) {
-      const res = await P.parseSATFile(f);
-      allInv = allInv.concat(res.invoices); allWarn = allWarn.concat(res.warnings);
-      stat.productos += res.stats.productos; stat.tarifa += res.stats.tarifa; stat.total += res.stats.total; stat.otros += (res.stats.otros || 0);
-      (res.stats.otrosByNit || []).forEach(n => stat.otrosByNit.push(n));
-    }
-    setInvoices(allInv); setSatStats(stat); setWarnings([...new Set(allWarn)]); setBusy("");
-  };
-
-  const setLine = (id, patch) => setLines(ls => ls.map(l => l.id === id ? Object.assign({}, l, patch) : l));
-  const selectable = lines.filter(l => !l.alreadyImported);
-  const selectedRows = selectable.filter(l => l.include && l.property_name);
-  const missingProp = selectable.filter(l => l.include && !l.property_name).length;
-  const allOn = selectable.length > 0 && selectable.every(l => l.include);
-  const toggleAll = () => setLines(ls => ls.map(l => l.alreadyImported ? l : Object.assign({}, l, { include: !allOn })));
-
-  const matchQuery = (l) => {
-    const q = query.trim().toLowerCase();
-    if (!q) return true;
-    const hay = [P.prettyDay(l.day, lang), String(l.consolidated), l.prod && l.prod.total, l.tar && l.tar.total, l.receptor, l.prod && l.prod.emisor, l.prod && l.prod.auth, l.tar && l.tar.auth]
-      .filter(Boolean).join(" ").toLowerCase();
-    return hay.indexOf(q) > -1;
-  };
-  const visible = pyUseMemo(() => lines.filter(l => (filter === "all" ? true : filter === "imported" ? l.alreadyImported : !l.alreadyImported) && matchQuery(l)), [lines, filter, query, lang]);
-  const counts = pyUseMemo(() => ({ all: lines.length, pending: lines.filter(l => !l.alreadyImported).length, imported: lines.filter(l => l.alreadyImported).length }), [lines]);
-
-  const downloadTSV = () => {
-    const header = ["Mes", "Fecha de pedido", "property_name", "valor", "categoria", "Comentario", "tag", "orderId", "orderUrl", "authProductos", "authTarifa"];
-    const rows = selectedRows.map(l => P.toSheetRowFromLine(l));
-    const lines2 = [header.join("\t")].concat(rows.map(o => header.map(h => o[h]).join("\t")));
-    const blob = new Blob([lines2.join("\n")], { type: "text/tab-separated-values" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "insumos-sat.tsv"; a.click();
-  };
-
-  // vinculación automática: empareja por FECHA + MONTO las facturas del SAT con
-  // los gastos ya guardados en la hoja que aún no tienen factura. Sin trabajo manual.
-  const autoCand = pyUseMemo(() => {
-    if (!sheetExpenses || !sheetExpenses.length) return [];
-    const byF = {};
-    sheetExpenses.forEach(x => { if (!x.hasAuth && x.fecha) (byF[x.fecha] = byF[x.fecha] || []).push(x); });
-    return lines.filter(l => {
-      if (!((l.prod && l.prod.auth) || (l.tar && l.tar.auth))) return false;
-      const cands = byF[l.day] || [];
-      return cands.some(x => Math.abs(x.valor - l.consolidated) < 0.025 || (x.mult > 1 && Math.abs(x.valor * x.mult - l.consolidated) < 0.06));
-    });
-  }, [lines, sheetExpenses]);
-  const autoLink = async () => {
-    if (!autoCand.length) return;
-    if (!(window.SpacioWrite && window.SpacioWrite.enabled())) { setSaveMsg(tr("Conecta el backend (Setup → Conexión de escritura) para vincular las facturas.", "Connect the backend (Setup → Write connection) to link the invoices.")); return; }
-    setBusy("fill"); setSaveMsg("");
-    const links = autoCand.map(l => ({
-      fecha: l.day, total: l.consolidated,
-      orderId: (l.prod && l.prod.auth) || (l.tar && l.tar.auth) || "",
-      orderUrl: l.orderUrl || "",
-      authProductos: l.prod ? l.prod.auth : "",
-      authTarifa: l.tar ? l.tar.auth : "",
-    }));
-    const res = await window.SpacioWrite.post("linkFacturas", { links });
-    if (res && res.ok) {
-      if (res.rows != null) setSaveMsg(tr("Listo · " + res.links + " factura(s) vinculada(s) automáticamente a " + res.rows + " gasto(s) guardado(s) por fecha y monto. El socio ya puede verlas en Gastos e inversiones.", "Done · " + res.links + " invoice(s) auto-linked to " + res.rows + " saved expense(s) by date and amount."));
-      else setSaveMsg(tr("El Apps Script desplegado es una versión anterior: actualízalo desde la página “Copiar Apps Script” (nueva versión) y vuelve a intentar.", "The deployed Apps Script is an older version: update it from the “Copiar Apps Script” page (new version) and try again."));
-    } else setSaveMsg(tr("No se pudo escribir: " + ((res && res.error) || "sin conexión") + ".", "Could not write: " + ((res && res.error) || "offline") + "."));
-    setBusy("");
-  };
-
-  const save = async () => {
-    if (!selectedRows.length) return;
-    setBusy("save"); setSaveMsg("");
-    const rows = selectedRows.map(l => P.toSheetRowFromLine(l));
-    if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-      const res = await window.SpacioWrite.post("appendInsumos", { rows });
-      if (res && res.ok) {
-        addImported(selectedRows.map(l => l.id));
-        setSaveMsg(tr("Listo · " + (res.added != null ? res.added : rows.length) + " filas escritas.", "Done · " + (res.added != null ? res.added : rows.length) + " rows written."));
-      } else setSaveMsg(tr("No se pudo escribir: " + ((res && res.error) || "sin conexión") + ". Descarga el TSV.", "Could not write: " + ((res && res.error) || "offline") + ". Download the TSV."));
-    } else {
-      addImported(selectedRows.map(l => l.id)); downloadTSV();
-      setSaveMsg(tr("Backend sin configurar (Setup → Conexión). Se descargó un TSV.", "Backend not configured (Setup → Connection). A TSV was downloaded."));
-    }
-    setBusy("");
-  };
-
-  const Badge = ({ l }) => l.alreadyImported
-    ? <span className="pya-badge dupe"><Icon name="check" size={11} stroke="var(--alabaster)" />{tr("Ya importado", "Imported")}</span>
-    : (l.prod && l.prod.kind === "otro") ? <span className="pya-badge revisar"><span className="dot" />{tr("Otra NIT", "Other NIT")}</span>
-    : l.prod ? <span className="pya-badge matched"><span className="dot" />{tr("Productos", "Products")}</span>
-    : <span className="pya-badge sin"><span className="dot" />{tr("Tarifa de servicio", "Service fee")}</span>;
-
+function PyaDteBox({ inv, lang, onClose }) {
+  const P = window.PedidosYa; const es = lang !== "en"; const tr = (a, b) => es ? a : b;
+  if (!inv) return null;
+  const sub = inv.items.reduce((s, x) => s + x.gravable, 0);
+  const kindLbl = inv.kind === "productos" ? "PedidosYa Market" : inv.kind === "tarifa" ? tr("Tarifa de servicio PedidosYa", "PedidosYa service fee") : tr("Compra en tienda", "Store purchase");
+  const dlXml = () => { if (!inv.raw) return; const b = new Blob([inv.raw], { type: "text/xml" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (inv.auth || "factura") + ".xml"; a.click(); };
+  const eyebrow = { fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" };
+  const fl = { display: "inline-block", minWidth: 82, fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" };
+  const th = { fontFamily: "var(--sans)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--fg-muted)", fontWeight: 600, textAlign: "right", padding: "10px 8px", borderBottom: "1px solid var(--warm-grey)" };
+  const td = { padding: "9px 8px", borderBottom: "1px solid var(--ink-08)", fontFamily: "var(--sans)", fontSize: 12, textAlign: "right", verticalAlign: "top", color: "var(--ink)" };
   return (
-    <React.Fragment>
-      <label className={"pya-drop" + (drag ? " drag" : "")} style={{ marginTop: 18 }}
-        onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
-        onDrop={e => { e.preventDefault(); setDrag(false); onSAT(e.dataTransfer.files); }}>
-        <input type="file" accept=".xls,.xlsx,.xml,.csv,.pdf" multiple onChange={e => onSAT(e.target.files)} />
-        <span className="pya-drop-ic"><Icon name="file" size={20} stroke="var(--ink)" /></span>
-        <span>
-          <span className="pya-drop-lbl">{tr("Archivo del SAT (FEL · Consultar DTE)", "SAT file (FEL · Consultar DTE)")}</span>
-          <span className="pya-drop-hint">{tr("Exporta tu emisión/recepción de DTE. Filtramos solo PedidosYa: productos (NIT 110411668) y tarifa de servicio (NIT 100446329). .xls / .xlsx / .xml / PDF", "Export your DTE issuance/reception. We keep only PedidosYa: products (NIT 110411668) and service fee (NIT 100446329). .xls / .xlsx / .xml / PDF")}</span>
-          {busy === "sat" && <span className="pya-drop-done"><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} /> {tr("Leyendo…", "Reading…")}</span>}
-          {satStats && busy !== "sat" && <span className="pya-drop-done"><Icon name="check" size={13} stroke="#5B8A6B" /> {satStats.total} {tr("facturas PedidosYa", "PedidosYa invoices")} · {satStats.productos} {tr("prod", "prod")} · {satStats.tarifa} {tr("tarifa", "fee")}{satStats.otros ? " · " + satStats.otros + tr(" de otras NITs", " from other NITs") : ""}</span>}
-        </span>
-      </label>
-
-      {satStats && satStats.otros > 0 && (
-        <div className="pya-warn" style={{ alignItems: "flex-start" }}>
-          <Icon name="info" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <p style={{ margin: 0 }}>{tr("¿No encuentras la factura de un pedido? El Market de PedidosYa suele facturar los productos con la NIT de la tienda, no con la de Delivery Hero. Actívalas para asignarlas:", "Can't find an order's invoice? PedidosYa Market often bills products under the store's own NIT, not Delivery Hero's. Turn them on to assign them:")}</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-              {(satStats.otrosByNit || []).slice(0, 6).map((n, i) => (
-                <span key={i} style={{ fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.02em", color: "var(--fg-muted)", background: "var(--alabaster)", border: "1px solid var(--warm-grey)", borderRadius: 8, padding: "4px 8px" }}>{(n.emisor || ("NIT " + n.nit)).slice(0, 28)} · {n.count}</span>
-              ))}
+    <div className="pya-overlay" onClick={onClose}>
+      <div className="pya-modal" style={{ maxWidth: 780 }} onClick={e => e.stopPropagation()}>
+        <div className="pya-modal-head" style={{ alignItems: "flex-start" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 20, flex: 1, minWidth: 0 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={eyebrow}>{tr("Factura electrónica · FEL", "Electronic invoice · FEL")}</div>
+              <div style={{ fontFamily: "var(--serif)", fontSize: 24, color: "var(--ink)", marginTop: 6, lineHeight: 1.1 }}>{inv.emisor || "—"}</div>
+              {inv.comercial ? <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, color: "var(--ink)", marginTop: 5 }}>{inv.comercial}{inv.establec ? " · Est. " + inv.establec : ""}</div> : null}
+              <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", marginTop: 3 }}>NIT {inv.nit}</div>
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 3, fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--ink)" }}>
+                <div><span style={fl}>{tr("Factura", "Invoice")}</span> {tr("Serie", "Series")} {inv.serie || "—"} · No. {inv.autNum || "—"}</div>
+                <div style={{ overflowWrap: "anywhere" }}><span style={fl}>{tr("Autorización", "Authorization")}</span> <code style={{ fontSize: 10.5 }}>{inv.auth}</code></div>
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <span style={{ display: "inline-block", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", fontWeight: 700, background: "var(--beige-soft)", borderRadius: 999, padding: "5px 12px", color: "var(--ink)" }}>{inv.tipo || "FACT"}</span>
+              <div className="pya-num" style={{ fontFamily: "var(--serif)", fontWeight: 700, fontSize: 27, color: "var(--ink)", marginTop: 10, lineHeight: 1 }}>{P.money(inv.total)} <small style={{ fontFamily: "var(--sans)", fontSize: 11.5, fontWeight: 600, color: "var(--fg-muted)" }}>{inv.moneda || "GTQ"}</small></div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", marginTop: 7 }}>{tr("Emitida", "Issued")} {P.prettyDay(inv.day, lang)}</div>
             </div>
           </div>
+          <button className="pya-modal-x" onClick={onClose}><Icon name="x" size={17} stroke="var(--ink)" /></button>
         </div>
-      )}
-
-      {warnings.length > 0 && (
-        <div className="pya-warn"><Icon name="info" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} /><p>{warnings.join(" ")}</p></div>
-      )}
-
-      {lines.length > 0 && (
-        <React.Fragment>
-          <div className="pya-toolbar">
-            <div className="pya-filters">
-              {[{ k: "all", label: tr("Todas", "All"), n: counts.all }, { k: "pending", label: tr("Pendientes", "Pending"), n: counts.pending }, { k: "imported", label: tr("Importadas", "Imported"), n: counts.imported }].map(f => (
-                <button key={f.k} className={"pya-fchip" + (filter === f.k ? " on" : "")} onClick={() => setFilter(f.k)}>{f.label} · {f.n}</button>
-              ))}
-            </div>
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.06em", color: "var(--fg-muted)" }}>
-              {selectedRows.length} {tr("listas para guardar", "ready to save")}{missingProp > 0 ? " · " + missingProp + tr(" sin propiedad", " missing property") : ""}
-            </span>
+        <div className="pya-modal-body">
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, padding: "4px 0 14px", borderBottom: "1px solid var(--ink-08)" }}>
+            <div><div style={eyebrow}>{tr("Receptor", "Recipient")}</div><div style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 5 }}>{inv.receptor || "—"}</div><div style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", marginTop: 2 }}>NIT {inv.nitReceptor || "—"}</div></div>
+            <div><div style={eyebrow}>{tr("Clasificación", "Class")}</div><div style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 5 }}>{inv.kind === "productos" ? "Market" : inv.kind === "tarifa" ? tr("Tarifa", "Fee") : tr("Tienda", "Store")}</div><div style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", marginTop: 2 }}>{kindLbl}</div></div>
           </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", margin: "0 0 14px" }}>
-            <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
-              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}><Icon name="search" size={15} stroke="var(--fg-muted)" /></span>
-              <input className="pya-input" style={{ paddingLeft: 36 }} value={query} onChange={e => setQuery(e.target.value)} placeholder={tr("Buscar por fecha o monto (ej. 31 May, 76.56, 78.56)", "Search by date or amount (e.g. 31 May, 76.56)")} />
-            </div>
-            <label style={{ display: "inline-flex", alignItems: "center", gap: 9, cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--ink)" }}>
-              <PyaCheck on={showOther} onClick={() => setShowOther(v => !v)} />
-              {tr("Incluir facturas de otras NITs", "Include other-NIT invoices")}{satStats && satStats.otros ? " (" + satStats.otros + ")" : ""}
-            </label>
-          </div>
-
-          <div className="pya-scroll">
-            <table className="pya-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 34 }}><PyaCheck on={allOn} onClick={toggleAll} /></th>
-                  <th>{tr("Factura", "Invoice")}</th>
-                  <th>{tr("Fecha", "Date")}</th>
-                  <th style={{ textAlign: "right" }}>{tr("Gran Total", "Grand total")}</th>
-                  <th style={{ minWidth: 180 }}>{tr("Propiedad", "Property")}</th>
-                  <th style={{ minWidth: 190 }}>{tr("URL del pedido", "Order URL")}</th>
-                  <th style={{ minWidth: 150 }}>{tr("Categoría", "Category")}</th>
-                  <th style={{ minWidth: 170 }}>{tr("Comentario", "Comment")}</th>
-                  <th>{tr("Ver", "View")}</th>
-                  <th style={{ minWidth: 140 }}>Tag</th>
-                </tr>
-              </thead>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 4, minWidth: 560 }}>
+              <thead><tr>
+                <th style={Object.assign({}, th, { textAlign: "left" })}>#</th>
+                <th style={Object.assign({}, th, { textAlign: "left" })}>{tr("Descripción", "Description")}</th>
+                <th style={th}>{tr("Cant.", "Qty")}</th><th style={th}>{tr("P. unitario", "Unit price")}</th><th style={th}>{tr("Desc.", "Disc.")}</th><th style={th}>IVA</th><th style={th}>Total</th>
+              </tr></thead>
               <tbody>
-                {visible.map(l => (
-                  <tr key={l.id} className={l.alreadyImported ? "imported" : ""}>
-                    <td>{!l.alreadyImported && <PyaCheck on={l.include} onClick={() => setLine(l.id, { include: !l.include })} />}</td>
-                    <td><Badge l={l} />{(l.prod && l.prod.kind === "otro" && l.prod.emisor) ? <span style={{ display: "block", fontFamily: "var(--sans)", fontSize: 9.5, letterSpacing: "0.02em", color: "var(--fg-muted)", marginTop: 3, maxWidth: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.prod.emisor}</span> : null}</td>
-                    <td className="pya-num">{P.prettyDay(l.day, lang)}</td>
-                    <td className="pya-num" style={{ textAlign: "right", fontWeight: 600 }}>{P.money(l.consolidated)}{(l.prod && l.tar) ? <span style={{ display: "block", fontWeight: 400, fontSize: 9.5, color: "var(--fg-muted)", marginTop: 2 }}>{tr("Prod", "Prod")} {P.money(l.prod.total)} · {tr("Tar", "Fee")} {P.money(l.tar.total)}</span> : null}</td>
-                    <td><PyaMini value={l.property_name} options={propOptions} onChange={v => setLine(l.id, { property_name: v })} placeholder={tr("Asignar…", "Assign…")} search /></td>
-                    <td><input className="pya-input" style={{ fontSize: 11.5, padding: "8px 10px" }} value={l.orderUrl} onChange={e => setLine(l.id, { orderUrl: e.target.value })} placeholder={tr("Pega el link del pedido", "Paste order link")} /></td>
-                    <td><PyaMini value={l.categoria} options={catOptions} onChange={v => setLine(l.id, { categoria: v })} /></td>
-                    <td><input className="pya-input" style={{ fontSize: 11.5, padding: "8px 10px" }} value={l.comentario} onChange={e => setLine(l.id, { comentario: e.target.value })} placeholder={tr("Comentario (col. F)", "Comment (col. F)")} /></td>
-                    <td>
-                      <button className="pya-link" onClick={() => setBox({
-                        orderUrl: l.orderUrl, desc: l.receptor, day: l.day, amount: l.consolidated, vendor: l.receptor,
-                        invoices: [l.prod, l.tar].filter(Boolean).map(inv => ({ kind: inv.kind, auth: inv.auth, nit: inv.nit, total: inv.total, receptor: inv.receptor })),
-                      })}>
-                        <Icon name="eye" size={13} stroke="currentColor" />{tr("Factura", "Invoice")}
-                      </button>
-                    </td>
-                    <td><PyaMini value={l.tag} options={tagOptions} onChange={v => setLine(l.id, { tag: v })} placeholder={tr("— (es insumo)", "— (is a supply)")} /></td>
+                {inv.items.map((x, i) => (
+                  <tr key={i}>
+                    <td style={Object.assign({}, td, { textAlign: "left", color: "var(--fg-muted)", fontSize: 11 })}>{x.linea || i + 1}</td>
+                    <td style={Object.assign({}, td, { textAlign: "left", fontWeight: 500 })}>{x.desc}{x.unidad ? <span style={{ color: "var(--fg-muted)", fontSize: 11 }}> · {x.unidad}</span> : null}</td>
+                    <td className="pya-num" style={td}>{x.cant || 1}</td>
+                    <td className="pya-num" style={td}>{P.money(x.pu)}</td>
+                    <td className="pya-num" style={Object.assign({}, td, x.descuento > 0 ? { color: "var(--peach-text, #B54D36)", fontWeight: 600 } : {})}>{x.descuento > 0 ? "−" + P.money(x.descuento) : "—"}</td>
+                    <td className="pya-num" style={td}>{P.money(x.iva)}</td>
+                    <td className="pya-num" style={td}>{P.money(x.total)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <div className="pya-footer">
-            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: saveMsg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 460, lineHeight: 1.5 }}>
-              {saveMsg || tr("Cada factura va por separado. Asigna la propiedad y pega la MISMA URL del pedido en la factura de productos y en la de tarifa: así el propietario verá un solo monto y ambas facturas; tú las sigues viendo separadas.", "Each invoice is separate. Assign the property and paste the SAME order URL on the products invoice and on the service-fee invoice: the owner will see one amount and both invoices; you keep seeing them separate.")}
-            </span>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Borrar el archivo cargado y empezar de cero?", "Clear the loaded file and start over?"))) { setInvoices(null); setLines([]); setSatStats(null); setWarnings([]); setSaveMsg(""); } }} disabled={!lines.length}><Icon name="x" size={14} stroke="var(--fg-muted)" />{tr("Limpiar", "Clear")}</button>
-              <button className="pya-btn pya-btn-ghost" onClick={downloadTSV} disabled={!selectedRows.length}><Icon name="arrowUpRight" size={14} stroke="var(--fg-muted)" />TSV</button>
-              {autoCand.length > 0 && (
-                <button className="pya-btn" onClick={autoLink} disabled={busy === "fill"} title={tr("Empareja automáticamente cada factura del SAT con el gasto guardado que coincide en fecha y monto, y le agrega su factura (no duplica nada).", "Automatically pairs each SAT invoice with the saved expense matching date and amount (nothing is duplicated).")}>
-                  {busy === "fill" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="eye" size={14} stroke="var(--fg-muted)" />}
-                  {tr("Vincular facturas automáticamente", "Auto-link invoices")} · {autoCand.length}
-                </button>
-              )}
-              <button className="pya-btn pya-btn-dark" onClick={save} disabled={!selectedRows.length || busy === "save"}>
-                {busy === "save" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
-                {tr("Guardar en insumos & gastos", "Save to insumos & gastos")} {selectedRows.length ? "· " + selectedRows.length : ""}
-              </button>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}>
+            <div style={{ width: 250 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--ink)" }}><span>{tr("Gravable", "Taxable")}</span><span className="pya-num">{P.money(sub)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--ink)" }}><span>IVA (12%)</span><span className="pya-num">{P.money(inv.ivaTotal)}</span></div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", borderTop: "2px solid var(--ink)", marginTop: 7, paddingTop: 10, fontFamily: "var(--serif)", fontWeight: 700, fontSize: 19, color: "var(--ink)" }}><span>Total</span><span className="pya-num">{P.money(inv.total)} <small style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, color: "var(--fg-muted)" }}>{inv.moneda || "GTQ"}</small></span></div>
             </div>
+          </div>
+          <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--ink-08)", display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)" }}>
+              <div><span style={fl}>{tr("Certificado", "Certified")}</span> {inv.certificador || "—"} · {P.prettyDay(inv.certDate, lang)}</div>
+              <div style={{ marginTop: 3, letterSpacing: "0.08em", textTransform: "uppercase", fontSize: 9.5, fontWeight: 600 }}>{tr("Reproducción interna · Spacio AM", "Internal reproduction · Spacio AM")}</div>
+            </div>
+            <img src="logo-stamp.png" alt="Spacio AM" style={{ width: 46, height: 46, display: "block" }} />
+          </div>
+          <div style={{ marginTop: 12, display: "flex", gap: 14 }}>
+            {inv.raw ? <button className="pya-copy" onClick={dlXml}>{tr("Descargar XML original", "Download original XML")}</button> : null}
+            <a className="pya-copy" style={{ textDecoration: "none" }} href="https://felpub.c.sat.gob.gt/verificador-web/publico/vistas/verificacionDte.jsf" target="_blank" rel="noopener">{tr("Verificar en SAT ↗", "Verify at SAT ↗")}</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// 1) Panel Facturas SAT — auto-conciliación (consulta.zip de XML)
+//    Sube el ZIP de XML del SAT → empareja los gastos "insumos & gastos"
+//    (sin factura) por FECHA + MONTO: 1 factura, luego combos de 2 del
+//    mismo día. La conciliación manual es solo para los sobrantes.
+// ============================================================
+function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }) {
+  const P = window.PedidosYa;
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const [invoices, setInvoices] = pyUseState(() => { const d = pyaSatDraftLoad(); return d && d.invoices ? d.invoices : null; });
+  const [stats, setStats] = pyUseState(() => { const d = pyaSatDraftLoad(); return d && d.stats ? d.stats : null; });
+  const [busy, setBusy] = pyUseState("");
+  const [drag, setDrag] = pyUseState(false);
+  const [msg, setMsg] = pyUseState("");
+  const [box, setBox] = pyUseState(null);
+  const [linked, setLinked] = pyUseState(() => { const d = pyaSatDraftLoad(); return new Set((d && d.linked) || []); });       // gastos ya conciliados (por _k)
+  const [manualUsed, setManualUsed] = pyUseState(() => { const d = pyaSatDraftLoad(); return new Set((d && d.manualUsed) || []); }); // facturas usadas en manual
+
+  // Persistir el borrador: el ZIP leído y la conciliación NO se pierden al cambiar
+  // de pestaña ni al recargar (se necesita moverse entre pestañas al conciliar).
+  pyUseEffect(() => {
+    try {
+      if (!invoices) { localStorage.removeItem(PYA_SAT_DRAFT_KEY); return; }
+      const pack = (withItems) => JSON.stringify({
+        v: PYA_SAT_DRAFT_VER,
+        invoices: invoices.map(iv => { const c = Object.assign({}, iv); delete c.raw; if (!withItems) c.items = []; return c; }),
+        stats, linked: [...linked], manualUsed: [...manualUsed],
+      });
+      try { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(true)); }
+      catch (e) { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(false)); } // sin espacio: guarda sin líneas
+    } catch (e) {}
+  }, [invoices, stats, linked, manualUsed]);
+  const [activeExp, setActiveExp] = pyUseState(null);            // _k del gasto en conciliación manual
+  const [sel, setSel] = pyUseState(() => new Set());             // facturas elegidas para el gasto activo
+
+  const money = P.money;
+  const [previewInv, setPreviewInv] = pyUseState(null);
+  const [manualProp, setManualProp] = pyUseState("");
+  const dDiff = (a, b) => { if (!a || !b) return 99; return Math.abs(Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000)); };
+  // Solo se concilian gastos cuyo COMENTARIO (col. F) diga “insumos”.
+  const targets = pyUseMemo(() => (sheetExpenses || []).filter(e => {
+    if (e.hasAuth) return false;
+    if (!/insumos/i.test(e.comentario || "")) return false;
+    return true;
+  }).map((e, i) => Object.assign({ _k: "e" + i }, e)), [sheetExpenses]);
+  const conc = pyUseMemo(() => invoices ? P.autoConciliate(targets, invoices) : null, [invoices, targets]);
+
+  const onFiles = async (files) => {
+    if (!files || !files.length) return;
+    setBusy("read"); setMsg("");
+    const res = await P.parseDTEFiles([...files]);
+    setInvoices(res.invoices); setStats(res.stats); setBusy("");
+    if (!res.invoices.length) setMsg(tr("No se leyeron facturas. Sube el consulta.zip del SAT (o los XML sueltos).", "No invoices read. Upload the SAT consulta.zip (or the XML files)."));
+  };
+
+  const autoMatches = (conc ? conc.matches : []).filter(m => !linked.has(m.expense._k));
+  const leftoverExps = (conc ? conc.unmatchedExpenses : []).filter(e => !linked.has(e._k));
+  const leftoverInvs = (conc ? conc.unmatchedInvoices : []).filter(inv => !manualUsed.has(inv.id));
+
+  const backendReady = () => window.SpacioWrite && window.SpacioWrite.enabled && window.SpacioWrite.enabled();
+
+  const wErr = (res) => { const err = (res && res.error) || tr("sin conexión", "offline"); return err === "unauthorized" ? tr("Token sin permiso para conciliar. Actualiza el Apps Script (permite linkFacturas al token de subida) o escribe el token de administrador en Setup → Conexión de escritura.", "Token not allowed. Update the Apps Script or set the admin token in Setup.") : tr("No se pudo escribir: " + err + ".", "Could not write: " + err + "."); };
+  const linkAll = async () => {
+    if (!autoMatches.length) return;
+    if (!backendReady()) { setMsg(tr("Conecta el backend (Setup → Conexión de escritura) para conciliar.", "Connect the backend (Setup → Write connection) to conciliate.")); return; }
+    setBusy("link"); setMsg("");
+    const links = autoMatches.map(m => P.linkPayload(m.expense, m.invoices));
+    const res = await window.SpacioWrite.post("linkFacturas", { links });
+    if (res && res.ok) {
+      setLinked(prev => { const n = new Set(prev); autoMatches.forEach(m => n.add(m.expense._k)); return n; });
+      addImported(autoMatches.reduce((a, m) => a.concat(m.invoices.map(iv => iv.auth)), []));
+      setMsg(tr("Listo · " + autoMatches.length + " gasto(s) conciliados automáticamente. El socio ya ve sus facturas en Gastos e inversiones.", "Done · " + autoMatches.length + " expense(s) auto-conciliated."));
+    } else setMsg(wErr(res));
+    setBusy("");
+  };
+
+  const activeExpObj = leftoverExps.find(e => e._k === activeExp) || null;
+  const target = activeExpObj ? Math.round(activeExpObj.valor * (activeExpObj.mult > 1 ? activeExpObj.mult : 1) * 100) / 100 : 0;
+  const selInvs = [...sel].map(id => leftoverInvs.find(x => x.id === id)).filter(Boolean);
+  const selSum = Math.round(selInvs.reduce((s, iv) => s + iv.total, 0) * 100) / 100;
+  const selClose = activeExpObj && Math.abs(selSum - target) <= 0.06;
+
+  const openManual = (k) => { setActiveExp(k === activeExp ? null : k); setSel(new Set()); setPreviewInv(null); };
+  const toggleSel = (id) => setSel(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const doManual = async () => {
+    if (!activeExpObj || !selInvs.length) return;
+    if (!backendReady()) { setMsg(tr("Conecta el backend para conciliar.", "Connect the backend to conciliate.")); return; }
+    setBusy("mlink"); setMsg("");
+    const res = await window.SpacioWrite.post("linkFacturas", { links: [P.linkPayload(activeExpObj, selInvs)] });
+    if (res && res.ok) {
+      const k = activeExpObj._k, ids = selInvs.map(iv => iv.id);
+      setLinked(prev => { const n = new Set(prev); n.add(k); return n; });
+      setManualUsed(prev => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; });
+      addImported(selInvs.map(iv => iv.auth));
+      setSel(new Set()); setActiveExp(null);
+      setMsg(tr("Gasto conciliado manualmente.", "Expense conciliated manually."));
+    } else setMsg(wErr(res));
+    setBusy("");
+  };
+
+  const kindLabel = (k) => k === "productos" ? tr("Market", "Market") : k === "tarifa" ? tr("Tarifa", "Fee") : tr("Tienda", "Store");
+  const InvChip = ({ inv }) => (
+    <button className="pya-link" onClick={() => setBox(inv)} title={inv.emisor}>
+      <span className={"pya-badge " + (inv.kind === "productos" ? "matched" : inv.kind === "tarifa" ? "sin" : "revisar")} style={{ padding: "2px 7px" }}><span className="dot" />{kindLabel(inv.kind)}</span>
+      {money(inv.total)}
+    </button>
+  );
+
+  const doneCount = linked.size;
+  const nMatchedInv = autoMatches.reduce((a, m) => a + m.invoices.length, 0);
+
+  return (
+    <React.Fragment>
+      <label className={"pya-drop" + (drag ? " drag" : "")} style={{ marginTop: 18 }}
+        onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+        onDrop={e => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}>
+        <input type="file" accept=".zip,.xml" multiple onChange={e => onFiles(e.target.files)} />
+        <span className="pya-drop-ic"><Icon name="file" size={20} stroke="var(--ink)" /></span>
+        <span>
+          <span className="pya-drop-lbl">{tr("Facturas del SAT (consulta.zip)", "SAT invoices (consulta.zip)")}</span>
+          <span className="pya-drop-hint">{tr("En Agencia Virtual → Consultar DTE, descarga como XLS: baja un ZIP con un XML por factura (con todo el detalle). Suéltalo aquí. Nada se duplica.", "In Agencia Virtual → Consultar DTE, download as XLS: it gives a ZIP with one XML per invoice (full detail). Drop it here. Nothing is duplicated.")}</span>
+          {busy === "read" && <span className="pya-drop-done"><span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} /> {tr("Leyendo…", "Reading…")}</span>}
+          {stats && busy !== "read" && <span className="pya-drop-done"><Icon name="check" size={13} stroke="#5B8A6B" /> {stats.count} {tr("facturas leídas", "invoices read")}{stats.dup ? " · " + stats.dup + tr(" duplicadas omitidas", " duplicates skipped") : ""}</span>}
+        </span>
+      </label>
+
+      {invoices && !targets.length && (
+        <div className="pya-warn"><Icon name="info" size={16} stroke="var(--peach)" style={{ flexShrink: 0, marginTop: 1 }} /><p>{tr("No hay gastos “insumos & gastos” sin factura para conciliar en la hoja. Registra los gastos primero, o revisa que aún no tengan factura vinculada.", "No supply expenses without an invoice to conciliate. Register the expenses first, or check they aren't already linked.")}</p></div>
+      )}
+
+      {conc && targets.length > 0 && (
+        <React.Fragment>
+          <div className="pya-stats sticky">
+            <div className="pya-stats-nums">
+              <span className="pya-stat"><b>{autoMatches.length}</b><span>{tr("por conciliar (auto)", "to conciliate (auto)")}</span></span>
+              <span className="pya-stat"><b>{nMatchedInv}</b><span>{tr("facturas emparejadas", "invoices paired")}</span></span>
+              <span className="pya-stat"><b>{leftoverExps.length}</b><span>{tr("gastos sin factura", "expenses w/o invoice")}</span></span>
+              <span className="pya-stat"><b>{leftoverInvs.length}</b><span>{tr("facturas sobrantes", "leftover invoices")}</span></span>
+              {doneCount > 0 && <span className="pya-stat"><b>{doneCount}</b><span>{tr("conciliados", "conciliated")}</span></span>}
+            </div>
+            {autoMatches.length > 0 && (
+              <button className="pya-btn pya-btn-dark" style={{ flexShrink: 0 }} onClick={linkAll} disabled={busy === "link"}>
+                {busy === "link" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
+                {tr("Conciliar automáticamente", "Auto-conciliate")} · {autoMatches.length}
+              </button>
+            )}
+          </div>
+
+          {/* --- auto matches --- */}
+          {autoMatches.length > 0 && (
+            <React.Fragment>
+              <div className="pya-scroll" style={{ marginTop: 16 }}>
+                <table className="pya-table" style={{ minWidth: 720 }}>
+                  <thead><tr>
+                    <th>{tr("Fecha", "Date")}</th>
+                    <th>{tr("Gasto reportado", "Reported expense")}</th>
+                    <th style={{ textAlign: "right" }}>{tr("Monto", "Amount")}</th>
+                    <th style={{ minWidth: 240 }}>{tr("Factura(s) que lo forman", "Invoice(s) that make it up")}</th>
+                  </tr></thead>
+                  <tbody>
+                    {autoMatches.map((m, i) => (
+                      <tr key={m.expense._k + i}>
+                        <td className="pya-num">{P.prettyDay(m.expense.fecha, lang)}</td>
+                        <td>{m.expense.property_name || tr("(sin propiedad)", "(no property)")}{m.expense.comentario ? <span style={{ display: "block", fontSize: 10, color: "var(--fg-muted)", marginTop: 2, maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.expense.comentario.replace(/\s*·?\s*\(compartido ÷\d+\)\s*$/, "")}</span> : null}</td>
+                        <td className="pya-num" style={{ textAlign: "right", fontWeight: 600 }}>{money(m.expense.target)}{m.kind === "pair" ? <span style={{ display: "block", fontWeight: 400, fontSize: 9.5, color: "#5B8A6B", marginTop: 2 }}>{tr("2 facturas", "2 invoices")}</span> : null}</td>
+                        <td><div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{m.invoices.map((iv, j) => <InvChip key={j} inv={iv} />)}</div></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="pya-footer">
+                <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 620, lineHeight: 1.5 }}>
+                  {msg || tr("Cada gasto ya tiene propiedad y monto. Al conciliar, se le adjunta su factura por fecha y monto — sin reasignar nada. El botón de conciliar está fijo arriba.", "Each expense already has property and amount. Conciliating attaches its invoice by date and amount — no reassigning.")}
+                </span>
+              </div>
+            </React.Fragment>
+          )}
+
+          {autoMatches.length === 0 && doneCount > 0 && leftoverExps.length === 0 && (
+            <div className="pya-empty" style={{ color: "#4d7a5d" }}>{tr("Todo conciliado. No quedan gastos sin factura.", "All conciliated. No expenses without an invoice.")}</div>
+          )}
+
+          {/* --- manual: solo sobrantes --- */}
+          {leftoverExps.length > 0 && (
+            <div style={{ marginTop: 26 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Conciliación manual · sobrantes", "Manual conciliation · leftovers")}</div>
+                <select className="pya-select" style={{ maxWidth: 240 }} value={manualProp} onChange={e => setManualProp(e.target.value)}>
+                  <option value="">{tr("Todos los apartamentos", "All apartments")}</option>
+                  {[...new Set(leftoverExps.map(x => x.property_name).filter(Boolean))].sort().map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--fg-muted)", margin: "0 0 14px", maxWidth: 560, textWrap: "pretty" }}>
+                {tr("Estos gastos no se pudieron emparejar solos (montos que no cuadran, combos de 3+ facturas, o fechas distintas). Elige el gasto y marca las facturas que lo forman.", "These expenses couldn't be matched automatically (amounts that don't add up, combos of 3+ invoices, or different dates). Pick the expense and check the invoices that make it up.")}
+              </p>
+              <div className="pya-saved">
+                {leftoverExps.filter(e => !manualProp || e.property_name === manualProp).map(e => {
+                  const open = activeExp === e._k;
+                  const t = Math.round(e.valor * (e.mult > 1 ? e.mult : 1) * 100) / 100;
+                  return (
+                    <div className={"pya-saved-row" + (open ? " editing" : "")} key={e._k}>
+                      <div className="pya-saved-main" style={{ cursor: "pointer" }} onClick={() => openManual(e._k)}>
+                        <div className="pya-saved-top">
+                          <span className="pya-saved-prop">{e.property_name || tr("(sin propiedad)", "(no property)")}</span>
+                          <span className="pya-saved-amt">{money(t)}</span>
+                        </div>
+                        <div className="pya-saved-meta"><span>{P.prettyDay(e.fecha, lang)}</span>{e.comentario ? <span className="pya-saved-chip">{e.comentario.replace(/\s*·?\s*\(compartido ÷\d+\)\s*$/, "").slice(0, 40)}</span> : null}</div>
+                      </div>
+                      {!open && <div className="pya-saved-actions"><button className="pya-icbtn" title={tr("Conciliar", "Conciliate")} onClick={() => openManual(e._k)}><Icon name="chevronRight" size={15} stroke="var(--ink)" /></button></div>}
+                      {open && (
+                        <div style={{ width: "100%", marginTop: 14 }}>
+                          <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)", marginBottom: 10 }}>
+                            {tr("Marca las facturas cercanas a", "Check the invoices near")} {P.prettyDay(e.fecha, lang)} {tr("que suman", "that add up to")} {money(t)} {tr("(ventana ±2 días)", "(±2-day window)")}:
+                          </div>
+                          {(() => {
+                            const near = leftoverInvs.filter(iv => dDiff(iv.day, e.fecha) <= 2 && iv.total <= t + 0.06).sort((a, b) => dDiff(a.day, e.fecha) - dDiff(b.day, e.fecha) || (b.total - a.total));
+                            const pv = previewInv ? near.find(x => x.id === previewInv) : null;
+                            if (!near.length) return <div className="pya-empty" style={{ padding: "18px 12px" }}>{tr("No hay facturas sobrantes en ±2 días de esta fecha. Revisa la fecha del gasto o el archivo.", "No leftover invoices within ±2 days. Check the expense date or the file.")}</div>;
+                            return (
+                              <div className="pya-manual-split">
+                                <div className="pya-manual-list">
+                                  {near.map(iv => (
+                                    <div key={iv.id} className={"pya-manual-inv" + (sel.has(iv.id) ? " on" : "") + (previewInv === iv.id ? " pv" : "")} onClick={() => setPreviewInv(iv.id)}>
+                                      <PyaCheck on={sel.has(iv.id)} onClick={() => toggleSel(iv.id)} />
+                                      <div style={{ flex: 1, minWidth: 0 }}>
+                                        <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{iv.emisor}</div>
+                                        <div style={{ fontFamily: "var(--sans)", fontSize: 10, color: "var(--fg-muted)", marginTop: 2 }}>{kindLabel(iv.kind)} · {P.prettyDay(iv.day, lang)}{dDiff(iv.day, e.fecha) ? " · +" + dDiff(iv.day, e.fecha) + "d" : ""}</div>
+                                      </div>
+                                      <span className="pya-num" style={{ fontWeight: 600, fontSize: 12.5 }}>{money(iv.total)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                <div className="pya-manual-preview">
+                                  {pv ? (
+                                    <React.Fragment>
+                                      <div style={{ fontFamily: "var(--serif)", fontSize: 16, color: "var(--ink)", lineHeight: 1.15 }}>{pv.emisor}</div>
+                                      <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", margin: "3px 0 10px" }}>{pv.comercial ? pv.comercial + " · " : ""}NIT {pv.nit} · {P.prettyDay(pv.day, lang)}</div>
+                                      <div style={{ maxHeight: 190, overflowY: "auto", borderTop: "1px solid var(--ink-08)" }}>
+                                        {pv.items.map((x, i) => (
+                                          <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "7px 0", borderBottom: "1px solid var(--ink-08)", fontFamily: "var(--sans)", fontSize: 11.5 }}>
+                                            <span style={{ flex: 1, color: "var(--ink)" }}>{x.cant > 1 ? x.cant + "× " : ""}{x.desc}</span>
+                                            <span className="pya-num" style={{ color: "var(--fg-muted)" }}>{money(x.total)}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                      <div style={{ display: "flex", justifyContent: "space-between", marginTop: 10, fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                                        <span>Total</span><span className="pya-num">{money(pv.total)}</span>
+                                      </div>
+                                      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                                        <button className="pya-btn pya-btn-ghost" style={{ padding: "8px 14px" }} onClick={() => toggleSel(pv.id)}>{sel.has(pv.id) ? tr("Quitar", "Remove") : tr("Agregar", "Add")}</button>
+                                        <button className="pya-copy" onClick={() => setBox(pv)}><Icon name="eye" size={13} stroke="currentColor" />{tr("Factura completa", "Full invoice")}</button>
+                                      </div>
+                                    </React.Fragment>
+                                  ) : (
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 160, textAlign: "center", color: "var(--fg-muted)", gap: 8 }}>
+                                      <Icon name="file" size={22} stroke="var(--warm-grey)" />
+                                      <span style={{ fontFamily: "var(--sans)", fontSize: 11.5 }}>{tr("Toca una factura para verla aquí", "Tap an invoice to preview it here")}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                          <div className="pya-footer" style={{ marginTop: 14 }}>
+                            <span style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", color: selClose ? "#3d6b52" : "var(--fg-muted)", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                              {selClose && <Icon name="check" size={15} stroke="#3d6b52" />}
+                              {tr("Seleccionado", "Selected")}: {money(selSum)} / {money(t)}{selClose ? " · " + tr("cuadra exacto", "exact match") : (sel.size ? " · " + tr("faltan", "missing") + " " + money(Math.round((t - selSum) * 100) / 100) : "")}
+                            </span>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <button className="pya-btn pya-btn-ghost" onClick={() => openManual(e._k)}>{tr("Cancelar", "Cancel")}</button>
+                              <button className="pya-btn pya-btn-dark" onClick={doManual} disabled={!sel.size || busy === "mlink"} title={selClose ? "" : tr("El monto no cuadra exacto; puedes conciliar igual.", "Amount is off; you can still conciliate.")}>
+                                {busy === "mlink" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
+                                {tr("Conciliar", "Conciliate")}{sel.size ? " · " + sel.size : ""}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* --- 2.1: sobrantes vs contabilidad (estados de cuenta) --- */}
+          {leftoverInvs.length > 0 && (
+            <PyaContaRecon lang={lang} invoices={leftoverInvs} pendingExps={leftoverExps.length} onLinked={(ids) => { setManualUsed(prev => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; }); }} onView={setBox} />
+          )}
+
+          {/* limpiar */}
+          <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+            <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Quitar el archivo cargado?", "Clear the loaded file?"))) { setInvoices(null); setStats(null); setLinked(new Set()); setManualUsed(new Set()); setActiveExp(null); setSel(new Set()); setMsg(""); } }} disabled={!invoices}>
+              <Icon name="x" size={14} stroke="var(--fg-muted)" />{tr("Limpiar", "Clear")}
+            </button>
           </div>
         </React.Fragment>
       )}
 
-      {!lines.length && invoices && busy === "" && (
-        <div className="pya-empty">{tr("No se encontraron facturas de PedidosYa en el archivo. Verifica que sea el export de FEL → Consultar DTE.", "No PedidosYa invoices found in the file. Make sure it's the FEL → Consultar DTE export.")}</div>
-      )}
-
-      {box && <InvoiceViewBox data={box} lang={lang} onClose={() => setBox(null)} />}
+      {box && <PyaDteBox inv={box} lang={lang} onClose={() => setBox(null)} />}
     </React.Fragment>
   );
 }
@@ -727,8 +886,268 @@ function PyaDepositPanel({ lang, propOptions }) {
 }
 
 // ============================================================
-// 4) Panel "Guardados": editar / eliminar / subir factura a gastos ya guardados
+// 1b) Conciliación de facturas sobrantes contra CONTABILIDAD
+//     (columna "Debe" de los estados de cuenta). Empareja por
+//     fecha (±2 días) + monto exacto y escribe el nº de autorización
+//     en la fila del movimiento (columna "factura" del Sheet).
 // ============================================================
+function PyaContaRecon({ lang, invoices, pendingExps, onLinked, onView }) {
+  const P = window.PedidosYa;
+  const es = lang !== "en"; const tr = (a, b) => es ? a : b;
+  const money = P.money;
+  const [busy, setBusy] = pyUseState(false);
+  const [msg, setMsg] = pyUseState("");
+  const [applied, setApplied] = pyUseState(() => new Set());
+  const dDiff = (a, b) => { if (!a || !b) return 99; return Math.abs(Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000)); };
+
+  const matches = pyUseMemo(() => {
+    if (!window.SpacioContaStore) return [];
+    const inv = invoices.filter(i => !applied.has(i.id));
+    const yms = [...new Set(inv.map(i => (i.day || "").slice(0, 7)))].filter(Boolean);
+    // filas Debe (GTQ) sin factura de los meses de las facturas ± mes vecino
+    const rows = [];
+    const seenYm = {};
+    yms.forEach(ym => {
+      [ym].concat([-1, 1].map(d => { const [y, m] = ym.split("-").map(Number); const t = new Date(Date.UTC(y, m - 1 + d, 1)); return t.getUTCFullYear() + "-" + ("0" + (t.getUTCMonth() + 1)).slice(-2); })).forEach(k => {
+        if (seenYm[k]) return; seenYm[k] = 1;
+        (window.SpacioContaStore.statementsForMonth(k) || []).forEach(s => {
+          if (s.currency !== "GTQ") return;
+          (s.rows || []).forEach((r, idx) => { if (r.debit > 0 && !r.factura) rows.push({ ym: s.ym, accId: s.accId, idx, r }); });
+        });
+      });
+    });
+    const used = {};
+    const out = [];
+    inv.forEach(i => {
+      const c = rows.filter(x => !used[x.ym + "|" + x.accId + "|" + x.idx] && dDiff(x.r.date, i.day) <= 2 && Math.abs(x.r.debit - i.total) <= 0.06)
+        .sort((a, b) => dDiff(a.r.date, i.day) - dDiff(b.r.date, i.day));
+      if (c.length) { const hit = c[0]; used[hit.ym + "|" + hit.accId + "|" + hit.idx] = 1; out.push({ inv: i, hit }); }
+    });
+    return out;
+  }, [invoices, applied]);
+
+  const linkAll = () => {
+    if (!matches.length) return;
+    setBusy(true); setMsg("");
+    let ok = 0;
+    const ids = [];
+    // agrupa por statement para guardar una sola vez cada uno
+    const byStmt = {};
+    matches.forEach(m => { const k = m.hit.ym + "|" + m.hit.accId; (byStmt[k] = byStmt[k] || []).push(m); });
+    Object.keys(byStmt).forEach(k => {
+      const [ym, accId] = k.split("|");
+      const stmt = window.SpacioContaStore.getStatement(ym, accId);
+      if (!stmt) return;
+      byStmt[k].forEach(m => {
+        const row = stmt.rows[m.hit.idx];
+        if (row && Math.abs((row.debit || 0) - m.hit.r.debit) < 0.01) { row.factura = m.inv.auth; ok++; ids.push(m.inv.id); }
+      });
+      window.SpacioContaStore.saveStatement(stmt);
+    });
+    setApplied(prev => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; });
+    onLinked && onLinked(ids);
+    setMsg(tr("Listo · " + ok + " factura(s) vinculadas a movimientos de contabilidad. Se ven en la columna Factura de Estados de cuenta.", "Done · " + ok + " invoice(s) linked to accounting lines."));
+    setBusy(false);
+  };
+
+  const accName = (id) => { const a = window.SpacioConta && window.SpacioConta.accountById(id); return a ? a.name : id; };
+
+  return (
+    <div style={{ marginTop: 26 }}>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 6 }}>{tr("Facturas sobrantes · conciliar con contabilidad", "Leftover invoices · reconcile with accounting")}</div>
+      <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--fg-muted)", margin: "0 0 12px", maxWidth: 560, textWrap: "pretty" }}>
+        {pendingExps > 0
+          ? tr("Aún quedan " + pendingExps + " gasto(s) de insumos sin conciliar — esos tienen prioridad. Las facturas que sobren al final se emparejan aquí contra la columna Debe de los estados de cuenta.", pendingExps + " supply expense(s) still pending — those come first.")
+          : tr("Todos los insumos están conciliados. Estas facturas se emparejan contra la columna Debe de los estados de cuenta (±2 días, monto exacto).", "All supplies reconciled. These invoices pair against the Debit column of the bank statements.")}
+      </p>
+      {matches.length === 0
+        ? <div className="pya-empty" style={{ padding: "16px 12px" }}>{tr("Ningún movimiento de contabilidad coincide todavía (Debe · GTQ · ±2 días · monto exacto). Revisa que el mes esté cargado en Contabilidad.", "No accounting line matches yet.")}</div>
+        : (
+          <React.Fragment>
+            <div className="pya-saved">
+              {matches.map((m, i) => (
+                <div className="pya-saved-row" key={i}>
+                  <div className="pya-saved-main">
+                    <div className="pya-saved-top">
+                      <span className="pya-saved-prop">{m.inv.emisor}</span>
+                      <span className="pya-saved-amt pya-num">{money(m.inv.total)}</span>
+                    </div>
+                    <div className="pya-saved-meta">
+                      <span>{P.prettyDay(m.inv.day, lang)}</span>
+                      <span className="pya-saved-chip">{accName(m.hit.accId)} · {m.hit.r.date} · {tr("Debe", "Debit")} {money(m.hit.r.debit)}</span>
+                      {m.hit.r.desc ? <span className="pya-saved-chip" style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m.hit.r.desc}</span> : null}
+                    </div>
+                  </div>
+                  <div className="pya-saved-actions">
+                    <button className="pya-icbtn" title={tr("Ver factura", "View invoice")} onClick={() => onView(m.inv)}><Icon name="eye" size={15} stroke="var(--ink)" /></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="pya-footer">
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 460, lineHeight: 1.5 }}>
+                {msg || tr("Al vincular, el movimiento gana el link “Ver factura” en Estados de cuenta.", "Linking adds a “View invoice” link on the statement line.")}
+              </span>
+              <button className="pya-btn pya-btn-dark" onClick={linkAll} disabled={!matches.length || busy}>
+                <Icon name="check" size={15} stroke="var(--alabaster)" />
+                {tr("Vincular con contabilidad", "Link to accounting")} · {matches.length}
+              </button>
+            </div>
+          </React.Fragment>
+        )}
+    </div>
+  );
+}
+
+//    Sube todas las constancias; se extrae nombre + monto + fecha del PDF.
+//    El emparejamiento nombre→apartamento se RECUERDA (localStorage) mes a mes.
+//    Nombres con varias constancias en el lote = siempre manual (socios con
+//    varias propiedades y la misma razón social).
+// ============================================================
+const PYA_RET_MAP_KEY = "sa-pya-ret-map";   // { NOMBRE: property_name }
+const PYA_RET_DONE_KEY = "sa-pya-ret-done"; // constancias ya guardadas
+function pyaRetMap() { try { return JSON.parse(localStorage.getItem(PYA_RET_MAP_KEY)) || {}; } catch (e) { return {}; } }
+function pyaRetDone() { try { return new Set(JSON.parse(localStorage.getItem(PYA_RET_DONE_KEY)) || []); } catch (e) { return new Set(); } }
+
+async function pyaParseRetencion(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+  const page = await pdf.getPage(1);
+  const tc = await page.getTextContent();
+  const items = tc.items.map(x => String(x.str || "").trim()).filter(Boolean);
+  const all = items.join(" | ");
+  const out = { fileName: file.name, name: "", amount: 0, ym: "", constancia: "", nit: "" };
+  // nombre: el texto en MAYÚSCULAS tras el encabezado "Nombre, razón..."
+  const hi = items.findIndex(s => /raz[oó]n o denominaci[oó]n social/i.test(s));
+  if (hi > -1) { for (let i = hi + 1; i < Math.min(hi + 6, items.length); i++) { const s = items[i]; if (/^[A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s,.'-]{5,}$/.test(s) && !/CONSTANCIA|AGENTE|RETENEDOR|SUSCRITO/i.test(s)) { out.name = s.replace(/\s+/g, " ").trim(); break; } if (/^\d{6,10}$/.test(s)) out.nit = s; } }
+  if (!out.name) { const m = file.name.match(/^([A-ZÁÉÍÓÚÑÜ][A-ZÁÉÍÓÚÑÜ\s,.'-]+?)\s*\d/i); if (m) out.name = m[1].replace(/\s+/g, " ").trim().toUpperCase(); }
+  // monto: el Q tras "TOTAL"
+  const ti = all.search(/TOTAL/i);
+  const tail = ti > -1 ? all.slice(ti) : all;
+  const mm = tail.match(/Q?\s*([\d,]+\.\d{2})/);
+  if (mm) out.amount = parseFloat(mm[1].replace(/,/g, "")) || 0;
+  // fecha: tras "Año" vienen dd mm yyyy
+  const ai = items.findIndex(s => /^A[ñn]o$/i.test(s));
+  if (ai > -1) { const nums = items.slice(ai + 1, ai + 8).filter(s => /^\d{1,4}$/.test(s)); if (nums.length >= 3) { const y = nums.find(n => n.length === 4); const rest = nums.filter(n => n !== y); if (y && rest.length >= 2) out.ym = y + "-" + ("0" + rest[1]).slice(-2); } }
+  if (!out.ym) { const dm = all.match(/(\d{2})\s*\|?\s*(\d{2})\s*\|?\s*(\d{4})/); if (dm) out.ym = dm[3] + "-" + dm[2]; }
+  // número de constancia
+  const ci = items.findIndex(s => /N[úu]mero de\s*Constancia/i.test(s.replace(/\s+/g, " ")) || /Constancia$/i.test(s));
+  const cNum = (ci > -1 ? items.slice(ci, ci + 4) : items).find(s => /^\d{9,}$/.test(s));
+  if (cNum) out.constancia = cNum;
+  if (!out.constancia) { const fm = file.name.match(/(\d{9,})/); out.constancia = fm ? fm[1] : (file.name + "|" + out.amount); }
+  return out;
+}
+
+function PyaRetencionesPanel({ lang, propOptions }) {
+  const es = lang !== "en"; const tr = (a, b) => es ? a : b;
+  const money = (v) => "Q " + (Math.round((v || 0) * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const [rows, setRows] = pyUseState([]);
+  const [busy, setBusy] = pyUseState("");
+  const [drag, setDrag] = pyUseState(false);
+  const [msg, setMsg] = pyUseState("");
+
+  const onFiles = async (files) => {
+    const pdfs = [...files].filter(f => /\.pdf$/i.test(f.name || ""));
+    if (!pdfs.length) return;
+    setBusy("read"); setMsg("");
+    const map = pyaRetMap(), done = pyaRetDone();
+    const parsed = [];
+    for (const f of pdfs) { try { const r = await pyaParseRetencion(f); r.file = f; parsed.push(r); } catch (e) {} }
+    // nombres repetidos en el lote → siempre manual
+    const counts = {};
+    parsed.forEach(r => { counts[r.name] = (counts[r.name] || 0) + 1; });
+    setRows(prev => {
+      const seen = new Set(prev.map(x => x.constancia));
+      const add = parsed.filter(r => !seen.has(r.constancia)).map((r, i) => ({
+        id: "r" + Date.now() + "-" + i, file: r.file, fileName: r.fileName, name: r.name, amount: r.amount, ym: r.ym, constancia: r.constancia,
+        dup: counts[r.name] > 1, saved: done.has(r.constancia),
+        prop: (counts[r.name] > 1 ? "" : (map[r.name] || "")),
+      }));
+      return prev.concat(add);
+    });
+    setBusy("");
+  };
+
+  const setProp = (id, v) => setRows(prev => prev.map(r => r.id === id ? Object.assign({}, r, { prop: v }) : r));
+  const ready = rows.filter(r => !r.saved && r.prop && r.ym);
+  const save = async () => {
+    if (!ready.length || !window.SpacioFiles) return;
+    setBusy("save"); setMsg("");
+    let ok = 0, fail = 0;
+    const map = pyaRetMap(), done = pyaRetDone();
+    for (const r of ready) {
+      try {
+        const rec = await window.SpacioFiles.upload({ kind: "retencion", scope: "property", property_name: r.prop, ym: r.ym, file: r.file, multiple: true, monto: r.amount });
+        if (rec && !rec.failed) { ok++; done.add(r.constancia); if (!r.dup) map[r.name] = r.prop; setRows(prev => prev.map(x => x.id === r.id ? Object.assign({}, x, { saved: true }) : x)); }
+        else fail++;
+      } catch (e) { fail++; }
+    }
+    localStorage.setItem(PYA_RET_MAP_KEY, JSON.stringify(map));
+    localStorage.setItem(PYA_RET_DONE_KEY, JSON.stringify([...done]));
+    setMsg(tr("Listo · " + ok + " retención(es) guardadas en Drive" + (fail ? " · " + fail + " fallaron" : "") + ". El emparejamiento queda recordado para los próximos meses.", "Done · " + ok + " withholding(s) saved" + (fail ? " · " + fail + " failed" : "") + "."));
+    setBusy("");
+  };
+
+  return (
+    <div style={{ marginTop: 30, paddingTop: 22, borderTop: "1px solid var(--ink-08)" }}>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginBottom: 6 }}>{tr("Retenciones ISR · constancias SAT-1911", "ISR withholdings · SAT-1911")}</div>
+      <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--fg-muted)", margin: "0 0 12px", maxWidth: 560, textWrap: "pretty" }}>
+        {tr("Sube todas las constancias en PDF. Se lee el nombre del contribuyente y el emparejamiento con su apartamento se recuerda mes a mes. Los nombres con varias constancias (socios con varias propiedades) se emparejan a mano — te ayuda el monto.", "Upload all the PDF certificates. The taxpayer name is read and its apartment pairing is remembered month to month.")}
+      </p>
+      <label className={"pya-drop" + (drag ? " drag" : "")}
+        onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)}
+        onDrop={e => { e.preventDefault(); setDrag(false); onFiles(e.dataTransfer.files); }}>
+        <input type="file" accept=".pdf" multiple onChange={e => { onFiles(e.target.files); e.target.value = ""; }} />
+        <span className="pya-drop-ic"><Icon name="file" size={20} stroke="var(--ink)" /></span>
+        <span>
+          <span className="pya-drop-lbl">{tr("Constancias de retención (PDF)", "Withholding certificates (PDF)")}</span>
+          <span className="pya-drop-hint">{tr("Puedes soltar varias a la vez. Nada se duplica.", "Drop several at once. Nothing is duplicated.")}</span>
+          {busy === "read" && <span className="pya-drop-done">{tr("Leyendo PDFs…", "Reading PDFs…")}</span>}
+        </span>
+      </label>
+      {rows.length > 0 && (
+        <React.Fragment>
+          <div className="pya-saved" style={{ marginTop: 14 }}>
+            {rows.map(r => (
+              <div className="pya-saved-row" key={r.id} style={r.saved ? { opacity: 0.55 } : null}>
+                <div className="pya-saved-main">
+                  <div className="pya-saved-top">
+                    <span className="pya-saved-prop">{r.name || tr("(nombre no legible)", "(unreadable name)")}</span>
+                    <span className="pya-saved-amt pya-num">{money(r.amount)}</span>
+                  </div>
+                  <div className="pya-saved-meta">
+                    <span>{r.ym || tr("(sin fecha)", "(no date)")}</span>
+                    <span className="pya-saved-chip">{tr("Constancia", "Cert.")} {r.constancia}</span>
+                    {r.dup && !r.saved && <span className="pya-saved-chip" style={{ background: "var(--peach-tint, #fdeee9)", color: "var(--peach-text, #B54D36)" }}>{tr("Varias con este nombre · empareja a mano", "Several with this name · pair manually")}</span>}
+                    {r.saved && <span className="pya-saved-chip" style={{ color: "#3d6b52" }}>{tr("Guardada", "Saved")}</span>}
+                  </div>
+                </div>
+                {!r.saved && (
+                  <div className="pya-saved-actions" style={{ minWidth: 210 }}>
+                    <select className="pya-select" value={r.prop} onChange={e => setProp(r.id, e.target.value)}>
+                      <option value="">{tr("Apartamento…", "Apartment…")}</option>
+                      {propOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="pya-footer">
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 460, lineHeight: 1.5 }}>
+              {msg || tr("Se guardan en Drive → Constancias de retención → carpeta del apartamento.", "Saved to Drive → Withholding certificates → apartment folder.")}
+            </span>
+            <button className="pya-btn pya-btn-dark" onClick={save} disabled={!ready.length || busy === "save"}>
+              {busy === "save" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
+              {tr("Guardar retenciones", "Save withholdings")}{ready.length ? " · " + ready.length : ""}
+            </button>
+          </div>
+        </React.Fragment>
+      )}
+    </div>
+  );
+}
+
 function PyaManagePanel({ lang, propOptions, active }) {
   const P = window.PedidosYa;
   const es = lang !== "en";
@@ -1100,4 +1519,9 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
   );
 }
 
-Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel, PyaManagePanel, PyaReportesPanel, ReporteDetalleBox });
+Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel, PyaManagePanel, PyaReportesPanel, ReporteDetalleBox, PyaDteBox, PyaRetencionesPanel });
+// factura del ZIP cargado, por número de autorización (para Contabilidad)
+window.pyaSatInvoiceByAuth = function (auth) {
+  const d = pyaSatDraftLoad();
+  return (d && d.invoices || []).find(i => i.auth === auth) || null;
+};

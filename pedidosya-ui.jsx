@@ -40,7 +40,7 @@ const PYA_STYLE = `
 .pya-fchip:hover { color: var(--ink); }
 .pya-fchip.on { background: var(--ink); color: var(--alabaster); border-color: var(--ink); }
 
-.pya-scroll { overflow-x: auto; border: 1px solid var(--ink-08); border-radius: 18px; }
+.pya-scroll { overflow-x: auto; max-height: 420px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--ink-08); border-radius: 18px; }
 .pya-table { width: 100%; min-width: 1080px; border-collapse: collapse; }
 .pya-table th { position: sticky; top: 0; z-index: 2; background: var(--beige-soft); font-family: var(--sans); font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); text-align: left; padding: 12px 12px; white-space: nowrap; }
 .pya-table td { padding: 11px 12px; border-top: 1px solid var(--ink-08); font-family: var(--sans); font-size: 12px; color: var(--ink); vertical-align: middle; }
@@ -187,6 +187,16 @@ textarea.pya-input { resize: vertical; min-height: 64px; }
 .pya-saved-edit { display: flex; flex-direction: column; gap: 12px; }
 .pya-saved-edit-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 @media (min-width: 640px) { .pya-saved-edit-grid { grid-template-columns: repeat(2, 1fr); } }
+.pya-manual-split { display: grid; grid-template-columns: 1fr; gap: 14px; }
+@media (min-width: 720px) { .pya-manual-split { grid-template-columns: 1fr 1fr; } }
+.pya-manual-list { display: flex; flex-direction: column; gap: 6px; max-height: 380px; overflow-y: auto; -webkit-overflow-scrolling: touch; scroll-behavior: smooth; overscroll-behavior: contain; padding-right: 2px; }
+.pya-manual-inv { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--ink-08); border-radius: 10px; background: var(--alabaster); cursor: pointer; transition: border-color .14s var(--ease), background .14s var(--ease); }
+.pya-manual-inv:hover { border-color: var(--warm-grey); }
+.pya-manual-inv.on { background: var(--beige-soft); }
+.pya-manual-inv.pv { border-color: var(--ink); }
+.pya-manual-preview { border: 1px solid var(--ink-08); border-radius: 14px; background: var(--beige-soft); padding: 14px; min-height: 190px; }
+.pya-stats.sticky { position: sticky; top: 0; z-index: 20; background: var(--alabaster); align-items: center; justify-content: space-between; padding: 12px 0; margin: 10px 0 6px; box-shadow: 0 10px 14px -10px rgba(62,63,63,0.22); }
+.pya-stats-nums { display: flex; flex-wrap: wrap; gap: 8px; }
 `;
 
 // ---- compact searchable dropdown (property / categoría / tag) ----

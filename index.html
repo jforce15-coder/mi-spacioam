@@ -405,7 +405,7 @@
   </template>
   <div id="app"></div>
 
-  <script src="sheets.js?v=20260840"></script>
+  <script src="sheets.js?v=20260841"></script>
   <script src="sa-auth-client.js?v=20260823"></script>
   <script src="files.js?v=20260820"></script>
   <script src="facturas-batch.js?v=20260820"></script>
@@ -413,13 +413,14 @@
   <script src="aggregate.js?v=20260820"></script>
   <script src="insights.js?v=20260820"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <script src="https://unpkg.com/fflate@0.8.2/umd/index.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>if (window.pdfjsLib) { window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"; }</script>
-  <script src="pedidosya-parse.js?v=20260820"></script>
+  <script src="pedidosya-parse.js?v=20260830"></script>
   <script src="reportes-import.js?v=20260807"></script>
   <script src="conta-data.js?v=20260820"></script>
   <script src="conta-parse.js?v=20260820"></script>
-  <script src="conta-store.js?v=20260820"></script>
+  <script src="conta-store.js?v=20260836"></script>
   <script src="conta-live2026.js?v=20260820"></script>
   <script src="conta-archive.js?v=20260820"></script>
   <script src="conta-export.js?v=20260820"></script>
@@ -427,14 +428,14 @@
   <script src="conta-opex.js?v=20260820"></script>
   <script type="text/babel" src="ui.jsx?v=20260826"></script>
   <script src="noti-data.js?v=20260821"></script>
-  <script type="text/babel" src="noti-center.jsx?v=20260851"></script>
+  <script type="text/babel" src="noti-center.jsx?v=20260852"></script>
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
   <script type="text/babel" src="login.jsx?v=20260823"></script>
-  <script type="text/babel" src="pedidosya-ui.jsx?v=20260826"></script>
-  <script type="text/babel" src="pedidosya.jsx?v=20260820"></script>
+  <script type="text/babel" src="pedidosya-ui.jsx?v=20260833"></script>
+  <script type="text/babel" src="pedidosya.jsx?v=20260836"></script>
   <script type="text/babel" src="dashboard.jsx?v=20260826"></script>
-  <script type="text/babel" src="sections.jsx?v=20260828"></script>
-  <script type="text/babel" src="conta.jsx?v=20260820"></script>
+  <script type="text/babel" src="sections.jsx?v=20260830"></script>
+  <script type="text/babel" src="conta.jsx?v=20260836"></script>
   <script type="text/babel" src="conta-pl.jsx?v=20260820"></script>
 
   <script type="text/babel">
@@ -474,6 +475,10 @@
       const fmt = {
         money: (v) => SpacioI18n.money(v, currency),
         money2: (v) => SpacioI18n.money(v, currency, { decimals: 2 }),
+        currency: currency,
+        // GTQ exacto (2 decimales) — para montos que se registran en quetzales y
+        // no deben pasar por la conversión USD↔GTQ (p.ej. insumos & gastos).
+        gtq: (v) => "Q " + (Math.round((v || 0) * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         // Monto con 2 decimales donde los decimales se ven más pequeños (para el Resumen).
         moneyEl: (v) => {
           const val = currency === "GTQ" ? (v || 0) * SpacioI18n.GTQ_RATE : (v || 0);
