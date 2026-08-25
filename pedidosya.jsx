@@ -336,6 +336,8 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
   const [box, setBox] = pyUseState(null);
   const [linked, setLinked] = pyUseState(() => { const d = pyaSatDraftLoad(); return new Set((d && d.linked) || []); });       // gastos ya conciliados (por _k)
   const [manualUsed, setManualUsed] = pyUseState(() => { const d = pyaSatDraftLoad(); return new Set((d && d.manualUsed) || []); }); // facturas usadas en manual
+  const [hiddenInvs, setHiddenInvs] = pyUseState(() => { const d = pyaSatDraftLoad(); return new Set((d && d.hiddenInvs) || []); });   // facturas ocultadas (“no aplica / después”)
+  const [hiddenExps, setHiddenExps] = pyUseState(() => { const d = pyaSatDraftLoad(); return new Set((d && d.hiddenExps) || []); });   // gastos ocultados
 
   // Persistir el borrador: el ZIP leído y la conciliación NO se pierden al cambiar
   // de pestaña ni al recargar (se necesita moverse entre pestañas al conciliar).
@@ -345,12 +347,12 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
       const pack = (withItems) => JSON.stringify({
         v: PYA_SAT_DRAFT_VER,
         invoices: invoices.map(iv => { const c = Object.assign({}, iv); delete c.raw; if (!withItems) c.items = []; return c; }),
-        stats, linked: [...linked], manualUsed: [...manualUsed],
+        stats, linked: [...linked], manualUsed: [...manualUsed], hiddenInvs: [...hiddenInvs], hiddenExps: [...hiddenExps],
       });
       try { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(true)); }
       catch (e) { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(false)); } // sin espacio: guarda sin líneas
     } catch (e) {}
-  }, [invoices, stats, linked, manualUsed]);
+  }, [invoices, stats, linked, manualUsed, hiddenInvs, hiddenExps]);
   const [activeExp, setActiveExp] = pyUseState(null);            // _k del gasto en conciliación manual
   const [sel, setSel] = pyUseState(() => new Set());             // facturas elegidas para el gasto activo
 
@@ -368,7 +370,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
     if (!/insumos/i.test(e.comentario || "")) return false;
     return true;
   }).map((e, i) => Object.assign({ _k: "e" + i }, e)), [sheetExpenses]);
-  const conc = pyUseMemo(() => invoices ? P.autoConciliate(targets, invoices) : null, [invoices, targets]);
+  const conc = pyUseMemo(() => invoices ? P.autoConciliate(targets.filter(e => !hiddenExps.has(e._k)), invoices.filter(iv => !hiddenInvs.has(iv.id))) : null, [invoices, targets, hiddenExps, hiddenInvs]);
 
   const onFiles = async (files) => {
     if (!files || !files.length) return;
@@ -379,8 +381,9 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
   };
 
   const autoMatches = (conc ? conc.matches : []).filter(m => !linked.has(m.expense._k));
-  const leftoverExps = (conc ? conc.unmatchedExpenses : []).filter(e => !linked.has(e._k));
-  const leftoverInvs = (conc ? conc.unmatchedInvoices : []).filter(inv => !manualUsed.has(inv.id));
+  const leftoverExps = (conc ? conc.unmatchedExpenses : []).filter(e => !linked.has(e._k) && !hiddenExps.has(e._k));
+  const leftoverInvs = (conc ? conc.unmatchedInvoices : []).filter(inv => !manualUsed.has(inv.id) && !hiddenInvs.has(inv.id));
+  const hiddenCount = hiddenInvs.size + hiddenExps.size;
 
   const backendReady = () => window.SpacioWrite && window.SpacioWrite.enabled && window.SpacioWrite.enabled();
 
@@ -436,6 +439,32 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
     setManualUsed(prev => { const n = new Set(prev); n.add(inv.id); return n; });
     addImported([inv.auth]);
     setMsg(tr("Factura vinculada al movimiento de contabilidad — gana el link “Ver” en Estados de cuenta.", "Invoice linked to the accounting line."));
+    return true;
+  };
+  // Depósito de socio: doble conciliación — se marca contra el depósito y se
+  // intenta vincular también el ABONO (Haber) correspondiente en contabilidad.
+  const linkDep = (inv, dep) => {
+    let contaOk = false;
+    try {
+      if (window.SpacioContaStore) {
+        const ym = (inv.day || "").slice(0, 7);
+        const dAft = (a, b) => Math.abs(Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000));
+        outer: for (const k of [ym]) {
+          for (const s of (window.SpacioContaStore.statementsForMonth(k) || [])) {
+            if (s.currency !== "GTQ") continue;
+            for (let i = 0; i < (s.rows || []).length; i++) {
+              const r = s.rows[i];
+              if (r.credit > 0 && !r.factura && r.date && dAft(r.date, inv.day) <= 2 && Math.abs(r.credit - inv.total) <= 0.06) {
+                r.factura = inv.auth; window.SpacioContaStore.saveStatement(s); contaOk = true; break outer;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {}
+    setManualUsed(prev => { const n = new Set(prev); n.add(inv.id); return n; });
+    addImported([inv.auth]);
+    setMsg(tr("Factura marcada como depósito de " + (dep.property_name || "socio") + ". " + (contaOk ? "Vinculada también al abono en contabilidad." : "No se encontró el abono exacto en contabilidad (revísalo cuando cargues el mes)."), "Invoice marked as partner deposit."));
     return true;
   };
 
@@ -553,7 +582,10 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                         </div>
                         <div className="pya-saved-meta"><span>{P.prettyDay(e.fecha, lang)}</span>{e.comentario ? <span className="pya-saved-chip">{e.comentario.replace(/\s*·?\s*\(compartido ÷\d+\)\s*$/, "").slice(0, 40)}</span> : null}</div>
                       </div>
-                      {!open && <div className="pya-saved-actions"><button className="pya-icbtn" title={tr("Conciliar", "Conciliate")} onClick={() => openManual(e._k)}><Icon name="chevronRight" size={15} stroke="var(--ink)" /></button></div>}
+                      {!open && <div className="pya-saved-actions">
+                        <button className="pya-icbtn" title={tr("Ocultar / no aplica", "Hide / not applicable")} onClick={() => setHiddenExps(prev => { const n = new Set(prev); n.add(e._k); return n; })}><Icon name="x" size={14} stroke="var(--fg-muted)" /></button>
+                        <button className="pya-icbtn" title={tr("Conciliar", "Conciliate")} onClick={() => openManual(e._k)}><Icon name="chevronRight" size={15} stroke="var(--ink)" /></button>
+                      </div>}
                       {open && (
                         <div style={{ width: "100%", marginTop: 14 }}>
                           <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)", marginBottom: 10 }}>
@@ -628,7 +660,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                 })}
               </div>
               </React.Fragment>}
-              {manualMode === "factura" && <PyaFacturaFirst lang={lang} invoices={leftoverInvs} expenses={leftoverExps} busy={busy} onLinkExp={linkExpInvs} onLinkConta={linkConta} onView={setBox} />}
+              {manualMode === "factura" && <PyaFacturaFirst lang={lang} invoices={leftoverInvs} expenses={leftoverExps} busy={busy} onLinkExp={linkExpInvs} onLinkConta={linkConta} onLinkDep={linkDep} onView={setBox} onHideInv={(id) => setHiddenInvs(prev => { const n = new Set(prev); n.add(id); return n; })} />}
             </div>
           )}
 
@@ -638,7 +670,10 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
           )}
 
           {/* limpiar */}
-          <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
+          <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            {hiddenCount > 0 && <button className="pya-btn pya-btn-ghost" onClick={() => { setHiddenInvs(new Set()); setHiddenExps(new Set()); }}>
+              <Icon name="eye" size={14} stroke="var(--fg-muted)" />{tr("Mostrar ocultos", "Show hidden")} · {hiddenCount}
+            </button>}
             <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Quitar el archivo cargado?", "Clear the loaded file?"))) { setInvoices(null); setStats(null); setLinked(new Set()); setManualUsed(new Set()); setActiveExp(null); setSel(new Set()); setMsg(""); } }} disabled={!invoices}>
               <Icon name="x" size={14} stroke="var(--fg-muted)" />{tr("Limpiar", "Clear")}
             </button>
@@ -921,7 +956,7 @@ function PyaDepositPanel({ lang, propOptions }) {
 //     “Contabilidad” (columna Debe). Candidatos: misma fecha o hasta 2 días
 //     alrededor, montos similares; check verde si cuadra exacto.
 // ============================================================
-function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkConta, onView }) {
+function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkConta, onLinkDep, onView, onHideInv }) {
   const P = window.PedidosYa;
   const es = lang !== "en"; const tr = (a, b) => es ? a : b; const money = P.money;
   const dA = (later, base) => { if (!later || !base) return 99; return Math.round((new Date(later + "T00:00:00Z") - new Date(base + "T00:00:00Z")) / 86400000); };
@@ -935,6 +970,19 @@ function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkCont
     if (target === "gastos") {
       return expenses.map(e => ({ key: "e" + e._k, exp: e, amount: Math.round(e.valor * (e.mult > 1 ? e.mult : 1) * 100) / 100, day: e.fecha, label: e.property_name || tr("(sin propiedad)", "(no property)"), sub: e.comentario ? e.comentario.replace(/\s*·?\s*\(compartido ÷\d+\)\s*$/, "").slice(0, 40) : "" }))
         .filter(c => { const d = dA(inv.day, c.day); return d >= 0 && d <= 2 && c.amount >= inv.total - 0.06; })
+        .sort((a, b) => Math.abs(a.amount - inv.total) - Math.abs(b.amount - inv.total)).slice(0, 12);
+    }
+    if (target === "dep") {
+      // Depósitos de socios: evalúa el monto en QUETZALES y en DÓLARES (× tipo de cambio)
+      const rate = (window.SpacioI18n && window.SpacioI18n.GTQ_RATE) || 7.46;
+      const deps = (window.SpacioData && window.SpacioData.depositos) || [];
+      return deps.map((d, i) => {
+        const day = pyaNormFecha(d.fecha || "");
+        const qMatch = Math.abs(d.monto - inv.total) <= 0.06;
+        const uMatch = Math.abs(d.monto * rate - inv.total) <= 1.0;
+        return { key: "d" + i, dep: d, amount: qMatch || !uMatch ? d.monto : Math.round(d.monto * rate * 100) / 100, day, label: d.property_name || tr("(sin propiedad)", "(no property)"), sub: (uMatch && !qMatch ? "USD " + d.monto + " × " + rate : ""), qMatch, uMatch };
+      })
+        .filter(c => { const d = /^\d{4}-\d{2}-\d{2}$/.test(c.day) ? Math.abs(dA(inv.day, c.day)) : 0; return d <= 3 && (c.qMatch || c.uMatch || Math.abs(c.amount - inv.total) <= Math.max(inv.total * 0.25, 30)); })
         .sort((a, b) => Math.abs(a.amount - inv.total) - Math.abs(b.amount - inv.total)).slice(0, 12);
     }
     if (!window.SpacioContaStore) return [];
@@ -955,6 +1003,7 @@ function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkCont
     if (!inv || !picked) return;
     let ok = false;
     if (target === "gastos") ok = await onLinkExp(picked.exp, [inv]);
+    else if (target === "dep") ok = onLinkDep(inv, picked.dep);
     else ok = onLinkConta(inv, picked.hit);
     if (ok) { setFocus(null); setPick(null); }
   };
@@ -962,7 +1011,7 @@ function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkCont
   return (
     <React.Fragment>
       <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--fg-muted)", margin: "0 0 14px", maxWidth: 560, textWrap: "pretty" }}>
-        {tr("Elige la factura sobrante y escógele destino: un gasto de insumos o un movimiento de contabilidad con fecha y monto similares.", "Pick the leftover invoice and choose its destination: a supply expense or an accounting line with similar date and amount.")}
+        {tr("Elige la factura sobrante y escógele destino: un gasto de insumos, un movimiento de contabilidad o un depósito de socio con fecha y monto similares. Con ✕ ocultas lo que no aplica.", "Pick the leftover invoice and choose its destination: a supply expense, an accounting line, or a partner deposit with similar date and amount.")}
       </p>
       <div className="pya-manual-split">
         <div className="pya-manual-list">
@@ -973,6 +1022,8 @@ function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkCont
                 <div style={{ fontFamily: "var(--sans)", fontSize: 10, color: "var(--fg-muted)", marginTop: 2 }}>{P.prettyDay(iv.day, lang)}</div>
               </div>
               <span className="pya-num" style={{ fontWeight: 600, fontSize: 12.5 }}>{money(iv.total)}</span>
+              <button className="pya-copy" style={{ padding: 4 }} title={tr("Ver factura", "View invoice")} onClick={(ev) => { ev.stopPropagation(); onView(iv); }}><Icon name="eye" size={14} stroke="currentColor" /></button>
+              <button className="pya-copy" style={{ padding: 4 }} title={tr("Ocultar / no aplica", "Hide / not applicable")} onClick={(ev) => { ev.stopPropagation(); if (focus === iv.id) setFocus(null); onHideInv(iv.id); }}><Icon name="x" size={14} stroke="currentColor" /></button>
             </div>
           ))}
         </div>
@@ -984,12 +1035,13 @@ function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkCont
                 <span className="pya-num" style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 13, color: "var(--ink)", whiteSpace: "nowrap" }}>{money(inv.total)}</span>
               </div>
               <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", margin: "3px 0 8px" }}>NIT {inv.nit} · {P.prettyDay(inv.day, lang)} · <button className="pya-copy" style={{ display: "inline-flex", padding: 0, border: "none", background: "none" }} onClick={() => onView(inv)}><Icon name="eye" size={12} stroke="currentColor" />{tr("Factura completa", "Full invoice")}</button></div>
-              <div className="pya-mmode" style={{ marginBottom: 10 }}>
+              <div className="pya-mmode" style={{ marginBottom: 10, flexWrap: "wrap" }}>
                 <button className={"pya-mmode-btn" + (target === "gastos" ? " on" : "")} onClick={() => { setTarget("gastos"); setPick(null); }}>{tr("Gastos e inversiones", "Expenses")}</button>
                 <button className={"pya-mmode-btn" + (target === "conta" ? " on" : "")} onClick={() => { setTarget("conta"); setPick(null); }}>{tr("Contabilidad", "Accounting")}</button>
+                <button className={"pya-mmode-btn" + (target === "dep" ? " on" : "")} onClick={() => { setTarget("dep"); setPick(null); }}>{tr("Depósitos", "Deposits")}</button>
               </div>
               {cands.length === 0
-                ? <div className="pya-empty" style={{ padding: "16px 10px" }}>{target === "gastos" ? tr("Ningún gasto de insumos con fecha compatible (la factura debe ser del día del gasto o hasta 2 después) y monto suficiente.", "No compatible supply expense.") : tr("Ningún movimiento Debe (GTQ, sin factura) con fecha y monto similares. Revisa que el mes esté cargado en Contabilidad.", "No similar accounting line.")}</div>
+                ? <div className="pya-empty" style={{ padding: "16px 10px" }}>{target === "gastos" ? tr("Ningún gasto de insumos con fecha compatible (la factura debe ser del día del gasto o hasta 2 después) y monto suficiente.", "No compatible supply expense.") : target === "dep" ? tr("Ningún depósito con monto similar (se evalúa en quetzales y en dólares × tipo de cambio).", "No deposit with a similar amount.") : tr("Ningún movimiento Debe (GTQ, sin factura) con fecha y monto similares. Revisa que el mes esté cargado en Contabilidad.", "No similar accounting line.")}</div>
                 : <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto" }}>
                     {cands.map(c => { const ex = Math.abs(c.amount - inv.total) <= 0.06; return (
                       <div key={c.key} className={"pya-manual-inv" + (pick === c.key ? " on pv" : "")} onClick={() => setPick(pick === c.key ? null : c.key)}>
