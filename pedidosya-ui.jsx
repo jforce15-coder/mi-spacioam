@@ -197,6 +197,9 @@ textarea.pya-input { resize: vertical; min-height: 64px; }
 .pya-manual-preview { border: 1px solid var(--ink-08); border-radius: 14px; background: var(--beige-soft); padding: 14px; min-height: 190px; }
 .pya-stats.sticky { position: sticky; top: 0; z-index: 20; background: var(--alabaster); align-items: center; justify-content: space-between; padding: 12px 0; margin: 10px 0 6px; box-shadow: 0 10px 14px -10px rgba(62,63,63,0.22); }
 .pya-stats-nums { display: flex; flex-wrap: wrap; gap: 8px; }
+.pya-mmode { display: inline-flex; background: var(--beige-soft); border-radius: 999px; padding: 3px; gap: 2px; }
+.pya-mmode-btn { border: none; background: transparent; border-radius: 999px; padding: 6px 14px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--fg-muted); cursor: pointer; transition: background .14s var(--ease), color .14s var(--ease); }
+.pya-mmode-btn.on { background: var(--ink); color: var(--alabaster); }
 `;
 
 // ---- compact searchable dropdown (property / categoría / tag) ----

@@ -215,7 +215,7 @@ const PedidosYaImport = ({ lang }) => {
             <PyaSatPanel lang={lang} imported={imported} addImported={addImported} propOptions={propOptions} sheetExpenses={sheetExpenses} />
           </div>
           <div style={{ display: mode === "manual" ? "block" : "none" }}>
-            <PyaManualPanel lang={lang} addImported={addImported} propOptions={propOptions} />
+            <PyaManualPanel lang={lang} addImported={addImported} propOptions={propOptions} sheetCats={[...new Set((sheetExpenses || []).map(e => e.category).filter(Boolean))]} />
           </div>
           <div style={{ display: mode === "deposit" ? "block" : "none" }}>
             <PyaDepositPanel lang={lang} propOptions={propOptions} />
@@ -358,6 +358,10 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
   const [previewInv, setPreviewInv] = pyUseState(null);
   const [manualProp, setManualProp] = pyUseState("");
   const dDiff = (a, b) => { if (!a || !b) return 99; return Math.abs(Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000)); };
+  // días de “later” DESPUÉS de “base” (negativo = antes). La factura solo puede
+  // ser del mismo día del gasto o hasta 2 días después — nunca antes.
+  const dAfter = (later, base) => { if (!later || !base) return 99; return Math.round((new Date(later + "T00:00:00Z") - new Date(base + "T00:00:00Z")) / 86400000); };
+  const [manualMode, setManualMode] = pyUseState("gasto");
   // Solo se concilian gastos cuyo COMENTARIO (col. F) diga “insumos”.
   const targets = pyUseMemo(() => (sheetExpenses || []).filter(e => {
     if (e.hasAuth) return false;
@@ -404,20 +408,35 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
   const openManual = (k) => { setActiveExp(k === activeExp ? null : k); setSel(new Set()); setPreviewInv(null); };
   const toggleSel = (id) => setSel(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const doManual = async () => {
-    if (!activeExpObj || !selInvs.length) return;
-    if (!backendReady()) { setMsg(tr("Conecta el backend para conciliar.", "Connect the backend to conciliate.")); return; }
+  const linkExpInvs = async (expObj, invs) => {
+    if (!expObj || !invs.length) return false;
+    if (!backendReady()) { setMsg(tr("Conecta el backend para conciliar.", "Connect the backend to conciliate.")); return false; }
     setBusy("mlink"); setMsg("");
-    const res = await window.SpacioWrite.post("linkFacturas", { links: [P.linkPayload(activeExpObj, selInvs)] });
+    const res = await window.SpacioWrite.post("linkFacturas", { links: [P.linkPayload(expObj, invs)] });
+    let ok = false;
     if (res && res.ok) {
-      const k = activeExpObj._k, ids = selInvs.map(iv => iv.id);
-      setLinked(prev => { const n = new Set(prev); n.add(k); return n; });
+      ok = true;
+      const ids = invs.map(iv => iv.id);
+      setLinked(prev => { const n = new Set(prev); n.add(expObj._k); return n; });
       setManualUsed(prev => { const n = new Set(prev); ids.forEach(id => n.add(id)); return n; });
-      addImported(selInvs.map(iv => iv.auth));
-      setSel(new Set()); setActiveExp(null);
+      addImported(invs.map(iv => iv.auth));
       setMsg(tr("Gasto conciliado manualmente.", "Expense conciliated manually."));
     } else setMsg(wErr(res));
     setBusy("");
+    return ok;
+  };
+  const doManual = async () => {
+    if (await linkExpInvs(activeExpObj, selInvs)) { setSel(new Set()); setActiveExp(null); }
+  };
+  const linkConta = (inv, hit) => {
+    const stmt = window.SpacioContaStore && window.SpacioContaStore.getStatement(hit.ym, hit.accId);
+    if (!stmt || !stmt.rows[hit.idx]) return false;
+    stmt.rows[hit.idx].factura = inv.auth;
+    window.SpacioContaStore.saveStatement(stmt);
+    setManualUsed(prev => { const n = new Set(prev); n.add(inv.id); return n; });
+    addImported([inv.auth]);
+    setMsg(tr("Factura vinculada al movimiento de contabilidad — gana el link “Ver” en Estados de cuenta.", "Invoice linked to the accounting line."));
+    return true;
   };
 
   const kindLabel = (k) => k === "productos" ? tr("Market", "Market") : k === "tarifa" ? tr("Tarifa", "Fee") : tr("Tienda", "Store");
@@ -508,11 +527,16 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
             <div style={{ marginTop: 26 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
                 <div style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Conciliación manual · sobrantes", "Manual conciliation · leftovers")}</div>
-                <select className="pya-select" style={{ maxWidth: 240 }} value={manualProp} onChange={e => setManualProp(e.target.value)}>
+                <div className="pya-mmode">
+                  <button className={"pya-mmode-btn" + (manualMode === "gasto" ? " on" : "")} onClick={() => setManualMode("gasto")}>{tr("Por gasto", "By expense")}</button>
+                  <button className={"pya-mmode-btn" + (manualMode === "factura" ? " on" : "")} onClick={() => setManualMode("factura")}>{tr("Por factura", "By invoice")}</button>
+                </div>
+                {manualMode === "gasto" && <select className="pya-select" style={{ maxWidth: 240 }} value={manualProp} onChange={e => setManualProp(e.target.value)}>
                   <option value="">{tr("Todos los apartamentos", "All apartments")}</option>
                   {[...new Set(leftoverExps.map(x => x.property_name).filter(Boolean))].sort().map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+                </select>}
               </div>
+              {manualMode === "gasto" && <React.Fragment>
               <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--fg-muted)", margin: "0 0 14px", maxWidth: 560, textWrap: "pretty" }}>
                 {tr("Estos gastos no se pudieron emparejar solos (montos que no cuadran, combos de 3+ facturas, o fechas distintas). Elige el gasto y marca las facturas que lo forman.", "These expenses couldn't be matched automatically (amounts that don't add up, combos of 3+ invoices, or different dates). Pick the expense and check the invoices that make it up.")}
               </p>
@@ -533,12 +557,12 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                       {open && (
                         <div style={{ width: "100%", marginTop: 14 }}>
                           <div style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)", marginBottom: 10 }}>
-                            {tr("Marca las facturas cercanas a", "Check the invoices near")} {P.prettyDay(e.fecha, lang)} {tr("que suman", "that add up to")} {money(t)} {tr("(ventana ±2 días)", "(±2-day window)")}:
+                            {tr("Marca las facturas del", "Check invoices from")} {P.prettyDay(e.fecha, lang)} {tr("o hasta 2 días después que suman", "or up to 2 days later adding up to")} {money(t)}:
                           </div>
                           {(() => {
-                            const near = leftoverInvs.filter(iv => dDiff(iv.day, e.fecha) <= 2 && iv.total <= t + 0.06).sort((a, b) => dDiff(a.day, e.fecha) - dDiff(b.day, e.fecha) || (b.total - a.total));
+                            const near = leftoverInvs.filter(iv => { const d = dAfter(iv.day, e.fecha); return d >= 0 && d <= 2 && iv.total <= t + 0.06; }).sort((a, b) => dAfter(a.day, e.fecha) - dAfter(b.day, e.fecha) || (b.total - a.total));
                             const pv = previewInv ? near.find(x => x.id === previewInv) : null;
-                            if (!near.length) return <div className="pya-empty" style={{ padding: "18px 12px" }}>{tr("No hay facturas sobrantes en ±2 días de esta fecha. Revisa la fecha del gasto o el archivo.", "No leftover invoices within ±2 days. Check the expense date or the file.")}</div>;
+                            if (!near.length) return <div className="pya-empty" style={{ padding: "18px 12px" }}>{tr("No hay facturas sobrantes de esta fecha ni de los 2 días siguientes. Revisa la fecha del gasto o el archivo.", "No leftover invoices on this date or the next 2 days.")}</div>;
                             return (
                               <div className="pya-manual-split">
                                 <div className="pya-manual-list">
@@ -547,7 +571,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                                       <PyaCheck on={sel.has(iv.id)} onClick={() => toggleSel(iv.id)} />
                                       <div style={{ flex: 1, minWidth: 0 }}>
                                         <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{iv.emisor}</div>
-                                        <div style={{ fontFamily: "var(--sans)", fontSize: 10, color: "var(--fg-muted)", marginTop: 2 }}>{kindLabel(iv.kind)} · {P.prettyDay(iv.day, lang)}{dDiff(iv.day, e.fecha) ? " · +" + dDiff(iv.day, e.fecha) + "d" : ""}</div>
+                                        <div style={{ fontFamily: "var(--sans)", fontSize: 10, color: "var(--fg-muted)", marginTop: 2 }}>{kindLabel(iv.kind)} · {P.prettyDay(iv.day, lang)}{dAfter(iv.day, e.fecha) > 0 ? " · +" + dAfter(iv.day, e.fecha) + "d" : ""}</div>
                                       </div>
                                       <span className="pya-num" style={{ fontWeight: 600, fontSize: 12.5 }}>{money(iv.total)}</span>
                                     </div>
@@ -603,6 +627,8 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
                   );
                 })}
               </div>
+              </React.Fragment>}
+              {manualMode === "factura" && <PyaFacturaFirst lang={lang} invoices={leftoverInvs} expenses={leftoverExps} busy={busy} onLinkExp={linkExpInvs} onLinkConta={linkConta} onView={setBox} />}
             </div>
           )}
 
@@ -628,7 +654,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
 // ============================================================
 // 2) Panel gasto manual (suelto o multipropiedad)
 // ============================================================
-function PyaManualPanel({ lang, addImported, propOptions }) {
+function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
   const P = window.PedidosYa;
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
@@ -645,10 +671,14 @@ function PyaManualPanel({ lang, addImported, propOptions }) {
   const [busy, setBusy] = pyUseState(false);
   const [msg, setMsg] = pyUseState("");
 
-  const catOptions = [
+  // Todas las categorías reales de la col. E de la hoja + las dos base.
+  const baseCats = [
     { value: "Reparaciones o inversión", label: tr("Mantenimiento e inversión", "Maintenance & investment") },
     { value: "insumos & gastos", label: tr("Insumos & gastos", "Supplies & expenses") },
   ];
+  const catOptions = baseCats.concat(
+    [...new Set(sheetCats || [])].filter(c => !baseCats.some(b => b.value.toLowerCase() === String(c).toLowerCase())).sort().map(c => ({ value: c, label: c }))
+  );
   const tagOptions = [
     { value: "", label: tr("— (sin etiqueta)", "— (no tag)") },
     { value: "Restaurante / comida", label: tr("Restaurante / comida", "Restaurant / food") },
@@ -886,6 +916,115 @@ function PyaDepositPanel({ lang, propOptions }) {
 }
 
 // ============================================================
+// 1a) Conciliación manual POR FACTURA: eliges la factura sobrante, la ves,
+//     y escoges destino — “Gastos e inversiones” (gastos insumos) o
+//     “Contabilidad” (columna Debe). Candidatos: misma fecha o hasta 2 días
+//     alrededor, montos similares; check verde si cuadra exacto.
+// ============================================================
+function PyaFacturaFirst({ lang, invoices, expenses, busy, onLinkExp, onLinkConta, onView }) {
+  const P = window.PedidosYa;
+  const es = lang !== "en"; const tr = (a, b) => es ? a : b; const money = P.money;
+  const dA = (later, base) => { if (!later || !base) return 99; return Math.round((new Date(later + "T00:00:00Z") - new Date(base + "T00:00:00Z")) / 86400000); };
+  const [focus, setFocus] = pyUseState(null);
+  const [target, setTarget] = pyUseState("gastos");
+  const [pick, setPick] = pyUseState(null);
+  const inv = invoices.find(x => x.id === focus) || null;
+
+  const cands = pyUseMemo(() => {
+    if (!inv) return [];
+    if (target === "gastos") {
+      return expenses.map(e => ({ key: "e" + e._k, exp: e, amount: Math.round(e.valor * (e.mult > 1 ? e.mult : 1) * 100) / 100, day: e.fecha, label: e.property_name || tr("(sin propiedad)", "(no property)"), sub: e.comentario ? e.comentario.replace(/\s*·?\s*\(compartido ÷\d+\)\s*$/, "").slice(0, 40) : "" }))
+        .filter(c => { const d = dA(inv.day, c.day); return d >= 0 && d <= 2 && c.amount >= inv.total - 0.06; })
+        .sort((a, b) => Math.abs(a.amount - inv.total) - Math.abs(b.amount - inv.total)).slice(0, 12);
+    }
+    if (!window.SpacioContaStore) return [];
+    const rows = [];
+    const seenYm = {};
+    const ym = (inv.day || "").slice(0, 7);
+    [0, -1, 1].forEach(d => { const [y, m] = ym.split("-").map(Number); const t2 = new Date(Date.UTC(y, m - 1 + d, 1)); const k = t2.getUTCFullYear() + "-" + ("0" + (t2.getUTCMonth() + 1)).slice(-2); if (seenYm[k]) return; seenYm[k] = 1;
+      (window.SpacioContaStore.statementsForMonth(k) || []).forEach(s => { if (s.currency !== "GTQ") return; (s.rows || []).forEach((r, idx) => { if (r.debit > 0 && !r.factura) rows.push({ ym: s.ym, accId: s.accId, idx, r }); }); });
+    });
+    return rows.map(h => ({ key: "c" + h.ym + "|" + h.accId + "|" + h.idx, hit: h, amount: h.r.debit, day: h.r.date, label: (window.SpacioConta && window.SpacioConta.accountById(h.accId) || { name: h.accId }).name, sub: (h.r.desc || "").slice(0, 44) }))
+      .filter(c => { const d = dA(inv.day, c.day); return d >= -2 && d <= 2 && Math.abs(c.amount - inv.total) <= Math.max(inv.total * 0.5, 30); })
+      .sort((a, b) => Math.abs(a.amount - inv.total) - Math.abs(b.amount - inv.total)).slice(0, 12);
+  }, [inv && inv.id, target, expenses, invoices]);
+
+  const picked = cands.find(c => c.key === pick) || null;
+  const exact = picked && Math.abs(picked.amount - inv.total) <= 0.06;
+  const confirm = async () => {
+    if (!inv || !picked) return;
+    let ok = false;
+    if (target === "gastos") ok = await onLinkExp(picked.exp, [inv]);
+    else ok = onLinkConta(inv, picked.hit);
+    if (ok) { setFocus(null); setPick(null); }
+  };
+
+  return (
+    <React.Fragment>
+      <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, letterSpacing: "0.02em", color: "var(--fg-muted)", margin: "0 0 14px", maxWidth: 560, textWrap: "pretty" }}>
+        {tr("Elige la factura sobrante y escógele destino: un gasto de insumos o un movimiento de contabilidad con fecha y monto similares.", "Pick the leftover invoice and choose its destination: a supply expense or an accounting line with similar date and amount.")}
+      </p>
+      <div className="pya-manual-split">
+        <div className="pya-manual-list">
+          {invoices.slice().sort((a, b) => (a.day < b.day ? 1 : -1)).map(iv => (
+            <div key={iv.id} className={"pya-manual-inv" + (focus === iv.id ? " pv" : "")} onClick={() => { setFocus(iv.id); setPick(null); }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{iv.emisor}</div>
+                <div style={{ fontFamily: "var(--sans)", fontSize: 10, color: "var(--fg-muted)", marginTop: 2 }}>{P.prettyDay(iv.day, lang)}</div>
+              </div>
+              <span className="pya-num" style={{ fontWeight: 600, fontSize: 12.5 }}>{money(iv.total)}</span>
+            </div>
+          ))}
+        </div>
+        <div className="pya-manual-preview">
+          {inv ? (
+            <React.Fragment>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+                <div style={{ fontFamily: "var(--serif)", fontSize: 16, color: "var(--ink)", lineHeight: 1.15 }}>{inv.emisor}</div>
+                <span className="pya-num" style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 13, color: "var(--ink)", whiteSpace: "nowrap" }}>{money(inv.total)}</span>
+              </div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", margin: "3px 0 8px" }}>NIT {inv.nit} · {P.prettyDay(inv.day, lang)} · <button className="pya-copy" style={{ display: "inline-flex", padding: 0, border: "none", background: "none" }} onClick={() => onView(inv)}><Icon name="eye" size={12} stroke="currentColor" />{tr("Factura completa", "Full invoice")}</button></div>
+              <div className="pya-mmode" style={{ marginBottom: 10 }}>
+                <button className={"pya-mmode-btn" + (target === "gastos" ? " on" : "")} onClick={() => { setTarget("gastos"); setPick(null); }}>{tr("Gastos e inversiones", "Expenses")}</button>
+                <button className={"pya-mmode-btn" + (target === "conta" ? " on" : "")} onClick={() => { setTarget("conta"); setPick(null); }}>{tr("Contabilidad", "Accounting")}</button>
+              </div>
+              {cands.length === 0
+                ? <div className="pya-empty" style={{ padding: "16px 10px" }}>{target === "gastos" ? tr("Ningún gasto de insumos con fecha compatible (la factura debe ser del día del gasto o hasta 2 después) y monto suficiente.", "No compatible supply expense.") : tr("Ningún movimiento Debe (GTQ, sin factura) con fecha y monto similares. Revisa que el mes esté cargado en Contabilidad.", "No similar accounting line.")}</div>
+                : <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 240, overflowY: "auto" }}>
+                    {cands.map(c => { const ex = Math.abs(c.amount - inv.total) <= 0.06; return (
+                      <div key={c.key} className={"pya-manual-inv" + (pick === c.key ? " on pv" : "")} onClick={() => setPick(pick === c.key ? null : c.key)}>
+                        <PyaCheck on={pick === c.key} onClick={() => setPick(pick === c.key ? null : c.key)} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.label}</div>
+                          <div style={{ fontFamily: "var(--sans)", fontSize: 10, color: "var(--fg-muted)", marginTop: 2 }}>{P.prettyDay(c.day, lang)}{c.sub ? " · " + c.sub : ""}</div>
+                        </div>
+                        <span className="pya-num" style={{ fontWeight: 600, fontSize: 12.5, display: "inline-flex", alignItems: "center", gap: 5, color: ex ? "#3d6b52" : "var(--ink)" }}>{ex && <Icon name="check" size={13} stroke="#3d6b52" />}{money(c.amount)}</span>
+                      </div>
+                    ); })}
+                  </div>}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, gap: 10 }}>
+                <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: exact ? "#3d6b52" : "var(--fg-muted)", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  {picked ? (exact ? <React.Fragment><Icon name="check" size={14} stroke="#3d6b52" />{tr("Cuadra exacto", "Exact match")}</React.Fragment> : tr("Diferencia", "Difference") + " " + money(Math.round(Math.abs(picked.amount - inv.total) * 100) / 100)) : tr("Elige el destino", "Pick the destination")}
+                </span>
+                <button className="pya-btn pya-btn-dark" onClick={confirm} disabled={!picked || busy === "mlink"}>
+                  {busy === "mlink" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
+                  {tr("Conciliar", "Conciliate")}
+                </button>
+              </div>
+            </React.Fragment>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 160, textAlign: "center", color: "var(--fg-muted)", gap: 8 }}>
+              <Icon name="file" size={22} stroke="var(--warm-grey)" />
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11.5 }}>{tr("Toca una factura para empezar", "Tap an invoice to start")}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </React.Fragment>
+  );
+}
+
+// ============================================================
 // 1b) Conciliación de facturas sobrantes contra CONTABILIDAD
 //     (columna "Debe" de los estados de cuenta). Empareja por
 //     fecha (±2 días) + monto exacto y escribe el nº de autorización
@@ -919,7 +1058,9 @@ function PyaContaRecon({ lang, invoices, pendingExps, onLinked, onView }) {
     const used = {};
     const out = [];
     inv.forEach(i => {
-      const c = rows.filter(x => !used[x.ym + "|" + x.accId + "|" + x.idx] && dDiff(x.r.date, i.day) <= 2 && Math.abs(x.r.debit - i.total) <= 0.06)
+      // el movimiento (gasto) va antes: factura del mismo día o hasta 2 después
+      const dAfterC = (later, base) => Math.round((new Date(later + "T00:00:00Z") - new Date(base + "T00:00:00Z")) / 86400000);
+      const c = rows.filter(x => { if (used[x.ym + "|" + x.accId + "|" + x.idx]) return false; const d = dAfterC(i.day, x.r.date); return d >= 0 && d <= 2 && Math.abs(x.r.debit - i.total) <= 0.06; })
         .sort((a, b) => dDiff(a.r.date, i.day) - dDiff(b.r.date, i.day));
       if (c.length) { const hit = c[0]; used[hit.ym + "|" + hit.accId + "|" + hit.idx] = 1; out.push({ inv: i, hit }); }
     });

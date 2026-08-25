@@ -702,7 +702,9 @@
     const TOL = 0.06;
     const used = {}, matches = [];
     const exps = (expenses || []).map(e => Object.assign({}, e, { target: _r(e.valor * (e.mult > 1 ? e.mult : 1)) }));
-    const near = (e) => (invoices || []).filter(inv => !used[inv.id] && e.fecha && inv.day && dayDiff(inv.day, e.fecha) <= WIN);
+    // la factura solo puede ser del MISMO día del gasto o hasta WIN días DESPUÉS (nunca antes)
+    const after = (a, b) => Math.round((new Date(a + "T00:00:00Z") - new Date(b + "T00:00:00Z")) / 86400000);
+    const near = (e) => (invoices || []).filter(inv => { if (!inv.id || used[inv.id] || !e.fecha || !inv.day) return false; const d = after(inv.day, e.fecha); return d >= 0 && d <= WIN; });
     // pass 1 — una factura (la más cercana en fecha)
     exps.forEach(e => {
       if (e._done) return;
