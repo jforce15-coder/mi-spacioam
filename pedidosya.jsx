@@ -234,7 +234,7 @@ const PedidosYaImport = ({ lang }) => {
   );
 };
 
-function PyaDteBox({ inv, lang, onClose }) {
+function PyaDteBox({ inv, lang, onClose, headerExtra }) {
   const P = window.PedidosYa; const es = lang !== "en"; const tr = (a, b) => es ? a : b;
   if (!inv) return null;
   const sub = inv.items.reduce((s, x) => s + x.gravable, 0);
@@ -268,6 +268,7 @@ function PyaDteBox({ inv, lang, onClose }) {
           <button className="pya-modal-x" onClick={onClose}><Icon name="x" size={17} stroke="var(--ink)" /></button>
         </div>
         <div className="pya-modal-body">
+          {headerExtra || null}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, padding: "4px 0 14px", borderBottom: "1px solid var(--ink-08)" }}>
             <div><div style={eyebrow}>{tr("Receptor", "Recipient")}</div><div style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 5 }}>{inv.receptor || "—"}</div><div style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", marginTop: 2 }}>NIT {inv.nitReceptor || "—"}</div></div>
             <div><div style={eyebrow}>{tr("Clasificación", "Class")}</div><div style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)", marginTop: 5 }}>{inv.kind === "productos" ? "Market" : inv.kind === "tarifa" ? tr("Tarifa", "Fee") : tr("Tienda", "Store")}</div><div style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", marginTop: 2 }}>{kindLbl}</div></div>

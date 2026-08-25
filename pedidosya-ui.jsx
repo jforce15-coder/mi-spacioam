@@ -367,7 +367,30 @@ function CopyBtn({ text }) {
 // ---- reusable invoice / order viewer (box tipo iframe + abrir en pestaña) ----
 // Recibe datos planos: { orderUrl, authProductos, authTarifa, desc, day, amount,
 //   vendor, receptor, invoices:[{kind,auth,nit,total,receptor}] }
+// Vista principal: la(s) factura(s) recreadas en formato Spacio AM (desde el ZIP
+// cargado). La verificación SAT queda como opción dentro del modal. Si el ZIP no
+// está en este navegador, cae a la vista SAT de siempre.
 function InvoiceViewBox({ data, lang, onClose }) {
+  const es = lang !== "en"; const tr = (a, b) => es ? a : b;
+  const auths = [data && data.authProductos, data && data.authTarifa].filter(Boolean);
+  const invs = auths.map(a => (window.pyaSatInvoiceByAuth ? window.pyaSatInvoiceByAuth(a) : null)).filter(Boolean);
+  const [idx, setIdx] = React.useState(0);
+  const [satView, setSatView] = React.useState(false);
+  if (!invs.length || satView || !window.PyaDteBox) return <InvoiceViewBoxSAT data={data} lang={lang} onClose={() => { if (satView) setSatView(false); else onClose(); }} />;
+  const i = Math.min(idx, invs.length - 1);
+  const bar = (
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", paddingBottom: 10, marginBottom: 4, borderBottom: "1px solid var(--ink-08)" }}>
+      {invs.length > 1 && <div className="pya-mmode">{invs.map((iv, k) => (
+        <button key={k} className={"pya-mmode-btn" + (k === i ? " on" : "")} onClick={() => setIdx(k)}>{(iv.kind === "tarifa" ? tr("Tarifa", "Fee") : iv.kind === "productos" ? "Market" : tr("Factura", "Invoice")) + " · " + window.PedidosYa.money(iv.total)}</button>
+      ))}</div>}
+      <button className="pya-copy" onClick={() => setSatView(true)}>{tr("Verificación SAT ↗", "SAT verification ↗")}</button>
+    </div>
+  );
+  return <window.PyaDteBox inv={invs[i]} lang={lang} onClose={onClose} headerExtra={bar} />;
+}
+
+// Vista SAT (verificador/Agencia Virtual) — ahora es la opción secundaria.
+function InvoiceViewBoxSAT({ data, lang, onClose }) {
   const P = window.PedidosYa;
   const es = lang !== "en";
   const [cfg, setCfg] = pyaUseState(() => { try { const c = JSON.parse(localStorage.getItem("sa-sat-config")) || {}; return { nit: c.nit || "118287796", clave: c.clave || "" }; } catch (e) { return { nit: "118287796", clave: "" }; } });
