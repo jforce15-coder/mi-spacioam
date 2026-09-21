@@ -175,6 +175,9 @@
     const ownerNames = {};     // code -> ordered list of normNames
     const codeInfo = {};       // code -> { email, pass, secondary }
 
+    // "a@x.com, b@y.com; c@z.com" -> ["a@x.com","b@y.com","c@z.com"]
+    const emailList = (v) => String(v || "").split(/[,;\n]+/).map(s => s.trim()).filter(s => s.includes("@"));
+    const mergeEmails = (a, b) => [...new Set(emailList(a).concat(emailList(b)).map(s => s.toLowerCase()))].join(", ");
     setup.items.forEach(r => {
       const pid = (r["property_id"] || "").trim();
       const name = (r["property_name"] || "").trim();
@@ -185,7 +188,8 @@
       const ci = codeInfo[code] = codeInfo[code] || { email: "", pass: "", secondary: "" };
       if (!ci.email && r["User email"]) ci.email = r["User email"].trim();
       if (!ci.pass && r["Password"]) ci.pass = r["Password"].trim();
-      if (!ci.secondary && r["secondary user email"]) ci.secondary = r["secondary user email"].trim();
+      // puede traer varios correos separados por coma: se acumulan todos
+      if (r["secondary user email"]) ci.secondary = mergeEmails(ci.secondary, r["secondary user email"]);
       let p = propByName[nm];
       if (!p) {
         const parts = parseName(name);
@@ -376,7 +380,7 @@
       acc.codes.push(code);
       acc.props = acc.props.concat(props);
       if (!acc.email && email) acc.email = email;
-      if (!acc.secondaryEmail && info.secondary) acc.secondaryEmail = info.secondary;
+      if (info.secondary) acc.secondaryEmail = mergeEmails(acc.secondaryEmail, info.secondary);
     });
     function prettyName(email, code) {
       if (email && email.includes("@")) { const lp = email.split("@")[0]; return lp.charAt(0).toUpperCase() + lp.slice(1); }
@@ -433,7 +437,7 @@
         const byCode = !byUid && codes.length && owners.find(o => (o.codes || [o.code]).some(c => codes.indexOf(String(c).toLowerCase()) >= 0));
         const byEmail = !byUid && !byCode && owners.find(o => {
           const e = eff(o);
-          return (e.email || "").toLowerCase() === email || (e.secondaryEmail || "").toLowerCase() === email;
+          return (e.email || "").toLowerCase() === email || emailList(e.secondaryEmail).some(s => s.toLowerCase() === email);
         });
         const found = byUid || byCode || byEmail;
         return found ? Object.assign({}, found, { user_id: uid || found.user_id || "", avatar: p.foto || found.avatar || "" }) : Object.assign({ code: "__u__", user_id: uid, name: p.nombre || p.email, email: p.email, props: [], avatar: p.foto || "" });
@@ -447,8 +451,8 @@
         for (const o of owners) {
           const e = eff(o);
           const email = (e.email || "").toLowerCase();
-          const sec = (e.secondaryEmail || "").toLowerCase();
-          if ((L && (L === email || (sec && L === sec))) && pass === e.pass) {
+          const sec = emailList(e.secondaryEmail).map(s => s.toLowerCase());
+          if ((L && (L === email || sec.indexOf(L) >= 0)) && pass === e.pass) {
             return Object.assign({}, o, e);
           }
         }

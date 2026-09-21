@@ -597,7 +597,12 @@ const ReporteHead = ({ property, ymLabel, lang }) => (
   </div>
 );
 
-// ---- Account / profile (change email, secondary email, password — saved locally) ----
+// Correos secundarios: se guardan en una sola celda separados por coma.
+const parseEmails = (v) => String(v || "").split(/[,;\n]+/).map(s => s.trim()).filter(Boolean);
+const normEmails = (v) => [...new Set(parseEmails(v).map(s => s.toLowerCase()))].join(", ");
+const emailsValid = (v) => parseEmails(v).every(s => /.+@.+\..+/.test(s));
+
+// ---- Account / profile (change email, secondary emails, password — saved locally) ----
 const AccountField = ({ label, hint, value, onChange, type, placeholder }) => (
   <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
     <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
@@ -721,9 +726,10 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
 
   const save = () => {
     if (!email || !/.+@.+\..+/.test(email)) { setErr(t("acc_invalid_email")); return; }
+    if (!emailsValid(secondary)) { setErr(t("acc_invalid_secondary")); return; }
     setErr("");
     const fullName = [pNombre, sNombre, pApellido, sApellido].map(s => (s || "").trim()).filter(Boolean).join(" ");
-    const patch = { email: email.trim(), secondaryEmail: secondary.trim(), name: fullName,
+    const patch = { email: email.trim(), secondaryEmail: normEmails(secondary), name: fullName,
       primerNombre: pNombre.trim(), segundoNombre: sNombre.trim(), primerApellido: pApellido.trim(), segundoApellido: sApellido.trim() };
     if (pass) patch.pass = pass;
     SpacioProfile.set(owner.code, patch);
@@ -775,7 +781,21 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
               <AccountField label={lang === "es" ? "Segundo apellido" : "Second surname"} value={sApellido} onChange={setSApellido} type="text" placeholder={lang === "es" ? "Segundo apellido" : "Second surname"} />
             </div>
             <AccountField label={t("acc_email")} hint={t("acc_email_hint")} value={email} onChange={setEmail} type="email" placeholder="tu@correo.com" />
-            <AccountField label={t("acc_secondary")} hint={t("acc_secondary_hint")} value={secondary} onChange={setSecondary} type="email" placeholder="alterno@correo.com" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <AccountField label={t("acc_secondary")} hint={t("acc_secondary_hint")} value={secondary} onChange={setSecondary} type="text" placeholder="alterno@correo.com, otro@correo.com" />
+              {parseEmails(secondary).length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                  {parseEmails(secondary).map((e, i) => (
+                    <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 999, background: "var(--bg-alt)", border: "1px solid " + (/.+@.+\..+/.test(e) ? "var(--warm-grey)" : "var(--attention-text)"), fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: /.+@.+\..+/.test(e) ? "var(--ink)" : "var(--attention-text)" }}>
+                      {e}
+                      <button onClick={() => setSecondary(parseEmails(secondary).filter((_, j) => j !== i).join(", "))} title="Quitar" style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, lineHeight: 0, color: "var(--fg-muted)" }}>
+                        <Icon name="x" size={12} stroke="currentColor" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
             <AccountField label={t("acc_pass")} hint={t("acc_pass_hint")} value={pass} onChange={setPass} type="password" placeholder="••••••••" />
             {err && <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 12, color: "var(--attention-text)" }}><Icon name="info" size={15} /> {err}</div>}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
@@ -864,7 +884,7 @@ function SetupSocioModal({ socio, onClose, onSaveSocio, onEditProp, onAddProp, t
               </label>
               {field(tr("Usuario", "Username"), "usuario", "text", "usuario_id")}
               {field(tr("Correo", "Email"), "email", "email", "socio@correo.com")}
-              {field(tr("Correo secundario", "Secondary email"), "secondary", "email", "alterno@correo.com")}
+              {field(tr("Correos secundarios (separados por coma)", "Secondary emails (comma separated)"), "secondary", "text", "alterno@correo.com, otro@correo.com")}
               {field(tr("Contraseña (opcional)", "Password (optional)"), "pass", "text", "••••••••")}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
@@ -945,7 +965,7 @@ const SetupSection = ({ lang, t }) => {
   const tr = (a, b) => (es ? a : b);
   const HEAD = (SpacioData.setupHead && SpacioData.setupHead.length)
     ? SpacioData.setupHead
-    : ["property_id", "property_name", "Usuario ID", "User email", "Password", "SPACIOAMFEE", "iva", "RETENCION", "OTRO INGRESO", "Listing link", "secondary user email", "Moneda", "Numero de cuenta"];
+    : ["property_id", "property_name", "Usuario ID", "User email", "Password", "SPACIOAMFEE", "iva", "RETENCION", "CLEANING_SOCIO", "OTRO INGRESO", "Listing link", "secondary user email", "Moneda", "Numero de cuenta"];
   // una entrada por fila de SETUP (raw con TODAS las columnas A–O)
   const baseRows = useMemo(() => {
     const rows = [];
@@ -1027,7 +1047,7 @@ const SetupSection = ({ lang, t }) => {
     SpacioSetup.saveEditRaw(r.property_id, r);
     setSavedId(r.property_id); setTimeout(() => setSavedId(null), 1600);
     if (SpacioWrite.enabled()) {
-      if (r._new) SpacioWrite.post("addProperty", { row: { property_id: r.property_id, property_name: r["property_name"], usuario: r["Usuario ID"], email: r["User email"], password: r["Password"], fee: r["SPACIOAMFEE"], iva: r["iva"], retencion: r["RETENCION"], otroIngreso: r["OTRO INGRESO"], listing: r["Listing link"], secondary: r["secondary user email"] } });
+      if (r._new) SpacioWrite.post("addProperty", { row: { property_id: r.property_id, property_name: r["property_name"], usuario: r["Usuario ID"], email: r["User email"], password: r["Password"], fee: r["SPACIOAMFEE"], iva: r["iva"], retencion: r["RETENCION"], cleaningSocio: r["CLEANING_SOCIO"], otroIngreso: r["OTRO INGRESO"], listing: r["Listing link"], secondary: r["secondary user email"] } });
       else SpacioWrite.post("saveSetupRaw", { property_id: r.property_id, values: r }).then(res => { if (res && !res.ok) console.warn("saveSetupRaw", res); });
     }
     setEditing(null);
@@ -1055,7 +1075,7 @@ const SetupSection = ({ lang, t }) => {
       if (socioKeyOf(row) !== draft.key) return row;
       const nr = Object.assign({}, row, {
         "Usuario ID": draft.usuario, "User email": draft.email,
-        "secondary user email": draft.secondary, "Nombre": fullName,
+        "secondary user email": normEmails(draft.secondary), "Nombre": fullName,
         "Primer nombre": draft.pn, "Segundo nombre": draft.sn,
         "Primer apellido": draft.pa, "Segundo apellido": draft.sa,
       });
