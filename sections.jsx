@@ -407,7 +407,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                     {!multiProp && activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--fg-muted)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
                     {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--attention-text)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
                     {(r.orderUrl || r.authProductos || r.authTarifa) && (
-                      <button onClick={() => setInvBox({ orderUrl: r.orderUrl, authProductos: r.authProductos, authTarifa: r.authTarifa, desc: r.desc, vendor: r.desc })}
+                      <button onClick={() => setInvBox({ orderUrl: r.orderUrl, authProductos: r.authProductos, authTarifa: r.authTarifa, desc: r.desc, vendor: r.desc, amountGTQ: r.amountGTQ, day: r.y != null ? r.y + "-" + String(r.m + 1).padStart(2, "0") + "-" + String(r.day || 1).padStart(2, "0") : "" })}
                         style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", verticalAlign: "middle" }}>
                         <Icon name="eye" size={12} stroke="currentColor" />{lang === "es" ? "Ver factura" : "View invoice"}
                       </button>
@@ -825,6 +825,7 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
             ))}
           </div>
         </Card>}
+        {!owner.isAdmin && typeof ContratosAccountCard !== "undefined" && <ContratosAccountCard lang={lang} props={props} />}
       </div>
     </section>
   );
@@ -1176,6 +1177,8 @@ const SetupSection = ({ lang, t }) => {
           {mailMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{mailMsg}</span>}
         </div>
       </Card>
+
+      {typeof ContratosSetupCard !== "undefined" && <ContratosSetupCard lang={lang} />}
 
       <div className="sa-setup-toolbar">
         <input value={q} onChange={e => setQ(e.target.value)} placeholder={t("setup_search")} className="sa-setup-input" style={{ maxWidth: 280 }} />

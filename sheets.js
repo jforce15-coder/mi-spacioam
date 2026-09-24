@@ -629,7 +629,7 @@
     // registro de archivos subidos (facturas/depositos a Drive) — best effort
     try {
       const filesT = await fetchTab("Archivos cargados");
-      data.files = (filesT.items || []).map(r => ({
+      const mapFile = r => ({
         tipo: (r["tipo"] || "").trim().toLowerCase(),
         scope: (r["scope"] || "").trim().toLowerCase() || "property",
         owner: (r["owner"] || "").trim(),
@@ -640,7 +640,10 @@
         cargado: (r["cargado"] || "").trim(),
         orderId: (r["orderId"] || "").trim(),
         account: (r["account"] || "").trim(),
-      })).filter(r => r.tipo && r.ym);
+      });
+      // completo (Contabilidad → Facturas lista también las que no traen mes)
+      data.filesAll = (filesT.items || []).map(mapFile).filter(r => r.tipo);
+      data.files = data.filesAll.filter(r => r.ym);
     } catch (e) { data.files = []; }
     // gastos operativos globales + otros ingresos (P&L interno) — best effort
     try {
@@ -685,6 +688,12 @@
         pdfUrl: (r["pdf_url"] || "").trim(), savedAt: (r["savedAt"] || "").trim(),
       })).filter(r => r.ym && r.account);
     } catch (e) { data.conta = []; }
+    // Facturas · Contratos · Long term (filas genéricas por id) — best effort
+    data.rows = {};
+    await Promise.all(["Facturas", "Contratos", "Long term"].map(async (tab) => {
+      try { const T = await fetchTab(tab); data.rows[tab] = (T.items || []).filter(r => (r["id"] || "").trim()); }
+      catch (e) { data.rows[tab] = []; }
+    }));
     window.SpacioData = data;
     window.__sheets = { setup: setup.items.length, resumen: resumen.items.length, db: dbT.items.length, exp: expT.items.length, tc: tcT.items.length, accounts: data.owners.length, files: (data.files || []).length };
     return data;

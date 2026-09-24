@@ -354,6 +354,8 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
       catch (e) { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(false)); } // sin espacio: guarda sin líneas
     } catch (e) {}
   }, [invoices, stats, linked, manualUsed, hiddenInvs, hiddenExps]);
+  // el lote que ya estaba en este navegador también se sube a la hoja (Contabilidad → Facturas)
+  pyUseEffect(() => { try { if (invoices && invoices.length && window.cfSyncReceived) window.cfSyncReceived(invoices); } catch (e) {} }, []);
   const [activeExp, setActiveExp] = pyUseState(null);            // _k del gasto en conciliación manual
   const [sel, setSel] = pyUseState(() => new Set());             // facturas elegidas para el gasto activo
 
@@ -378,6 +380,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
     setBusy("read"); setMsg("");
     const res = await P.parseDTEFiles([...files]);
     setInvoices(res.invoices); setStats(res.stats); setBusy("");
+    try { if (window.cfSyncReceived) window.cfSyncReceived(res.invoices); } catch (e) {}
     if (!res.invoices.length) setMsg(tr("No se leyeron facturas. Sube el consulta.zip del SAT (o los XML sueltos).", "No invoices read. Upload the SAT consulta.zip (or the XML files)."));
   };
 
@@ -1714,8 +1717,12 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
 }
 
 Object.assign(window, { PedidosYaImport, PyaSatPanel, PyaManualPanel, PyaDepositPanel, PyaManagePanel, PyaReportesPanel, ReporteDetalleBox, PyaDteBox, PyaRetencionesPanel });
+// para Contabilidad → Facturas / Long term
+window.pyaSatDraft = pyaSatDraftLoad;
+window.pyaEnsureTesseract = ensureTesseract;
+window.pyaThumb = pyaThumb;
 // factura del ZIP cargado, por número de autorización (para Contabilidad)
 window.pyaSatInvoiceByAuth = function (auth) {
   const d = pyaSatDraftLoad();
-  return (d && d.invoices || []).find(i => i.auth === auth) || null;
+  return (d && d.invoices || []).find(i => i.auth === auth) || (window.saInvoiceFromRows ? window.saInvoiceFromRows(auth) : null) || null;
 };

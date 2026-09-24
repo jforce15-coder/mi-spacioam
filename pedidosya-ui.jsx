@@ -203,7 +203,12 @@ textarea.pya-input { resize: vertical; min-height: 64px; }
 `;
 
 // ---- compact searchable dropdown (property / categoría / tag) ----
-function PyaMini({ value, options, onChange, placeholder, search }) {
+function PyaMini(props) {
+  // con búsqueda: autocompletado en línea (SaCombo)
+  if (props.search && window.SaCombo) return <SaCombo value={props.value} options={props.options} onChange={props.onChange} placeholder={props.placeholder} recentKey="sa-combo-props" />;
+  return <PyaMiniList {...props} />;
+}
+function PyaMiniList({ value, options, onChange, placeholder, search }) {
   const [open, setOpen] = pyaUseState(false);
   const [q, setQ] = pyaUseState("");
   const [pos, setPos] = pyaUseState(null); // {left, top, width} en coords de viewport
@@ -370,22 +375,42 @@ function CopyBtn({ text }) {
 // Vista principal: la(s) factura(s) recreadas en formato Spacio AM (desde el ZIP
 // cargado). La verificación SAT queda como opción dentro del modal. Si el ZIP no
 // está en este navegador, cae a la vista SAT de siempre.
+// Factura mínima (sin XML): fecha, monto, concepto y autorización del gasto.
+window.saMinimalInvoice = function ({ auth, desc, day, amountGTQ, kind }) {
+  const t = Math.round((+amountGTQ || 0) * 100) / 100, g = Math.round((t / 1.12) * 100) / 100;
+  return { id: auth, auth: auth || "", day: day || "", total: t, moneda: "GTQ", emisor: desc || "Factura", nit: "—", kind: kind || "", ivaTotal: Math.round((t - g) * 100) / 100,
+    items: [{ linea: 1, cant: 1, desc: desc || "Detalle no disponible", pu: t, total: t, gravable: g, iva: Math.round((t - g) * 100) / 100 }], _minimal: true };
+};
 function InvoiceViewBox({ data, lang, onClose }) {
   const es = lang !== "en"; const tr = (a, b) => es ? a : b;
-  const auths = [data && data.authProductos, data && data.authTarifa].filter(Boolean);
-  const invs = auths.map(a => (window.pyaSatInvoiceByAuth ? window.pyaSatInvoiceByAuth(a) : null)).filter(Boolean);
+  const auths = [data && data.authProductos, data && data.authTarifa].filter(Boolean).join(",").split(/[,\s]+/).filter(Boolean);
+  const found = auths.map(a => (window.pyaSatInvoiceByAuth ? window.pyaSatInvoiceByAuth(a) : null));
+  // si una autorización no está en el lote ni en la hoja, se arma con los datos del gasto.
+  // Nunca Q0.00: sin ninguna encontrada → UNA factura combinada con el total del gasto;
+  // con alguna encontrada → la faltante lleva el total del gasto menos lo encontrado.
+  const desc = data.desc || data.vendor;
+  const foundSum = found.reduce((s, f) => s + (f ? (+f.total || 0) : 0), 0);
+  const missing = found.filter(f => !f).length;
+  let invs = [];
+  if (auths.length && !found.some(Boolean)) {
+    const m = window.saMinimalInvoice({ auth: auths.join(" · "), desc: auths.length > 1 ? (desc + " · Market + Tarifa") : desc, day: data.day, amountGTQ: data.amountGTQ });
+    m.autNum = auths.length > 1 ? auths.length + " " + tr("autorizaciones", "authorizations") : ""; invs = [m];
+  } else if (auths.length) {
+    const rest = Math.max(0, (+data.amountGTQ || 0) - foundSum) / Math.max(1, missing);
+    invs = found.map((f, k) => f || (rest > 0.005 ? window.saMinimalInvoice({ auth: auths[k], desc, day: data.day, amountGTQ: rest, kind: k === 0 && data.authProductos ? "productos" : "tarifa" }) : null)).filter(Boolean);
+  }
   const [idx, setIdx] = React.useState(0);
   const [satView, setSatView] = React.useState(false);
   if (!invs.length || satView || !window.PyaDteBox) return <InvoiceViewBoxSAT data={data} lang={lang} onClose={() => { if (satView) setSatView(false); else onClose(); }} />;
   const i = Math.min(idx, invs.length - 1);
-  const bar = (
+  // solo el selector cuando hay 2 facturas; la verificación SAT vive abajo, en la factura
+  const bar = invs.length > 1 ? (
     <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", paddingBottom: 10, marginBottom: 4, borderBottom: "1px solid var(--ink-08)" }}>
-      {invs.length > 1 && <div className="pya-mmode">{invs.map((iv, k) => (
+      <div className="pya-mmode">{invs.map((iv, k) => (
         <button key={k} className={"pya-mmode-btn" + (k === i ? " on" : "")} onClick={() => setIdx(k)}>{(iv.kind === "tarifa" ? tr("Tarifa", "Fee") : iv.kind === "productos" ? "Market" : tr("Factura", "Invoice")) + " · " + window.PedidosYa.money(iv.total)}</button>
-      ))}</div>}
-      <button className="pya-copy" onClick={() => setSatView(true)}>{tr("Verificación SAT ↗", "SAT verification ↗")}</button>
+      ))}</div>
     </div>
-  );
+  ) : null;
   return <window.PyaDteBox inv={invs[i]} lang={lang} onClose={onClose} headerExtra={bar} />;
 }
 

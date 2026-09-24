@@ -1,18 +1,28 @@
-ENTREGA · Facturas SAT + Contabilidad · 25 ago 2026
+ENTREGA COMPLETA — Dashboard de propietarios (24 sep 2026)
+=========================================================
+Incluye TODOS los cambios hasta hoy. Reemplaza los archivos en producción.
 
-SUBIR AL HOSTING / REPO (8 archivos, reemplazan los actuales):
-  index.html          versiones nuevas de scripts + fflate
-  pedidosya-parse.js  lector XML DTE + auto-conciliacion (+-2 dias)
-  pedidosya.jsx       panel "Facturas SAT": zip -> auto + manual (solo
-                      comentario "insumos") + sobrantes vs contabilidad +
-                      retenciones ISR en Depositos
-  pedidosya-ui.jsx    estilos (barra fija, split manual, scroll contenido)
-  sections.jsx        monto GTQ exacto (175.55, no 177)
-  sheets.js           lee la columna "factura" de Contabilidad
-  conta-store.js      dedupe de movimientos (arregla los 135 sin clasificar)
-  conta.jsx           columna "Factura" con link "Ver" en Estados de cuenta
+APP
+  index.html            versiones nuevas + carga los archivos nuevos
+  sheets.js             correos secundarios múltiples · pestañas Facturas/Contratos/Long term · registro completo de archivos
+  i18n.js               textos de correos secundarios
+  sa-rows.js            NUEVO · guardado de filas (Facturas, Contratos, Long term)
+  sa-combo.jsx          NUEVO · selector con autocompletar (Enter elige)
+  conta.jsx             pestañas Facturas y Long term · selector de tag nuevo
+  conta-pl.jsx          Resumen contable por bloques (Socios · Operativo · Gastos operativos · Comparativos · JOV) · gráficos · USD primero
+  conta-facturas.jsx    NUEVO · Facturas (recibidas en 4 destinos + emitidas) y Long term
+  contratos.jsx         NUEVO · contratos en Setup y en Mi cuenta
+  pedidosya.jsx         lote SAT compartido con Contabilidad
+  pedidosya-ui.jsx      "Ver factura" en formato Spacio AM (SAT solo abajo)
+  pedidosya-parse.js    lector de XML SAT
+  sections.jsx          CLEANING_SOCIO · correos secundarios · contratos · ver factura
 
-DESPUES DE SUBIR
-1. Despliega tambien el Apps Script (carpeta entrega-appscript).
-2. Recarga con cache limpio (Cmd+Shift+R).
-3. Vuelve a subir el consulta.zip la primera vez.
+APPS SCRIPT (pegar cada .txt sobre su archivo y publicar NUEVA VERSIÓN)
+  Codigo.gs.txt               cleaning fee pagado al dueño (columna CLEANING_SOCIO)
+  Escrituradesdeapp.gs.txt    CLEANING_SOCIO · correos secundarios · writeRows/deleteRows · subida de contratos y long term
+  PLANTILLA-CORREOS.gs.txt    envío a todos los correos secundarios
+
+HOJA
+  SETUP → columna CLEANING_SOCIO (SI en Likin y Monterrico)
+  SETUP → "secondary user email": varios correos separados por coma
+  Las pestañas Facturas, Contratos y Long term se crean solas al guardar.

@@ -22,71 +22,20 @@ function contaMoney(n, cur) {
 function contaBIDate(iso) { const p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "-" + p[1] + "-" + p[0] : iso; }
 
 // ---------- selector de Tag (solo admin) ----------
+// Autocompletado en línea: escribe y Enter elige la opción más probable.
+// La lista flota sobre la página (no queda detrás del bloque anterior).
 function TagPicker({ value, onPick, lang }) {
-  const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const ref = useRef(null);
-  useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h); return () => document.removeEventListener("mousedown", h);
+  const opts = useMemo(() => {
+    const G = window.SpacioConta.TAGS_BY_CATEGORY; const out = [];
+    Object.keys(G).forEach(cat => G[cat].forEach(tg => out.push({ value: tg, label: tg, group: cat })));
+    return out;
   }, []);
-  const C = window.SpacioConta;
-  const groups = C.TAGS_BY_CATEGORY;
-  const cats = Object.keys(groups);
-  const ql = q.trim().toLowerCase();
-  const pending = !value;
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button onClick={() => setOpen(o => !o)} title={value || ""} style={{
-        display: "inline-flex", alignItems: "center", gap: 6, maxWidth: 230, cursor: "pointer",
-        border: "1px solid " + (pending ? "var(--peach)" : "var(--ink-08)"),
-        background: pending ? "var(--peach-12)" : "var(--alabaster)",
-        color: pending ? "var(--peach)" : "var(--ink)", borderRadius: 9, padding: "6px 10px",
-        fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.02em", textAlign: "left",
-      }}>
-        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {value || (lang === "es" ? "Sin clasificar" : "Unclassified")}
-        </span>
-        <Icon name="chevronDown" size={13} stroke="currentColor" style={{ flexShrink: 0 }} />
-      </button>
-      {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 6px)", left: 0, zIndex: 70, width: 290, maxHeight: 360, overflow: "auto",
-          background: "var(--alabaster)", border: "1px solid var(--ink-08)", borderRadius: 14, boxShadow: "var(--shadow-md)", padding: 8,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "6px 8px", marginBottom: 4, borderBottom: "1px solid var(--warm-grey)" }}>
-            <Icon name="search" size={14} stroke="var(--fg-muted)" />
-            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={lang === "es" ? "Buscar tag…" : "Search tag…"}
-              style={{ border: "none", outline: "none", background: "transparent", fontFamily: "var(--sans)", fontSize: 12.5, width: "100%", color: "var(--ink)" }} />
-          </div>
-          {value && (
-            <button onClick={() => { onPick(""); setOpen(false); }} style={pickItemStyle("var(--peach)")}>
-              <Icon name="x" size={13} stroke="var(--peach)" />{lang === "es" ? "Quitar clasificación" : "Clear"}
-            </button>
-          )}
-          {cats.map(cat => {
-            const tags = groups[cat].filter(tg => !ql || tg.toLowerCase().indexOf(ql) > -1 || cat.toLowerCase().indexOf(ql) > -1);
-            if (!tags.length) return null;
-            return (
-              <div key={cat} style={{ marginTop: 6 }}>
-                <div style={{ fontFamily: "var(--sans)", fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", padding: "4px 8px" }}>{cat}</div>
-                {tags.map(tg => (
-                  <button key={tg} onClick={() => { onPick(tg); setOpen(false); }} style={pickItemStyle(tg === value ? "var(--peach)" : "var(--ink)")}>
-                    {tg === value && <Icon name="check" size={13} stroke="var(--peach)" />}
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{tg}</span>
-                  </button>
-                ))}
-              </div>
-            );
-          })}
-        </div>
-      )}
+    <div style={{ width: 230, maxWidth: "100%" }}>
+      <SaCombo size="sm" pending clearable value={value || ""} options={opts} onChange={onPick} recentKey="sa-combo-tags"
+        placeholder={lang === "es" ? "Sin clasificar — escribe…" : "Unclassified — type…"} />
     </div>
   );
-  function pickItemStyle(color) {
-    return { display: "flex", alignItems: "center", gap: 8, width: "100%", border: "none", background: "transparent", cursor: "pointer",
-      padding: "8px", borderRadius: 8, fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.01em", color, textAlign: "left" };
-  }
 }
 
 // ---------- panel de carga (solo admin) ----------
@@ -390,7 +339,7 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
     <div className="sa-section" style={{ marginTop: 28 }}>
       {isAdmin && (
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
-          {[{ id: "estados", label: tr("Estados de cuenta", "Bank statements") }, { id: "pl", label: tr("Resumen contable", "Accounting summary") }].map(s => (
+          {[{ id: "estados", label: tr("Estados de cuenta", "Bank statements") }, { id: "pl", label: tr("Resumen contable", "Accounting summary") }, { id: "facturas", label: tr("Facturas", "Invoices") }, { id: "longterm", label: "Long term" }].map(s => (
             <button key={s.id} onClick={() => setSubtab(s.id)} style={{
               border: "1px solid " + (subtab === s.id ? "var(--ink)" : "var(--warm-grey)"), cursor: "pointer",
               background: subtab === s.id ? "var(--ink)" : "transparent", color: subtab === s.id ? "var(--alabaster)" : "var(--fg-muted)",
@@ -399,7 +348,11 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
           ))}
         </div>
       )}
-      {isAdmin && subtab === "pl" ? (
+      {isAdmin && subtab === "facturas" ? (
+        typeof ContaFacturasSection !== "undefined" ? <ContaFacturasSection lang={lang} /> : null
+      ) : isAdmin && subtab === "longterm" ? (
+        typeof ContaLongTermSection !== "undefined" ? <ContaLongTermSection lang={lang} /> : null
+      ) : isAdmin && subtab === "pl" ? (
         typeof ContaPLSection !== "undefined"
           ? <ContaPLSection lang={lang} t={t} currency={currency} fmt={fmt} allProps={allProps || []} />
           : null
