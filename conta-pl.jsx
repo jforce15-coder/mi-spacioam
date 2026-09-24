@@ -453,8 +453,8 @@
       <div className={"plk" + (dark ? " dark" : "")}>
         <button type="button" className="plk-hd" onClick={() => setOpen(o => !o)} aria-expanded={open}>
           <span style={{ minWidth: 0 }}>
-            <span className="plk-n"><b>{n}</b>{totalLabel}</span>
-            <span className="plk-t" style={{ display: "block" }}>{title}</span>
+            <span className="plk-n">{tr("Bloque", "Block")} {n} · {totalLabel}</span>
+            <span className="plk-t" style={{ display: "block" }}>{n}. {title}</span>
             {purpose && <span className="plk-p" style={{ display: "block" }}>{purpose}</span>}
           </span>
           <span className="plk-r">

@@ -40,6 +40,36 @@ const CF_CSS = `
 .cf-chip b { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
 .cf-chip.on { background: var(--ink); border-color: var(--ink); color: var(--alabaster); }
 .cf-chip.on b { color: var(--alabaster); }
+.cf-learn { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--peach); border-radius: 16px; background: var(--peach-12); animation: sa-fade .36s var(--ease); }
+.cfr-ov { position: fixed; inset: 0; z-index: 300; background: rgba(62,63,63,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: sa-fade .18s var(--ease); }
+.cfr { width: min(1040px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--surface, #fff); border-radius: 28px; box-shadow: var(--shadow-lg); overflow: hidden; }
+.cfr-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 22px 24px 16px; }
+.cfr-k { font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-muted); }
+.cfr-t { font-family: var(--serif); font-size: 22px; line-height: 1.15; color: var(--ink); margin-top: 5px; }
+.cfr-s { font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.03em; color: var(--fg-muted); margin-top: 4px; }
+.cfr-list { overflow-y: auto; overscroll-behavior: contain; flex: 1; min-height: 0; }
+.cfr-row { display: grid; grid-template-columns: 28px minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.1fr) 104px; gap: 12px; align-items: center; padding: 10px 24px; border-top: 1px solid var(--ink-08); transition: opacity .18s var(--ease); }
+.cfr-row.head { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); background: var(--bg-alt); padding-top: 10px; padding-bottom: 10px; }
+.cfr-row.off { opacity: .45; }
+.cfr-ck { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.cfr-ck input { width: 16px; height: 16px; accent-color: var(--ink); cursor: pointer; }
+.cfr-who { min-width: 0; }
+.cfr-who b { display: block; font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfr-who span { display: block; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.03em; color: var(--fg-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfr-sum { font-family: var(--sans); font-size: 12px; line-height: 1.45; letter-spacing: 0.02em; color: var(--ink); min-width: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cfr-ai { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; border: 1px solid var(--peach); background: var(--peach-12); font-size: 8.5px; font-weight: 600; letter-spacing: 0.14em; color: var(--ink); vertical-align: 1px; }
+.cfr-cl { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cfr-why { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cfr-amt { font-family: var(--sans); font-size: 12.5px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
+.cfr-ft { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 24px 18px; border-top: 1px solid var(--ink-08); }
+@media (max-width: 779px) {
+  .cfr-ov { padding: 0; align-items: flex-end; }
+  .cfr { max-height: 92vh; border-radius: 28px 28px 0 0; }
+  .cfr-row { grid-template-columns: 28px minmax(0,1fr) auto; padding: 12px 16px; }
+  .cfr-row.head > span:nth-child(n+3) { display: none; }
+  .cfr-sum, .cfr-cl { grid-column: 2 / -1; }
+  .cfr-amt { grid-column: 3; grid-row: 1; }
+}
 .cf-auto { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 14px 16px; margin-bottom: 16px; border: 1px solid var(--ink-08); border-radius: 16px; background: var(--alabaster); }
 .cf-auto-main { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 3px; }
 .cf-auto-t { font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); }
@@ -331,9 +361,133 @@ function cfSuggestReceived(pending, bank, grow) {
   return out;
 }
 const CF_BUCKET = { gastos: "Gastos e inversiones", banco: "Estados de cuenta", grow: "Mobiliario", otras: "Otras facturas", pend: "Sin clasificar" };
-function cfSrcLabel(sv) { return sv.fuente === "estado-cuenta" ? "Estado de cuenta" : sv.fuente === "grow" ? "Mobiliario · Grow" : sv.clasificacion === CF_MOB ? "Mobiliario" : "Clasificada aquí"; }
+function cfSrcLabel(sv) { return sv.fuente === "estado-cuenta" ? "Estado de cuenta" : sv.fuente === "grow" ? "Mobiliario · Grow" : sv.fuente === "similar" ? "Por similitud" : sv.clasificacion === CF_MOB ? "Mobiliario" : "Clasificada aquí"; }
 function cfBucket(st) { if (st.k === "gastos" || st.k === "conc" || st.k === "na") return "gastos"; if (st.k === "conta") return "banco"; if (st.k === "here") return st.fuente === "estado-cuenta" ? "banco" : (st.fuente === "grow" || st.fuente === "mobiliario" || /^Compra de mobiliario/.test(st.label)) ? "grow" : "otras"; return st.k === "pend" ? "pend" : "otras"; }
+// ============================================================
+// APRENDIZAJE POR SIMILITUD
+// Cada factura clasificada es un ejemplo. Una pendiente hace match cuando
+// tiene el mismo emisor (NIT o nombre) y/o una descripción parecida.
+// Todo es local e instantáneo: índice por emisor + similitud de palabras.
+// ============================================================
+const CF_STOP = new Set("de del la el los las y en por para con sin al un una sa sociedad anonima compania cia ltda gt guatemala factura servicio servicios venta ventas pago unidad und uni pza total precio".split(" "));
+const cfTokCache = new Map();
+function cfToks(s) {
+  const k = String(s || ""); if (cfTokCache.has(k)) return cfTokCache.get(k);
+  const t = [...new Set(window.SaRows.norm(k).split(" ").filter(w => w.length >= 3 && !CF_STOP.has(w) && !/\d/.test(w)))];
+  if (cfTokCache.size > 5000) cfTokCache.clear(); cfTokCache.set(k, t); return t;
+}
+function cfNit(n) { const v = String(n || "").replace(/[^0-9kK]/g, "").toUpperCase(); return v && v !== "CF" && v.length >= 4 ? v : ""; }
+function cfDescOf(inv) { return (inv.items || []).map(i => i.desc).filter(Boolean).join(" · ") || inv.desc || inv.descripcion || ""; }
+function cfJacc(a, b) { if (!a.length || !b.length) return 0; const B = new Set(b); let n = 0; a.forEach(x => { if (B.has(x)) n++; }); return n / (a.length + b.length - n); }
+function cfExampleOf(o) { const name = cfToks(o.emisor); return { nit: cfNit(o.nit), name, nameKey: name.slice(0, 3).join(" "), toks: cfToks(o.desc), clas: o.clas, prop: o.prop || "", who: o.emisor || "" }; }
+function cfExamples(saved) {
+  const list = saved.filter(r => r.tipo !== "emitida" && r.clasificacion && r.fuente !== "estado-cuenta" && r.fuente !== "grow")
+    .map(r => cfExampleOf({ nit: r.nit, emisor: r.contraparte, desc: r.descripcion, clas: r.clasificacion, prop: r.clasificacion === CF_MOB ? r.propiedad : "" }));
+  const byNit = {}, byName = {};
+  list.forEach(e => { if (e.nit) (byNit[e.nit] = byNit[e.nit] || []).push(e); if (e.nameKey) (byName[e.nameKey] = byName[e.nameKey] || []).push(e); });
+  return { list, byNit, byName };
+}
+// mejor coincidencia para una factura pendiente; null si no hay suficiente parecido
+function cfMatchSimilar(inv, ex) {
+  const nit = cfNit(inv.nit), name = cfToks(inv.emisor || inv.comercial), toks = cfToks(cfDescOf(inv));
+  const same = (nit && ex.byNit[nit]) || (name.length && ex.byName[name.slice(0, 3).join(" ")]) || null;
+  let best = null;
+  const consider = (e, score, why) => { if (!best || score > best.score) best = { e, score, why }; };
+  if (same) same.forEach(e => { const d = cfJacc(toks, e.toks); consider(e, 0.62 + 0.38 * d, d >= 0.34 ? "Mismo emisor y descripción similar" : "Mismo emisor"); });
+  else if (toks.length >= 2) ex.list.forEach(e => {
+    const d = cfJacc(toks, e.toks); const nm = cfJacc(name, e.name);
+    if (nm >= 0.6) consider(e, 0.6 + 0.3 * d, "Emisor parecido");
+    else if (d >= 0.5 && e.toks.length >= 2) consider(e, 0.35 + 0.5 * d, "Descripción similar");
+  });
+  if (!best || best.score < 0.6) return null;
+  // mismo emisor con clasificaciones distintas: gana la de descripción más parecida
+  return { clas: best.e.clas, prop: best.e.prop, fuente: "similar", ref: "", score: best.score, why: best.why + (best.e.who ? " · " + best.e.who : "") };
+}
+// resumen local de la descripción (sin IA): une líneas, quita códigos y repetidos
+function cfLocalSummary(desc) {
+  const parts = [...new Set(String(desc || "").split(/\s*·\s*|\n/).map(p => p.replace(/\b[A-Z0-9]{2,}[-_][A-Z0-9-]+\b/g, "").replace(/\b\d+([.,]\d+)?\s*(x|un|und|pz|kg|lb|gr|ml|lt)?\b/gi, "").replace(/\s{2,}/g, " ").trim()).filter(p => p.length > 2))];
+  let out = parts.slice(0, 3).map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(", ");
+  if (parts.length > 3) out += " +" + (parts.length - 3);
+  return out.length > 90 ? out.slice(0, 88) + "…" : (out || "—");
+}
+const CF_SUM_KEY = "sa-fact-sum";
+function cfSumCache() { try { return JSON.parse(localStorage.getItem(CF_SUM_KEY)) || {}; } catch (e) { return {}; } }
+
 const CF_DOT = { gastos: "#3d6b52", conta: "#3B6691", conc: "#3d6b52", na: "var(--warm-grey)", here: "var(--ink)", pend: "var(--attention, #F2755A)" };
+
+// ---------- revisión rápida de coincidencias ----------
+function CfReviewModal({ review, itemsBy, tagOptions, busy, onApply, onClose, tr }) {
+  const rows = review.rows.filter(r => itemsBy[r.rid]);
+  const [sel, setSel] = cfUseState(() => new Set(rows.map(r => r.rid)));
+  const [over, setOver] = cfUseState({});
+  const [sums, setSums] = cfUseState(() => cfSumCache());
+  const [aiBusy, setAiBusy] = cfUseState(false);
+  const keyOf = (x) => x.inv.auth || x.inv._rid;
+  // resúmenes con IA (si está disponible); mientras tanto, resumen local
+  cfUseEffect(() => {
+    const ai = window.claude && window.claude.complete; if (!ai) return;
+    const need = rows.map(r => itemsBy[r.rid]).filter(x => x && !sums[keyOf(x)] && cfDescOf(x.inv)).slice(0, 40);
+    if (!need.length) return;
+    let alive = true; setAiBusy(true);
+    const prompt = "Eres contador en Guatemala. Para cada factura, resume en máximo 7 palabras, en español y sin marcas ni códigos, qué se compró. Responde SOLO un arreglo JSON de textos en el mismo orden.\n" +
+      need.map((x, i) => (i + 1) + ". Emisor: " + (x.inv.emisor || x.inv.comercial || "") + " | Detalle: " + cfDescOf(x.inv).slice(0, 280)).join("\n");
+    ai(prompt).then(txt => {
+      const m = String(txt || "").match(/\[[\s\S]*\]/); if (!m) return;
+      const arr = JSON.parse(m[0]); const c = cfSumCache();
+      need.forEach((x, i) => { if (arr[i]) c[keyOf(x)] = String(arr[i]).slice(0, 90); });
+      try { localStorage.setItem(CF_SUM_KEY, JSON.stringify(c)); } catch (e) {}
+      if (alive) setSums(c);
+    }).catch(() => {}).finally(() => { if (alive) setAiBusy(false); });
+    return () => { alive = false; };
+  }, []);
+  cfUseEffect(() => { const h = (e) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
+  const toggle = (rid) => setSel(p => { const n = new Set(p); n.has(rid) ? n.delete(rid) : n.add(rid); return n; });
+  const all = sel.size === rows.length;
+  const chosen = rows.filter(r => sel.has(r.rid)).map(r => Object.assign({}, r, over[r.rid] ? { clas: over[r.rid], fuente: "manual", ref: "" } : null));
+  return (
+    <div className="cfr-ov" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="cfr" role="dialog" aria-modal="true" aria-label={review.title}>
+        <div className="cfr-hd">
+          <div style={{ minWidth: 0 }}>
+            <div className="cfr-k">{tr("Revisar coincidencias", "Review matches")} · {rows.length}</div>
+            <div className="cfr-t">{review.title}</div>
+            {review.sub && <div className="cfr-s">{review.sub}</div>}
+          </div>
+          <button className="cf-eye" onClick={onClose} title={tr("Cerrar", "Close")}><Icon name="x" size={15} stroke="currentColor" /></button>
+        </div>
+        <div className="cfr-row head">
+          <label className="cfr-ck"><input type="checkbox" checked={all} onChange={() => setSel(all ? new Set() : new Set(rows.map(r => r.rid)))} /></label>
+          <span>{tr("Emisor", "Issuer")}</span><span>{tr("Resumen", "Summary")}{aiBusy && <span className="cfr-ai">IA…</span>}</span><span>{tr("Clasificación sugerida", "Suggested")}</span><span style={{ textAlign: "right" }}>{tr("Monto", "Amount")}</span>
+        </div>
+        <div className="cfr-list">
+          {rows.map(r => {
+            const x = itemsBy[r.rid]; const on = sel.has(r.rid); const k = keyOf(x);
+            const aiSum = sums[k];
+            return (
+              <div key={r.rid} className={"cfr-row" + (on ? "" : " off")}>
+                <label className="cfr-ck"><input type="checkbox" checked={on} onChange={() => toggle(r.rid)} /></label>
+                <span className="cfr-who"><b title={x.inv.emisor}>{x.inv.emisor || x.inv.comercial || "—"}</b><span>{cfDay(x.inv.day)}{x.inv.nit ? " · NIT " + x.inv.nit : ""}</span></span>
+                <span className="cfr-sum" title={cfDescOf(x.inv)}>{aiSum || cfLocalSummary(cfDescOf(x.inv))}{aiSum && <span className="cfr-ai">IA</span>}</span>
+                <span className="cfr-cl">
+                  <SaCombo size="sm" value={over[r.rid] || r.clas} onChange={v => v && setOver(o => Object.assign({}, o, { [r.rid]: v }))} options={tagOptions} recentKey="sa-combo-tags" />
+                  <span className="cfr-why" title={r.why}>{r.why}</span>
+                </span>
+                <span className="cfr-amt">{cfMoney(x.inv.total, x.inv.moneda)}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="cfr-ft">
+          <span className="cf-auto-s">{tr(sel.size + " de " + rows.length + " seleccionadas. Puedes cambiar la clasificación de cualquiera antes de aplicar.", sel.size + " of " + rows.length + " selected.")}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="cf-btn ghost" onClick={onClose}>{tr("Cancelar", "Cancel")}</button>
+            <button className="cf-btn dark" disabled={!sel.size || busy} onClick={() => onApply(chosen)}><Icon name="check" size={14} stroke="currentColor" />{tr("Aplicar", "Apply")} · {sel.size}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================
 function ContaFacturasSection({ lang }) {
@@ -345,6 +499,8 @@ function ContaFacturasSection({ lang }) {
   const [limit, setLimit] = cfUseState(150);
   const [box, setBox] = cfUseState(null);
   const [expBox, setExpBox] = cfUseState(null);
+  const [review, setReview] = cfUseState(null);   // { title, sub, rows:[{rid, clas, prop, fuente, ref, why}] }
+  const [learn, setLearn] = cfUseState(null);     // última clasificación manual con parecidas
   const [msg, setMsg] = cfUseState("");
   const [busy, setBusy] = cfUseState(false);
   const [drag, setDrag] = cfUseState(false);
@@ -426,8 +582,12 @@ function ContaFacturasSection({ lang }) {
     return { inv, sv, st };
   });
   const bank = cfUseMemo(() => cfBankDebits(), [saved.length, ((window.SpacioData && window.SpacioData.conta) || []).length]);
+  const exSig = saved.length + "|" + saved.reduce((a, r) => a + (r.clasificacion ? r.clasificacion.length + (r.fuente || "").length : 0), 0);
+  const examples = cfUseMemo(() => cfExamples(saved), [exSig]);
   if (kind === "recibidas") {
     const sugs = cfSuggestReceived(items.filter(x => x.st.k === "pend").map(x => x.inv), bank, grow || []);
+    // lo que no empató con banco / Grow se busca por similitud con lo ya clasificado
+    if (examples.list.length) items.forEach(x => { if (x.st.k === "pend" && !sugs[x.inv._rid] && !x.inv._arch) { const m = cfMatchSimilar(x.inv, examples); if (m) sugs[x.inv._rid] = m; } });
     items.forEach(x => { if (x.st.k === "pend" && sugs[x.inv._rid]) x.st.rs = sugs[x.inv._rid]; x.b = cfBucket(x.st); });
   }
   items.sort((a, b) => String(b.inv.day || "").localeCompare(String(a.inv.day || "")));
@@ -459,10 +619,25 @@ function ContaFacturasSection({ lang }) {
     if (kind === "emitidas" && isNew) { cfAddEmitCat(v); setCatsTick(t => t + 1); }
     if (!v) { window.SaRows.remove("Facturas", [x.inv._rid]); return; }
     const extra = kind === "recibidas" ? { fuente: v === CF_MOB ? "mobiliario" : "manual", ref: "" } : null;
+    // al instante (antes de guardar): parecidas entre las que siguen sin clasificar
+    if (kind === "recibidas") {
+      const one = cfExampleOf({ nit: x.inv.nit, emisor: x.inv.emisor || x.inv.comercial, desc: cfDescOf(x.inv), clas: v });
+      const ex1 = { list: [one], byNit: one.nit ? { [one.nit]: [one] } : {}, byName: one.nameKey ? { [one.nameKey]: [one] } : {} };
+      const rows = items.filter(y => y.st.k === "pend" && y.inv._rid !== x.inv._rid && !y.inv._arch).map(y => ({ y, m: cfMatchSimilar(y.inv, ex1) })).filter(o => o.m)
+        .map(o => ({ rid: o.y.inv._rid, clas: v, prop: "", fuente: "similar", ref: "", why: o.m.why.split(" · ")[0] }));
+      setLearn(rows.length ? { clas: v, emisor: x.inv.emisor || x.inv.comercial || "", rows } : null);
+    }
     save([rowFor(x, v, extra)], tr("Factura clasificada como “" + v + "”.", "Classified as “" + v + "”."));
   };
+  const itemsBy = {}; items.forEach(x => { itemsBy[x.inv._rid] = x; });
+  const applyReview = async (rows) => {
+    const out = rows.map(r => itemsBy[r.rid] && rowFor(itemsBy[r.rid], r.clas, { fuente: r.fuente, ref: r.ref || "", propiedad: r.prop || "" })).filter(Boolean);
+    setReview(null); setLearn(null);
+    await save(out, tr(out.length + " factura(s) clasificadas.", out.length + " invoice(s) classified."));
+  };
+  const rsReviewRows = (list) => list.map(x => ({ rid: x.inv._rid, clas: x.st.rs.clas, prop: x.st.rs.prop || "", fuente: x.st.rs.fuente, ref: x.st.rs.ref || "", why: x.st.rs.fuente === "grow" ? "Grow" : x.st.rs.fuente === "similar" ? x.st.rs.why.split(" · ")[0] : tr("Estado de cuenta", "Bank statement") }));
   const rsRow = (x) => rowFor(x, x.st.rs.clas, { fuente: x.st.rs.fuente, ref: x.st.rs.ref, propiedad: x.st.rs.prop || "" });
-  const applyRs = (x) => save([rsRow(x)], tr("Clasificada con " + (x.st.rs.fuente === "grow" ? "Grow" : "el estado de cuenta") + ".", "Classified."));
+  const applyRs = (x) => save([rsRow(x)], tr("Clasificada " + (x.st.rs.fuente === "grow" ? "con Grow" : x.st.rs.fuente === "similar" ? "por similitud" : "con el estado de cuenta") + ".", "Classified."));
   const withRs = inMonth.filter(x => x.st.rs);
   const applyAllRs = () => save(withRs.map(rsRow), tr(withRs.length + " factura(s) clasificadas automáticamente.", withRs.length + " auto-classified."));
   const setProp = (x, v) => save([rowFor(x, (x.sv && x.sv.clasificacion) || "", { propiedad: v, fuente: (x.sv && x.sv.fuente) || "", ref: (x.sv && x.sv.ref) || "" })]);
@@ -590,12 +765,29 @@ function ContaFacturasSection({ lang }) {
           </div>
         </div>
       )}
+      {kind === "recibidas" && learn && (() => {
+        const live = learn.rows.filter(r => itemsBy[r.rid] && itemsBy[r.rid].st.k === "pend");
+        if (!live.length) return null;
+        return (
+          <div className="cf-learn">
+            <Icon name="sparkles" size={16} stroke="var(--peach)" />
+            <div className="cf-auto-main">
+              <span className="cf-auto-t">{tr(live.length + " factura(s) parecidas a “" + (learn.emisor || "esta") + "”", live.length + " similar invoice(s)")}</span>
+              <span className="cf-auto-s">{tr("Mismo emisor o descripción similar. ¿Las clasificamos también como “" + learn.clas + "”?", "Same issuer or similar description. Classify them as “" + learn.clas + "” too?")}</span>
+            </div>
+            <button className="cf-btn ghost" onClick={() => setReview({ title: tr("Parecidas a “" + (learn.emisor || "la factura") + "”", "Similar invoices"), sub: tr("Sugerimos “" + learn.clas + "” para todas.", "Suggested “" + learn.clas + "”."), rows: live })}><Icon name="eye" size={13} stroke="currentColor" />{tr("Revisar", "Review")}</button>
+            <button className="cf-btn warm" disabled={busy} onClick={() => applyReview(live)}><Icon name="check" size={13} stroke="var(--ink)" />{tr("Aplicar a " + live.length, "Apply to " + live.length)}</button>
+            <button className="cf-eye" title={tr("Descartar", "Dismiss")} onClick={() => setLearn(null)}><Icon name="x" size={14} stroke="currentColor" /></button>
+          </div>
+        );
+      })()}
       {kind === "recibidas" && items.length > 0 && (
         <div className="cf-auto">
           <div className="cf-auto-main">
             <span className="cf-auto-t">{withRs.length ? tr(withRs.length + " coincidencia(s) listas para clasificar", withRs.length + " match(es) ready") : tr("Sin coincidencias nuevas", "No new matches")}</span>
-            <span className="cf-auto-s">{tr("Mismo monto y misma fecha que un gasto ya clasificado en los estados de cuenta (hasta " + CF_BANK_DAYS + " días después), o factura de ejecución en Grow.", "Same amount and date as a classified bank debit, or a Grow execution invoice.")}</span>
+            <span className="cf-auto-s">{tr("Mismo monto y fecha que un gasto clasificado en los estados de cuenta (hasta " + CF_BANK_DAYS + " días después), factura de ejecución en Grow, o mismo emisor / descripción que una factura que ya clasificaste.", "Same amount and date as a classified bank debit, a Grow invoice, or same issuer / description as one you classified.")}</span>
           </div>
+          <button className="cf-btn ghost" onClick={() => setReview({ title: tr("Todas las coincidencias", "All matches"), sub: tr("Estados de cuenta, Grow y similitud con lo que ya clasificaste.", "Bank, Grow and similarity."), rows: rsReviewRows(withRs) })} disabled={!withRs.length}><Icon name="eye" size={13} stroke="currentColor" />{tr("Revisar", "Review")}</button>
           <button className="cf-btn warm" onClick={applyAllRs} disabled={busy || !withRs.length}><Icon name="sparkles" size={14} stroke="var(--ink)" />{tr("Aplicar", "Apply")}{withRs.length ? " · " + withRs.length : ""}</button>
           <button className="cf-btn ghost" onClick={() => setGrowOpen(o => !o)}><Icon name="link" size={13} stroke="currentColor" />Grow{grow ? " · " + grow.length : ""}</button>
           {growOpen && (
@@ -637,7 +829,7 @@ function ContaFacturasSection({ lang }) {
                         recentKey={kind === "recibidas" ? "sa-combo-tags" : "sa-combo-emit"} placeholder={x.st.sug ? x.st.sug : x.st.rs ? x.st.rs.clas : tr("Escribe para clasificar…", "Type to classify…")} />
                       {x.st.rs && (
                         <button className="cf-sug cf-sug-btn" onClick={() => applyRs(x)} title={x.st.rs.why}>
-                          <Icon name="sparkles" size={11} stroke="var(--peach)" /><span>{x.st.rs.clas}{x.st.rs.prop ? " · " + x.st.rs.prop : ""}</span><span className="why">{x.st.rs.fuente === "grow" ? "Grow" : tr("Estado de cuenta", "Bank")}</span><b>{tr("Aplicar", "Apply")}</b>
+                          <Icon name="sparkles" size={11} stroke="var(--peach)" /><span>{x.st.rs.clas}{x.st.rs.prop ? " · " + x.st.rs.prop : ""}</span><span className="why">{x.st.rs.fuente === "grow" ? "Grow" : x.st.rs.fuente === "similar" ? tr("Similar", "Similar") : tr("Estado de cuenta", "Bank")}</span><b>{tr("Aplicar", "Apply")}</b>
                         </button>
                       )}
                       {x.st.k === "here" && kind === "recibidas" && x.sv && x.sv.clasificacion === CF_MOB && (
@@ -668,6 +860,7 @@ function ContaFacturasSection({ lang }) {
       ) : null}
 
       {box && window.PyaDteBox && <PyaDteBox inv={box} lang={lang} onClose={() => setBox(null)} />}
+      {review && <CfReviewModal review={review} itemsBy={itemsBy} tagOptions={tagOptions} busy={busy} onApply={applyReview} onClose={() => setReview(null)} tr={tr} />}
       {expBox && window.InvoiceViewBox && <InvoiceViewBox data={expBox} lang={lang} onClose={() => setExpBox(null)} />}
     </div>
   );
