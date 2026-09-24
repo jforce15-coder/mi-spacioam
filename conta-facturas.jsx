@@ -474,21 +474,55 @@ function ContaFacturasSection({ lang }) {
     setBusy(true); setMsg("");
     const res = await window.PedidosYa.parseDTEFiles([...files]);
     const map = {}; emitidas.forEach(i => { map[i.auth] = i; });
-    let nuevas = 0; (res.invoices || []).forEach(i => { if (!map[i.auth]) nuevas++; const c = Object.assign({}, i); delete c.raw; map[i.auth] = c; });
+    const inSheet = new Set(window.SaRows.list("Facturas").filter(r => r.tipo === "emitida").map(r => r.auth));
+    let nuevas = 0; (res.invoices || []).forEach(i => { if (!map[i.auth] && !inSheet.has(i.auth)) nuevas++; if (map[i.auth]) return; const c = Object.assign({}, i); delete c.raw; map[i.auth] = c; });
     setEmitidas(Object.values(map));
     await cfSyncInvoices(res.invoices || [], "emitida");
     setMsg(res.invoices && res.invoices.length ? tr(res.invoices.length + " factura(s) leídas · " + nuevas + " nuevas.", res.invoices.length + " invoice(s) read · " + nuevas + " new.") : tr("No se leyeron facturas. Sube el consulta.zip de emitidas del SAT (o los XML).", "No invoices read."));
     setBusy(false); setStatus("all");
   };
 
+  // Carga de recibidas SIN duplicar: se omite toda factura que ya exista en cualquier
+  // reporte previo (lote SAT de Gastos e inversiones, gastos con factura, estados de
+  // cuenta, pestaña Facturas — clasificada o no). Solo se agregan las nuevas.
   const onRecFiles = async (files) => {
     if (!files || !files.length || !window.PedidosYa) return;
     setBusy(true); setMsg("");
     const res = await window.PedidosYa.parseDTEFiles([...files]);
-    const n = await cfSyncInvoices(res.invoices || [], "recibida");
-    setMsg(res.invoices && res.invoices.length ? tr(res.invoices.length + " factura(s) leídas · " + n + " nuevas. Las que ya emparejaste en Gastos e inversiones aparecen con su clasificación.", res.invoices.length + " read · " + n + " new.") : tr("No se leyeron facturas. Sube el consulta.zip de recibidas del SAT (o los XML).", "No invoices read."));
-    setBusy(false); setStatus("all");
+    const invs = res.invoices || [];
+    const alt = (i) => [String(i.nit || i.nitEmisor || "").trim(), String(i.serie || "").trim(), String(i.autNum || i.numero || "").trim()].join("|");
+    const known = { gastos: new Set(), conta: new Set(), hoja: new Set() }, knownAlt = new Set();
+    ((draft && draft.invoices) || []).forEach(i => { known.gastos.add(i.auth); knownAlt.add(alt(i)); });
+    cfExpenseInvoices().forEach(e => known.gastos.add(e.auth));
+    Object.keys(sheetAuths || {}).forEach(k => known.gastos.add(k));
+    const ix = cfReceivedIndex(sheetAuths); Object.keys(ix.conta).forEach(k => known.conta.add(k)); ix.local.forEach(k => known.gastos.add(k));
+    window.SaRows.list("Facturas").forEach(r => { if (r.tipo === "emitida") return; known.hoja.add(r.auth || String(r.id).replace(/^R-/, "")); knownAlt.add([r.nitEmisor || r.nit || "", r.serie || "", r.numero || ""].join("|")); });
+    // facturas emitidas por nosotros que llegaron en este ZIP → van a Emitidas
+    const ourNits = new Set(emitidas.map(i => String(i.nit || "").trim()).filter(Boolean));
+    const cnt = { gastos: 0, conta: 0, hoja: 0, rep: 0, emit: 0 }, fresh = [], seen = new Set(), toEmit = [];
+    invs.forEach(i => {
+      if (!i || !i.auth) return;
+      if (seen.has(i.auth)) { cnt.rep++; return; } seen.add(i.auth);
+      if (ourNits.size && ourNits.has(String(i.nit || "").trim())) { cnt.emit++; toEmit.push(i); return; }
+      if (known.gastos.has(i.auth)) { cnt.gastos++; return; }
+      if (known.conta.has(i.auth)) { cnt.conta++; return; }
+      if (known.hoja.has(i.auth) || (alt(i) !== "||" && knownAlt.has(alt(i)))) { cnt.hoja++; return; }
+      fresh.push(i);
+    });
+    if (fresh.length) await cfSyncInvoices(fresh, "recibida");
+    if (toEmit.length) { const map = {}; emitidas.forEach(i => { map[i.auth] = i; }); toEmit.forEach(i => { const c = Object.assign({}, i); delete c.raw; map[i.auth] = c; }); setEmitidas(Object.values(map)); await cfSyncInvoices(toEmit, "emitida"); }
+    const skip = cnt.gastos + cnt.conta + cnt.hoja + cnt.rep;
+    const parts = [];
+    if (cnt.gastos) parts.push(cnt.gastos + tr(" ya en Gastos e inversiones", " already in Expenses"));
+    if (cnt.conta) parts.push(cnt.conta + tr(" ya vinculadas a estados de cuenta", " already linked to bank"));
+    if (cnt.hoja) parts.push(cnt.hoja + tr(" ya en Facturas", " already in Invoices"));
+    if (cnt.rep) parts.push(cnt.rep + tr(" repetidas en el archivo", " repeated in file"));
+    setMsg(invs.length
+      ? tr(invs.length + " leídas · " + fresh.length + " nuevas agregadas", invs.length + " read · " + fresh.length + " new added") + (skip ? tr(" · " + skip + " omitidas (" + parts.join(", ") + ")", " · " + skip + " skipped (" + parts.join(", ") + ")") : "") + (cnt.emit ? tr(" · " + cnt.emit + " eran emitidas y se movieron a Emitidas", " · " + cnt.emit + " moved to Issued") : "") + "."
+      : tr("No se leyeron facturas. Sube el consulta.zip del SAT (o los XML).", "No invoices read."));
+    setBusy(false); setStatus("all"); setBucket(fresh.length ? "pend" : "all");
   };
+
   const view = (x) => {
     if (x.inv._arch) { if (x.inv.url) window.open(x.inv.url, "_blank", "noopener"); return; }
     const full = (kind === "recibidas" && window.pyaSatInvoiceByAuth && window.pyaSatInvoiceByAuth(x.inv.auth)) || (x.inv._exp ? null : x.inv);
@@ -525,7 +559,7 @@ function ContaFacturasSection({ lang }) {
           <input type="file" accept=".zip,.xml" multiple onChange={e => { onRecFiles(e.target.files); e.target.value = ""; }} />
           <span className="cf-drop-ic" style={recibidas.length ? { width: 32, height: 32 } : null}><Icon name="upload" size={recibidas.length ? 15 : 19} stroke="var(--ink)" /></span>
           <span>
-            <span className="cf-drop-lbl">{recibidas.length ? tr("Agregar facturas recibidas (consulta.zip)", "Add received invoices (consulta.zip)") : tr("Facturas recibidas · consulta.zip del SAT", "Received invoices · SAT consulta.zip")}</span>
+            <span className="cf-drop-lbl">{recibidas.length ? tr("Agregar facturas recibidas (consulta.zip) · solo se agregan las que no estén en reportes previos", "Add received invoices (consulta.zip) · only new ones are added") : tr("Facturas recibidas · consulta.zip del SAT", "Received invoices · SAT consulta.zip")}</span>
             {!recibidas.length && <span className="cf-drop-hint">{busy ? tr("Leyendo facturas…", "Reading invoices…") : tr("Es el mismo ZIP de Gastos e inversiones → Facturas SAT. Las facturas quedan guardadas en la hoja y se ven desde cualquier dispositivo; las que ya emparejaste aparecen con su clasificación.", "Same ZIP as Expenses → SAT invoices. Saved to the sheet, visible from any device.")}</span>}
           </span>
         </label>

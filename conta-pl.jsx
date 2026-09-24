@@ -9,8 +9,8 @@
 //   5) Gastos e inversión por categoría
 //   6) Otros ingresos    huéspedes (long term)
 //   7) Diseño interiores ingreso decoración − compra de mobiliario
-//   JOV                  fee + neto Socio_002 − gastos operativos; − emitidas a huéspedes = a facturar
-// Vista por mes (un mes) o por año (12 meses en columnas).
+//   8) JOV               fee + neto Socio_002 − gastos operativos; − emitidas a huéspedes = a facturar
+// Arriba un bento de indicadores; vista por mes (editable) o por año (suma + tabla).
 // ============================================================
 (function () {
   "use strict";
@@ -117,6 +117,7 @@
       const per = (k) => rows.filter(r => r[k]).map(r => ({ label: r.name, usd: r[k] }));
       const cat = {}; rows.forEach(r => Object.keys(r.cats).forEach(c => { cat[c] = (cat[c] || 0) + r.cats[c]; }));
       const catList = Object.keys(cat).sort((a, b) => cat[b] - cat[a]).map(c => ({ label: c, usd: cat[c] }));
+      const catProps = {}; catList.forEach(c => { catProps[c.label] = rows.filter(r => r.cats[c.label]).map(r => ({ label: r.name, usd: r.cats[c.label] })); });
       const bank = SRC.bank.filter(b => b.ym === key);
       const mov = (re, side) => bank.filter(b => re.test(nrm(b.tag)) && b[side] > 0).map(b => ({ label: b.desc + (b.date ? " · " + b.date : ""), usd: b[side] }));
       const softwareD = mov(/software/, "debit"), salariosD = mov(/salari|sueldo|planilla|nomina|bonificaci|aguinaldo|bono 14|igss/, "debit"), contabD = mov(/^contabilidad$/, "debit"), epiD = mov(/primera impresi/, "debit");
@@ -131,7 +132,7 @@
       const opexList = OX.forMonth(key, "opex"), otroList = OX.forMonth(key, "otro");
       const opexManual = OX.totalUsd(opexList), otrosManual = OX.totalUsd(otroList);
 
-      const A = { rows, opexList, otroList, opexManual, otrosManual, catList,
+      const A = { rows, opexList, otroList, opexManual, otrosManual, catList, catProps,
         netoD: per("neto"), retD: per("ret"), feeD: per("fee"), cleanD: per("cleaning"), invD: per("gastosInv"),
         softwareD, salariosD, contabD, viatD, epiD, disenoD, mobD, ltD, emitD };
       A.neto = sum("neto"); A.ret = sum("ret"); A.pagarSocios = A.neto - A.ret;
@@ -150,167 +151,403 @@
     }
 
     const [yy, mm] = ym.split("-").map(Number);
-    const A = aggFor(yy, mm - 1);
+    const [showTable, setShowTable] = useState(false);
+    const Y = view === "month" ? yy : year;
+    // meses del año en vista (para el bento)
+    const monthsY = []; for (let m = 0; m < 12; m++) if (ymsSet[ymStr(Y, m)]) monthsY.push(m);
+    const aggsY = monthsY.map(m => aggFor(Y, m));
+    let A, P, periodLabel, prevLabel;
+    if (view === "month") {
+      A = aggFor(yy, mm - 1);
+      const i = yms.indexOf(ym); const pk = yms[i + 1];
+      P = pk ? aggFor(+pk.slice(0, 4), +pk.slice(5) - 1) : null;
+      periodLabel = monthLabel(lang, yy, mm - 1); prevLabel = tr("vs mes anterior", "vs previous month");
+    } else {
+      A = sumAggs(aggsY);
+      const py = []; for (let m = 0; m < 12; m++) if (ymsSet[ymStr(year - 1, m)]) py.push(aggFor(year - 1, m));
+      P = py.length ? sumAggs(py) : null;
+      periodLabel = String(year); prevLabel = tr("vs " + (year - 1), "vs " + (year - 1));
+    }
+    const MONTHS = lang === "es" ? SpacioI18n.MONTHS_ES : SpacioI18n.MONTHS_EN;
 
     return (
-      <div style={{ marginTop: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 20 }}>
+      <div className="plx">
+        <div className="plx-bar">
           <Segmented size="sm" value={view} onChange={setView}
             options={[{ value: "year", label: tr("Por año", "Yearly") }, { value: "month", label: tr("Por mes", "Monthly") }]} />
           {view === "month"
             ? <Select value={ym} options={yms.map(k => ({ value: k, label: monthLabel(lang, +k.slice(0, 4), +k.slice(5) - 1) }))} onChange={setYm} icon="calendar" minWidth={170} />
             : <Select value={String(year)} options={years.map(y => ({ value: String(y), label: String(y) }))} onChange={(v) => setYear(+v)} icon="calendar" minWidth={130} />}
-          <span style={{ marginLeft: "auto", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>USD · GTQ</span>
+          <span className="plx-cur">USD · GTQ</span>
         </div>
-        {view === "month"
-          ? <PLMonth key={ym} A={A} ym={ym} lang={lang} tr={tr} money={money} reload={reload} />
-          : <PLYear year={year} aggFor={aggFor} ymsSet={ymsSet} lang={lang} tr={tr} money={money} />}
+
+        {monthsY.length > 0 && <PLBento A={A} P={P} aggsY={aggsY} labels={monthsY.map(m => MONTHS[m].slice(0, 3))} hiIdx={view === "month" ? monthsY.indexOf(mm - 1) : -1} period={periodLabel} prevLabel={prevLabel} tr={tr} />}
+
+        <PLBlocks key={view + ym + year} A={A} ym={ym} editable={view === "month"} period={periodLabel} lang={lang} tr={tr} money={money} reload={reload} />
+
+        {view === "year" && (
+          <section className="plx-sec">
+            <div className="plx-sech">
+              <div><div className="plx-kick">{tr("Detalle", "Detail")}</div><h3 className="plx-h">{tr("Mes a mes", "Month by month")}</h3></div>
+              <button type="button" className="plx-link" onClick={() => setShowTable(v => !v)}>{showTable ? tr("Ocultar tabla", "Hide table") : tr("Ver tabla por mes", "Show monthly table")}<Icon name="chevronDown" size={13} stroke="currentColor" style={{ transform: showTable ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} /></button>
+            </div>
+            {showTable && <PLYear year={year} aggFor={aggFor} ymsSet={ymsSet} lang={lang} tr={tr} money={money} />}
+          </section>
+        )}
       </div>
     );
   }
 
-  // ---------- piezas de la vista mensual ----------
+  // suma de varios meses: números se suman, listas {label,usd} se agrupan por etiqueta
+  function mergeList(lists) { const o = {}, order = []; lists.forEach(l => (l || []).forEach(x => { const k = typeof x.label === "string" ? x.label : String(x.label); if (!(k in o)) { o[k] = 0; order.push(k); } o[k] += x.usd || 0; })); return order.map(k => ({ label: k, usd: o[k] })).sort((a, b) => b.usd - a.usd); }
+  function sumAggs(list) {
+    const out = { opexList: [], otroList: [], rows: [] };
+    if (!list.length) return out;
+    Object.keys(list[0]).forEach(k => {
+      const v0 = list[0][k];
+      if (typeof v0 === "number") out[k] = list.reduce((a, g) => a + (g[k] || 0), 0);
+      else if (k === "catProps") { const keys = [...new Set(list.flatMap(g => Object.keys(g.catProps || {})))]; out.catProps = {}; keys.forEach(c => { out.catProps[c] = mergeList(list.map(g => (g.catProps || {})[c])); }); }
+      else if (Array.isArray(v0) && k !== "rows" && k !== "opexList" && k !== "otroList") out[k] = mergeList(list.map(g => g[k]));
+    });
+    return out;
+  }
+
+  // ---------- estilos ----------
   const PL_CSS = `
-.pl-sep { display: flex; align-items: center; gap: 14px; margin: 56px 0 20px; }
-.pl-sep:first-child { margin-top: 0; }
-.pl-sep span { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.28em; text-transform: uppercase; color: var(--fg-muted); white-space: nowrap; }
-.pl-sep i { flex: 1; height: 1px; background: var(--warm-grey); }
-.pl-grp { border: 1px solid var(--ink-08); border-radius: 28px; background: var(--surface, #FFFFFF); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 24px; transition: box-shadow .18s var(--ease); }
-.pl-grp:hover { box-shadow: var(--shadow-md); }
-.pl-hd { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; cursor: pointer; background: transparent; padding: 20px 28px; text-align: left; }
-.pl-hd:hover { background: var(--bg-alt); }
-.pl-hd-l { display: inline-flex; align-items: center; gap: 11px; min-width: 0; }
-.pl-hd-n { font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: var(--fg-muted); }
-.pl-hd-t { font-family: var(--serif); font-size: 18px; color: var(--ink); line-height: 1.15; }
-.pl-hd-s { display: block; font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 2px; text-align: right; }
+.plx-bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 12px 0; margin-bottom: 18px; background: rgba(250,250,250,0.88); backdrop-filter: blur(20px) saturate(120%); -webkit-backdrop-filter: blur(20px) saturate(120%); }
+.plx-cur { margin-left: auto; font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); }
+.plx-kick { font-family: var(--sans); font-size: 11px; font-weight: 500; letter-spacing: 0.32em; text-transform: uppercase; color: var(--fg-muted); }
+.plx-h { font-family: var(--serif); font-weight: 400; font-size: clamp(24px, 3vw, 32px); line-height: 1.12; letter-spacing: -0.01em; color: var(--ink); margin: 6px 0 0; }
+.plx-sub { font-family: var(--sans); font-size: 12.5px; line-height: 1.7; letter-spacing: 0.04em; color: var(--fg-muted); margin: 8px 0 0; max-width: 620px; text-wrap: pretty; }
+.plx-sec { margin-top: 64px; }
+.plx-sech { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.plx-link { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--warm-grey); background: var(--surface, #fff); border-radius: 999px; padding: 9px 16px; cursor: pointer; font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink); transition: border-color .18s var(--ease); }
+.plx-link:hover { border-color: var(--ink); }
+/* bento */
+.plb-bento { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 780px) { .plb-bento { grid-template-columns: repeat(2, minmax(0,1fr)); } .plb-t.big { grid-column: 1 / -1; } }
+@media (min-width: 1080px) { .plb-bento { grid-template-columns: repeat(4, minmax(0,1fr)); } .plb-t.big { grid-column: span 2; grid-row: span 2; } }
+.plb-t { background: var(--surface, #fff); border: 1px solid var(--ink-08); border-radius: 28px; box-shadow: var(--shadow-sm); padding: 22px 22px 18px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.plb-th { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.plb-tk { font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-muted); }
+.plb-tt { font-family: var(--serif); font-size: 19px; line-height: 1.15; color: var(--ink); margin-top: 4px; }
+.plb-num { font-family: var(--sans); font-size: 30px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--ink); line-height: 1.05; }
+.plb-num2 { font-family: var(--sans); font-size: 12px; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+.plb-note { font-family: var(--sans); font-size: 11px; line-height: 1.55; letter-spacing: 0.03em; color: var(--fg-muted); margin-top: auto; text-wrap: pretty; }
+.plb-leg { display: flex; gap: 18px; flex-wrap: wrap; }
+.plb-leg span { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); }
+.plb-leg i { width: 9px; height: 9px; border-radius: 3px; }
+.plb-kpis { display: flex; gap: 28px; flex-wrap: wrap; }
+.plb-delta { display: inline-flex; align-items: center; gap: 4px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+.plb-delta small { font-weight: 400; color: var(--fg-muted); letter-spacing: 0.03em; }
+.plb-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4px 12px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--ink-08); }
+.plb-row:first-of-type { border-top: none; }
+.plb-row b { font-family: var(--sans); font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plb-row em { font-style: normal; font-family: var(--sans); font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.plb-bar { grid-column: 1 / -1; position: relative; height: 6px; border-radius: 999px; background: var(--bg-alt); overflow: hidden; }
+.plb-bar i { position: absolute; top: 0; bottom: 0; border-radius: 999px; }
+.plb-bar::after { content: ""; position: absolute; left: 50%; top: -2px; bottom: -2px; width: 1px; background: var(--warm-grey); }
+.plb-dn { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.plb-dn-l { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 8px; }
+.plb-dn-l div { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-family: var(--sans); font-size: 11.5px; color: var(--ink); }
+.plb-dn-l span { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.plb-dn-l i { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.plb-dn-l em { font-style: normal; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+/* bloques */
+.plk-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 900px) { .plk-grid.two { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.plk { background: var(--surface, #fff); border: 1px solid var(--ink-08); border-radius: 28px; box-shadow: var(--shadow-sm); overflow: hidden; min-width: 0; transition: box-shadow .18s var(--ease), transform .18s var(--ease); }
+.plk:hover { box-shadow: var(--shadow-md); }
+.plk.dark { background: var(--ink); border-color: var(--ink); }
+.plk-hd { width: 100%; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: center; border: none; background: transparent; cursor: pointer; text-align: left; padding: 22px 26px; }
+.plk-hd:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--peach); border-radius: 28px; }
+.plk-n { display: inline-flex; align-items: center; gap: 10px; font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--fg-muted); }
+.plk-n b { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 26px; padding: 0 7px; border-radius: 999px; background: var(--bg-alt); color: var(--ink); font-size: 11px; letter-spacing: 0.04em; }
+.plk.dark .plk-n { color: rgba(250,250,250,0.7); } .plk.dark .plk-n b { background: rgba(250,250,250,0.12); color: var(--alabaster); }
+.plk-t { font-family: var(--serif); font-size: 21px; line-height: 1.15; color: var(--ink); margin-top: 8px; }
+.plk.dark .plk-t { color: var(--alabaster); }
+.plk-p { font-family: var(--sans); font-size: 11.5px; line-height: 1.55; letter-spacing: 0.03em; color: var(--fg-muted); margin-top: 4px; text-wrap: pretty; }
+.plk.dark .plk-p { color: rgba(250,250,250,0.62); }
+.plk-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.plk-rl { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); }
+.plk.dark .plk-rl { color: rgba(250,250,250,0.62); }
+.plk-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; }
+.plk-chip.pos { background: rgba(61,107,82,0.10); color: #3d6b52; }
+.plk-chip.neg { background: var(--peach-12, rgba(233,130,106,0.12)); color: var(--attention-text, #B54D36); }
+.plk-chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.plk-chip.neg i { background: var(--attention, #F2755A); }
+.plk-tg { display: inline-flex; align-items: center; gap: 6px; font-family: var(--sans); font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); }
+.plk.dark .plk-tg { color: rgba(250,250,250,0.62); }
+.plk-body { border-top: 1px solid var(--ink-08); animation: sa-fade .36s var(--ease); }
+.plk.dark .plk-body { border-top-color: rgba(250,250,250,0.12); background: rgba(250,250,250,0.04); }
 .pl-ln { border-top: 1px solid var(--ink-08); }
-.pl-ln-b { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; background: transparent; padding: 12px 28px; text-align: left; font-family: var(--sans); }
+.pl-ln:first-child { border-top: none; }
+.plk.dark .pl-ln { border-top-color: rgba(250,250,250,0.1); }
+.pl-ln-b { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; background: transparent; padding: 12px 26px; text-align: left; font-family: var(--sans); }
 .pl-ln-b.x { cursor: pointer; }
 .pl-ln-b.x:hover { background: var(--bg-alt); }
+.plk.dark .pl-ln-b.x:hover { background: rgba(250,250,250,0.06); }
 .pl-ln-l { display: inline-flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
+.plk.dark .pl-ln-l { color: var(--alabaster); }
 .pl-sg { width: 16px; flex-shrink: 0; text-align: center; font-size: 15px; font-weight: 500; color: var(--fg-muted); }
 .pl-sub { font-size: 10.5px; letter-spacing: 0.04em; color: var(--fg-muted); }
+.pl-ln.eq .pl-ln-b { border-top: 1.5px solid var(--ink); }
+.plk.dark .pl-ln.eq .pl-ln-b { border-top-color: rgba(250,250,250,0.4); }
 .pl-det { background: var(--bg-alt); padding: 4px 0 8px; }
-.pl-det-r { display: flex; justify-content: space-between; gap: 14px; padding: 7px 28px 7px 74px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.02em; color: var(--ink); }
+.plk.dark .pl-det { background: rgba(250,250,250,0.05); }
+.pl-det-r { display: flex; justify-content: space-between; gap: 14px; padding: 7px 26px 7px 72px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.02em; color: var(--ink); }
+.plk.dark .pl-det-r { color: var(--alabaster); }
 .pl-det-r span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pl-det-e { padding: 8px 28px 8px 74px; font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.03em; color: var(--fg-muted); }
-.pl-tot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 28px; border-top: 1.5px solid var(--ink); background: var(--beige-soft); }
-.pl-tot.dark { background: var(--ink); border-top-color: var(--ink); }
-.pl-tot-l { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fg-muted); }
-.pl-tot.dark .pl-tot-l { color: rgba(250,250,250,0.72); }
-.pl-man { padding: 12px 24px 2px; border-top: 1px solid var(--ink-08); }
+.pl-det-e { padding: 8px 26px 8px 72px; font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.03em; color: var(--fg-muted); }
+.plk.dark .pl-sub, .plk.dark .pl-sg, .plk.dark .pl-det-e, .plk.dark .pl-det-r span span { color: rgba(250,250,250,0.62) !important; }
+.plk.dark .pl-ln-b svg { stroke: rgba(250,250,250,0.62); }
+.pl-man { padding: 14px 22px 4px; border-top: 1px solid var(--ink-08); }
 .pl-man > div { margin-bottom: 10px !important; }
-@media (max-width: 779px) { .pl-det-r, .pl-det-e { padding-left: 46px; } .pl-hd, .pl-ln-b, .pl-tot { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 779px) {
+  .plk-hd { grid-template-columns: 1fr; padding: 20px; } .plk-r { align-items: flex-start; }
+  .pl-ln-b { padding-left: 18px; padding-right: 18px; } .pl-det-r, .pl-det-e { padding-left: 46px; padding-right: 18px; }
+  .plb-num { font-size: 26px; }
+}
 `;
-  (function () { if (document.getElementById("pl-css")) return; const st = document.createElement("style"); st.id = "pl-css"; st.textContent = PL_CSS; document.head.appendChild(st); })();
+  (function () { const old = document.getElementById("pl-css"); if (old) old.remove(); const st = document.createElement("style"); st.id = "pl-css"; st.textContent = PL_CSS; document.head.appendChild(st); })();
 
-  function Big({ usd, light }) {
+  function Big({ usd, light, size }) {
     return (
       <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-end", lineHeight: 1.15 }}>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 20, fontWeight: 600, letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", color: light ? "var(--alabaster)" : "var(--ink)" }}>{fUSD(usd)}</span>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 500, fontVariantNumeric: "tabular-nums", color: light ? "rgba(250,250,250,0.62)" : "var(--fg-muted)" }}>{fGTQ(usd)}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: size || 22, fontWeight: 600, letterSpacing: "-0.01em", fontVariantNumeric: "tabular-nums", color: light ? "var(--alabaster)" : "var(--ink)" }}>{(usd < 0 ? "−" : "") + fUSD(Math.abs(usd))}</span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 12, fontWeight: 500, fontVariantNumeric: "tabular-nums", color: light ? "rgba(250,250,250,0.62)" : "var(--fg-muted)" }}>{(usd < 0 ? "−" : "") + fGTQ(Math.abs(usd))}</span>
       </span>
     );
   }
-  function PLSep({ children }) { return <div className="pl-sep"><span>{children}</span><i></i></div>; }
-  function PLLine({ sign, label, sub, usd, detail, tr }) {
+  // variación: subir es bueno salvo que inverse; bajar = atención (peach), nunca rojo
+  function Delta({ cur, prev, label, pts, inverse }) {
+    if (prev == null || !isFinite(prev)) return null;
+    let v;
+    if (pts) v = (cur - prev) * 100;
+    else { if (!prev) return null; v = ((cur - prev) / Math.abs(prev)) * 100; }
+    if (!isFinite(v)) return null;
+    const good = inverse ? v <= 0 : v >= 0;
+    const flat = Math.abs(v) < 0.5;
+    return (
+      <span className="plb-delta" style={{ color: flat ? "var(--fg-muted)" : good ? "#3d6b52" : "var(--attention-text, #B54D36)" }}>
+        <span style={{ color: flat ? "var(--fg-muted)" : good ? "#3d6b52" : "var(--attention, #F2755A)" }}>{flat ? "→" : v > 0 ? "↑" : "↓"}</span>
+        {(v > 0 ? "+" : "") + v.toFixed(1) + (pts ? " pts" : "%")}
+        {label && <small>{label}</small>}
+      </span>
+    );
+  }
+
+  // ---------- bento de indicadores ----------
+  function PLBento({ A, P, aggsY, labels, hiIdx, period, prevLabel, tr }) {
+    const [mode, setMode] = useState("mes");
+    const cum = (arr) => { let a = 0; return arr.map(v => (a += v)); };
+    const neto = aggsY.map(g => g.netoSpacio), jov = aggsY.map(g => g.jov);
+    const nS = mode === "acum" ? cum(neto) : neto, jS = mode === "acum" ? cum(jov) : jov;
+    const series = [
+      { key: "jov-" + mode, name: tr("Ingreso total JOV", "JOV total income"), color: "var(--ink)", values: jS, fill: 0.05, width: 2 },
+      { key: "neto-" + mode, name: tr("Ingreso neto Spacio AM", "Spacio AM net income"), color: "var(--peach)", values: nS, fill: 0.16, width: 2.5 },
+    ];
+    const margin = (g) => (g && g.bruto ? g.netoSpacio / g.bruto : null);
+    const mCur = margin(A), mPrev = margin(P);
+    const mSeries = aggsY.map(g => (margin(g) || 0) * 100);
+    const comp = [
+      { label: tr("Fee Spacio AM", "Spacio AM fee"), value: Math.max(0, A.fee || 0), color: "var(--peach)" },
+      { label: "Cleaning fee", value: Math.max(0, A.cleaning || 0), color: "var(--ink)" },
+      { label: tr("Gastos e inversión", "Expenses & inv."), value: Math.max(0, A.gastosInv || 0), color: "#6F6867" },
+      { label: tr("Long term", "Long term"), value: Math.max(0, (A.longTerm || 0) + (A.otrosManual || 0)), color: "#938B8A" },
+    ];
+    const compT = comp.reduce((a, s) => a + s.value, 0) || 1;
+    comp.forEach(s => { s.pretty = Math.round((s.value / compT) * 100) + "%"; });
+    const ctrl = [
+      { label: tr("Base de costos", "Cost base"), v: A.baseCostos || 0 },
+      { label: tr("Diseño de interiores", "Interior design"), v: A.disenoDif || 0 },
+      { label: tr("Ingreso neto Spacio AM", "Spacio AM net"), v: A.netoSpacio || 0 },
+    ];
+    const cMax = Math.max(1, ...ctrl.map(x => Math.abs(x.v)));
+    const pct = (x) => (x == null ? "—" : Math.round(x * 100) + "%");
+    return (
+      <div className="plb-bento">
+        <div className="plb-t big">
+          <div className="plb-th">
+            <div><div className="plb-tk">{tr("Desempeño", "Performance")} · {labels.length ? period.slice(-4) : ""}</div><div className="plb-tt">{tr("Neto Spacio AM vs total JOV", "Spacio AM net vs JOV total")}</div></div>
+            <Segmented size="sm" value={mode} onChange={setMode} options={[{ value: "mes", label: tr("Mes a mes", "Monthly") }, { value: "acum", label: tr("Acumulado", "Cumulative") }]} />
+          </div>
+          <div className="plb-kpis">
+            <div><div className="plb-tk" style={{ display: "flex", alignItems: "center", gap: 7 }}><i style={{ width: 9, height: 9, borderRadius: 3, background: "var(--peach)" }}></i>{tr("Neto Spacio AM", "Spacio AM net")} · {period}</div><div className="plb-num" style={{ marginTop: 6 }}>{fUSD(A.netoSpacio)}</div><div className="plb-num2">{fGTQ(A.netoSpacio)} · <Delta cur={A.netoSpacio} prev={P && P.netoSpacio} label={prevLabel} /></div></div>
+            <div><div className="plb-tk" style={{ display: "flex", alignItems: "center", gap: 7 }}><i style={{ width: 9, height: 9, borderRadius: 3, background: "var(--ink)" }}></i>{tr("Total JOV", "JOV total")} · {period}</div><div className="plb-num" style={{ marginTop: 6 }}>{fUSD(A.jov)}</div><div className="plb-num2">{fGTQ(A.jov)} · <Delta cur={A.jov} prev={P && P.jov} label={prevLabel} /></div></div>
+          </div>
+          <div style={{ flex: 1, minHeight: 200 }}>
+            <LineChart series={series} labels={labels} height={240} formatY={v => "$" + (Math.abs(v) >= 1000 ? Math.round(v / 1000) + "k" : Math.round(v))} formatTip={v => fUSD(v)} />
+          </div>
+        </div>
+
+        <div className="plb-t">
+          <div><div className="plb-tk">{tr("Rentabilidad", "Profitability")}</div><div className="plb-tt">{tr("Margen operativo", "Operating margin")}</div></div>
+          <div><div className="plb-num">{pct(mCur)}</div><div className="plb-num2"><Delta cur={mCur || 0} prev={mPrev} pts label={prevLabel} /></div></div>
+          {mSeries.length > 1 && <Sparkline values={mSeries} color="var(--peach)" width={220} height={40} />}
+          <p className="plb-note">{tr("De cada $100 de ingreso bruto, quedan " + (mCur == null ? "—" : "$" + Math.round(mCur * 100)) + " después de gastos operativos.", "Net left from every $100 of gross income.")}</p>
+        </div>
+
+        <div className="plb-t">
+          <div><div className="plb-tk">{tr("Socios · " + period, "Owners · " + period)}</div><div className="plb-tt">{tr("A pagar y a facturar", "Payable and to invoice")}</div></div>
+          <div className="plb-row"><b>{tr("A pagar a socios", "Payable to owners")}</b><em>{fUSD(A.pagarSocios)}</em><span style={{ gridColumn: "1 / -1" }}><Delta cur={A.pagarSocios} prev={P && P.pagarSocios} label={prevLabel} /></span></div>
+          <div className="plb-row"><b>{tr("A facturar (JOV)", "To invoice (JOV)")}</b><em>{fUSD(A.aFacturar)}</em><span style={{ gridColumn: "1 / -1" }}><Delta cur={A.aFacturar} prev={P && P.aFacturar} label={prevLabel} /></span></div>
+          <p className="plb-note">{tr("Retenciones del periodo: " + fUSD(A.ret) + ".", "Withholdings: " + fUSD(A.ret) + ".")}</p>
+        </div>
+
+        <div className="plb-t">
+          <div><div className="plb-tk">{tr("Ingreso bruto · " + period, "Gross income · " + period)}</div><div className="plb-tt">{tr("¿De dónde viene?", "Where it comes from")}</div></div>
+          <div className="plb-dn">
+            <Donut segments={comp} size={140} thickness={16} centerLabel={"$" + (Math.abs(A.bruto) >= 1000 ? Math.round(A.bruto / 1000) + "k" : Math.round(A.bruto))} centerSub={tr("bruto", "gross")} />
+            <div className="plb-dn-l">{comp.map((s, i) => <div key={i}><span><i style={{ background: s.color }}></i><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.label}</span></span><em>{s.pretty}</em></div>)}</div>
+          </div>
+        </div>
+
+        <div className="plb-t">
+          <div><div className="plb-tk">{tr("Controles · " + period, "Controls · " + period)}</div><div className="plb-tt">{tr("Recibido vs pagado", "Received vs paid")}</div></div>
+          <div>
+            {ctrl.map((x, i) => {
+              const w = (Math.abs(x.v) / cMax) * 50;
+              return (
+                <div className="plb-row" key={i}>
+                  <b>{x.label}</b>
+                  <em style={{ color: x.v < 0 ? "var(--attention-text, #B54D36)" : "var(--ink)" }}>{(x.v < 0 ? "−" : "+") + fUSD(Math.abs(x.v))}</em>
+                  <span className="plb-bar"><i style={x.v < 0 ? { right: "50%", width: w + "%", background: "var(--attention, #F2755A)" } : { left: "50%", width: w + "%", background: "#3d6b52" }}></i></span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="plb-note">{tr("A la derecha, a favor; a la izquierda, se pagó más de lo recibido.", "Right: surplus. Left: paid more than received.")}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- bloques ----------
+  function PLLine({ sign, label, sub, usd, detail, eq, tr }) {
     const [open, setOpen] = useState(false);
     const can = detail != null;
     return (
-      <div className="pl-ln">
-        <button type="button" className={"pl-ln-b" + (can ? " x" : "")} onClick={() => can && setOpen(o => !o)}>
+      <div className={"pl-ln" + (eq ? " eq" : "")}>
+        <button type="button" className={"pl-ln-b" + (can ? " x" : "")} onClick={() => can && setOpen(o => !o)} aria-expanded={can ? open : undefined}>
           <span className="pl-ln-l">
             <span className="pl-sg">{sign}</span>
-            {can ? <Icon name="chevronDown" size={13} stroke="var(--fg-muted)" style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform .18s var(--ease)", flexShrink: 0 }} /> : <span style={{ width: 13, flexShrink: 0 }}></span>}
-            <span style={{ minWidth: 0 }}>{label}{sub && <span className="pl-sub"> · {sub}</span>}</span>
+            {can ? <Icon name="chevronDown" size={13} stroke={PLLine.dark ? "rgba(250,250,250,0.62)" : "var(--fg-muted)"} style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform .18s var(--ease)", flexShrink: 0 }} /> : <span style={{ width: 13, flexShrink: 0 }}></span>}
+            <span style={{ minWidth: 0, fontWeight: eq ? 600 : 400 }}>{label}{sub && <span className="pl-sub"> · {sub}</span>}</span>
           </span>
-          <span style={{ fontSize: 13 }}><Amt usd={usd} /></span>
+          <span style={{ fontSize: 13 }}><Amt usd={usd} strong={eq} light={PLLine.dark} /></span>
         </button>
         {open && can && (
           <div className="pl-det">
             {detail.length ? detail.map((d, i) => <div key={i} className="pl-det-r"><span title={d.label}>{d.label}</span><span style={{ fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fUSD(d.usd)} <span style={{ color: "var(--fg-muted)", fontSize: 10.5 }}>{fGTQ(d.usd)}</span></span></div>)
-              : <div className="pl-det-e">{tr("Sin movimientos este mes.", "No entries this month.")}</div>}
+              : <div className="pl-det-e">{tr("Sin movimientos en el periodo.", "No entries in this period.")}</div>}
           </div>
         )}
       </div>
     );
   }
-  function PLGroup({ n, title, totalLabel, total, dark, lines, children, tr, open: open0 }) {
-    const [open, setOpen] = useState(!!open0);
+  function PLBlock({ n, title, purpose, totalLabel, total, dark, diff, lines, children, tr }) {
+    const [open, setOpen] = useState(false);
+    const nLines = lines.filter(Boolean).length;
     return (
-      <div className="pl-grp">
-        <button type="button" className="pl-hd" onClick={() => setOpen(o => !o)}>
-          <span className="pl-hd-l">
-            <Icon name="chevronDown" size={15} stroke="var(--fg-muted)" style={{ transform: open ? "none" : "rotate(-90deg)", transition: "transform .18s var(--ease)", flexShrink: 0 }} />
-            {n && <span className="pl-hd-n">{n}</span>}
-            <span className="pl-hd-t">{title}</span>
+      <div className={"plk" + (dark ? " dark" : "")}>
+        <button type="button" className="plk-hd" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+          <span style={{ minWidth: 0 }}>
+            <span className="plk-n"><b>{n}</b>{totalLabel}</span>
+            <span className="plk-t" style={{ display: "block" }}>{title}</span>
+            {purpose && <span className="plk-p" style={{ display: "block" }}>{purpose}</span>}
           </span>
-          <span><span className="pl-hd-s">{totalLabel}</span><Big usd={total} /></span>
+          <span className="plk-r">
+            <Big usd={total} light={dark} />
+            {diff && <span className={"plk-chip " + (total < 0 ? "neg" : "pos")}><i></i>{total < 0 ? tr("Se pagó más de lo recibido", "Paid more than received") : tr("A favor", "Surplus")}</span>}
+            <span className="plk-tg">{open ? tr("Ocultar", "Hide") : tr("Ver " + nLines + " líneas", "Show " + nLines + " lines")}<Icon name="chevronDown" size={12} stroke="currentColor" style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .18s var(--ease)" }} /></span>
+          </span>
         </button>
         {open && (
-          <React.Fragment>
-            {lines.filter(Boolean).map((l, i) => <PLLine key={i} {...l} tr={tr} />)}
+          <div className="plk-body">
+            {lines.filter(Boolean).map((l, i) => { PLLine.dark = !!dark; return <PLLine key={i} {...l} tr={tr} />; })}
             {children && <div className="pl-man">{children}</div>}
-            <div className={"pl-tot" + (dark ? " dark" : "")}><span className="pl-tot-l">{totalLabel}</span><Big usd={total} light={dark} /></div>
-          </React.Fragment>
+          </div>
         )}
       </div>
     );
   }
+  function PLGroupHead({ kick, title, sub, first }) {
+    return (
+      <div className="plx-sech" style={first ? { marginTop: 0 } : null}>
+        <div><div className="plx-kick">{kick}</div><h3 className="plx-h">{title}</h3>{sub && <p className="plx-sub">{sub}</p>}</div>
+      </div>
+    );
+  }
 
-  function PLMonth({ A, ym, lang, tr, money, reload }) {
+  function PLBlocks({ A, ym, editable, period, lang, tr, money, reload }) {
+    const OXL = window.SpacioContaOpex;
     return (
       <React.Fragment>
-        <PLSep>{tr("Socios", "Owners")}</PLSep>
-        <PLGroup n="01" tr={tr} title={tr("Socios", "Owners")} totalLabel={tr("A pagar a socios", "Payable to owners")} total={A.pagarSocios} lines={[
-          { sign: "+", label: tr("Ingreso neto socios", "Owner net income"), usd: A.neto, detail: A.netoD },
-          { sign: "−", label: tr("Retenciones socios", "Owner withholdings"), usd: A.ret, detail: A.retD },
-        ]} />
+        <section className="plx-sec">
+          <PLGroupHead kick={tr("Socios · " + period, "Owners · " + period)} title={tr("Lo que reciben los socios", "What owners receive")} sub={tr("Ingreso neto de las propiedades menos retenciones: lo que se les transfiere.", "Net property income less withholdings: what gets transferred.")} />
+          <PLBlock n="1" tr={tr} title={tr("Socios", "Owners")} totalLabel={tr("A pagar a socios", "Payable to owners")} total={A.pagarSocios} lines={[
+            { sign: "+", label: tr("Ingreso neto socios", "Owner net income"), usd: A.neto, detail: A.netoD },
+            { sign: "−", label: tr("Retenciones socios", "Owner withholdings"), usd: A.ret, detail: A.retD },
+          ]} />
+        </section>
 
-        <PLSep>Spacio AM</PLSep>
-        <PLGroup n="02" tr={tr} title={tr("Spacio AM operativo", "Spacio AM operations")} totalLabel={tr("Ingreso bruto", "Gross income")} total={A.bruto} lines={[
-          { sign: "+", label: tr("Fee Spacio AM", "Spacio AM fee"), usd: A.fee, detail: A.feeD },
-          { sign: "+", label: "Cleaning fee", usd: A.cleaning, detail: A.cleanD },
-          { sign: "+", label: tr("Gastos e inversión", "Expenses & investment"), usd: A.gastosInv, detail: A.catList },
-          { sign: "+", label: tr("Otros ingresos", "Other income"), sub: tr("reservas directas · long term", "direct stays · long term"), usd: A.longTerm, detail: A.ltD },
-          A.otrosManual ? { sign: "+", label: tr("Otros ingresos manuales", "Manual other income"), usd: A.otrosManual, detail: A.otroList.map(r => ({ label: r.concepto, usd: window.SpacioContaOpex.totalUsd([r]) })) } : null,
-        ]}>
-          <OpexForm kind="otro" ym={ym} lang={lang} tr={tr} money={money} list={A.otroList} reload={reload} title={tr("Agregar otro ingreso manual", "Add manual income")} totalUsd={A.otrosManual} />
-        </PLGroup>
-        <PLGroup n="03" tr={tr} title={tr("Gastos operativos", "Operating expenses")} totalLabel={tr("Ingreso neto Spacio AM", "Spacio AM net income")} total={A.netoSpacio} dark lines={[
-          { sign: "", label: tr("Ingreso bruto", "Gross income"), usd: A.bruto },
-          { sign: "−", label: "Software", sub: tr("estados de cuenta", "bank statements"), usd: A.software, detail: A.softwareD },
-          { sign: "−", label: tr("Salarios", "Salaries"), sub: tr("estados de cuenta", "bank statements"), usd: A.salarios, detail: A.salariosD },
-          { sign: "−", label: tr("Viáticos", "Travel & meals"), sub: tr("gasolina y comida · facturas", "fuel & meals · invoices"), usd: A.viaticos, detail: A.viatD },
-          { sign: "−", label: tr("Contabilidad", "Accounting"), sub: tr("estados de cuenta", "bank statements"), usd: A.contab, detail: A.contabD },
-          A.opexManual ? { sign: "−", label: tr("Otros gastos manuales", "Manual expenses"), usd: A.opexManual, detail: A.opexList.map(r => ({ label: r.concepto, usd: window.SpacioContaOpex.totalUsd([r]) })) } : null,
-        ]}>
-          <OpexForm kind="opex" ym={ym} lang={lang} tr={tr} money={money} list={A.opexList} reload={reload} title={tr("Agregar gasto operativo manual", "Add manual expense")} totalUsd={A.opexManual} />
-        </PLGroup>
+        <section className="plx-sec">
+          <PLGroupHead kick={"Spacio AM · " + period} title={tr("La empresa operativa", "The operating company")} sub={tr("Lo que genera Spacio AM y lo que cuesta operarla.", "What Spacio AM earns and what it costs to run.")} />
+          <div className="plk-grid">
+            <PLBlock n="2" tr={tr} title={tr("Spacio AM operativo", "Spacio AM operations")} purpose={tr("Fee, cleaning, gastos e inversión y reservas directas.", "Fee, cleaning, expenses and direct stays.")} totalLabel={tr("Ingreso bruto", "Gross income")} total={A.bruto} lines={[
+              { sign: "+", label: tr("Fee Spacio AM", "Spacio AM fee"), usd: A.fee, detail: A.feeD },
+              { sign: "+", label: "Cleaning fee", usd: A.cleaning, detail: A.cleanD },
+              { sign: "+", label: tr("Gastos e inversión", "Expenses & investment"), usd: A.gastosInv, detail: A.catList },
+              { sign: "+", label: tr("Otros ingresos", "Other income"), sub: tr("reservas directas · long term", "direct stays · long term"), usd: A.longTerm, detail: A.ltD },
+              A.otrosManual ? { sign: "+", label: tr("Otros ingresos manuales", "Manual other income"), usd: A.otrosManual, detail: editable ? A.otroList.map(r => ({ label: r.concepto, usd: OXL.totalUsd([r]) })) : null } : null,
+            ]}>
+              {editable && <OpexForm kind="otro" ym={ym} lang={lang} tr={tr} money={money} list={A.otroList} reload={reload} title={tr("Agregar otro ingreso manual", "Add manual income")} totalUsd={A.otrosManual} />}
+            </PLBlock>
+            <PLBlock n="3" tr={tr} dark title={tr("Gastos operativos", "Operating expenses")} purpose={tr("Software, salarios, viáticos y contabilidad sobre el ingreso bruto.", "Software, salaries, travel and accounting.")} totalLabel={tr("Ingreso neto Spacio AM", "Spacio AM net income")} total={A.netoSpacio} lines={[
+              { sign: "", label: tr("Ingreso bruto", "Gross income"), usd: A.bruto },
+              { sign: "−", label: "Software", sub: tr("estados de cuenta", "bank statements"), usd: A.software, detail: A.softwareD },
+              { sign: "−", label: tr("Salarios", "Salaries"), sub: tr("estados de cuenta", "bank statements"), usd: A.salarios, detail: A.salariosD },
+              { sign: "−", label: tr("Viáticos", "Travel & meals"), sub: tr("gasolina y comida · facturas", "fuel & meals · invoices"), usd: A.viaticos, detail: A.viatD },
+              { sign: "−", label: tr("Contabilidad", "Accounting"), sub: tr("estados de cuenta", "bank statements"), usd: A.contab, detail: A.contabD },
+              A.opexManual ? { sign: "−", label: tr("Otros gastos manuales", "Manual expenses"), usd: A.opexManual, detail: editable ? A.opexList.map(r => ({ label: r.concepto, usd: OXL.totalUsd([r]) })) : null } : null,
+              { sign: "=", eq: true, label: tr("Ingreso neto Spacio AM", "Spacio AM net income"), usd: A.netoSpacio },
+            ]}>
+              {editable && <OpexForm kind="opex" ym={ym} lang={lang} tr={tr} money={money} list={A.opexList} reload={reload} title={tr("Agregar gasto operativo manual", "Add manual expense")} totalUsd={A.opexManual} />}
+            </PLBlock>
+          </div>
+        </section>
 
-        <PLSep>{tr("Comparativos", "Breakdowns")}</PLSep>
-        <PLGroup n="04" tr={tr} title={tr("Base de costos", "Cost base")} totalLabel={tr("Diferencia", "Difference")} total={A.baseCostos} lines={[
-          { sign: "+", label: tr("Cleaning fee (ingreso)", "Cleaning fee (income)"), usd: A.cleaning, detail: A.cleanD },
-          { sign: "−", label: tr("Pago EPI", "EPI payments"), sub: tr("equipo de primera impresión", "first-impression team"), usd: A.epi, detail: A.epiD },
-        ]} />
-        <PLGroup n="05" tr={tr} title={tr("Gastos e inversión", "Expenses & investment")} totalLabel={tr("Total gastos e inversión", "Total")} total={A.gastosInv}
-          lines={A.catList.length ? A.catList.map(c => ({ sign: "+", label: c.label, usd: c.usd, detail: A.rows.filter(r => r.cats[c.label]).map(r => ({ label: r.name, usd: r.cats[c.label] })) })) : [{ sign: "", label: tr("Sin gastos este mes", "No expenses this month"), usd: 0 }]} />
-        <PLGroup n="06" tr={tr} title={tr("Otros ingresos", "Other income")} totalLabel={tr("Total otros ingresos", "Total")} total={A.longTerm} lines={[
-          { sign: "+", label: tr("Ingresos por huéspedes", "Guest income"), sub: "long term", usd: A.longTerm, detail: A.ltD },
-        ]} />
-        <PLGroup n="07" tr={tr} title={tr("Diseño de interiores", "Interior design")} totalLabel={tr("Diferencia", "Difference")} total={A.disenoDif} lines={[
-          { sign: "+", label: tr("Ingreso por servicio de decoración", "Decoration service income"), usd: A.disenoIng, detail: A.disenoD },
-          { sign: "−", label: tr("Compra de mobiliario", "Furniture purchases"), usd: A.mobiliario, detail: A.mobD },
-        ]} />
+        <section className="plx-sec">
+          <PLGroupHead kick={tr("Controles · " + period, "Controls · " + period)} title={tr("Recibido vs pagado", "Received vs paid")} sub={tr("Una diferencia positiva es a favor; una negativa significa que se pagó más de lo que se recibió en ese rubro.", "Positive is a surplus; negative means more was paid than received.")} />
+          <div className="plk-grid two">
+            <PLBlock n="4" tr={tr} diff title={tr("Base de costos", "Cost base")} purpose={tr("Cleaning fee cobrado vs pagos al equipo EPI.", "Cleaning fee vs EPI payments.")} totalLabel={tr("Diferencia", "Difference")} total={A.baseCostos} lines={[
+              { sign: "+", label: tr("Cleaning fee (ingreso)", "Cleaning fee (income)"), usd: A.cleaning, detail: A.cleanD },
+              { sign: "−", label: tr("Pago EPI", "EPI payments"), sub: tr("equipo de primera impresión", "first-impression team"), usd: A.epi, detail: A.epiD },
+            ]} />
+            <PLBlock n="5" tr={tr} title={tr("Gastos e inversión", "Expenses & investment")} purpose={tr("Mismas categorías de la pestaña Gastos e inversiones.", "Same categories as the Expenses tab.")} totalLabel={tr("Total", "Total")} total={A.gastosInv}
+              lines={A.catList.length ? A.catList.map(c => ({ sign: "+", label: c.label, usd: c.usd, detail: (A.catProps || {})[c.label] || [] })) : [{ sign: "", label: tr("Sin gastos en el periodo", "No expenses in period"), usd: 0 }]} />
+            <PLBlock n="6" tr={tr} title={tr("Otros ingresos", "Other income")} purpose={tr("Huéspedes de estadía larga (Long term).", "Long-stay guests.")} totalLabel={tr("Total", "Total")} total={A.longTerm} lines={[
+              { sign: "+", label: tr("Ingresos por huéspedes", "Guest income"), sub: "long term", usd: A.longTerm, detail: A.ltD },
+            ]} />
+            <PLBlock n="7" tr={tr} diff title={tr("Diseño de interiores", "Interior design")} purpose={tr("Servicio de decoración cobrado vs mobiliario comprado.", "Decoration income vs furniture bought.")} totalLabel={tr("Diferencia", "Difference")} total={A.disenoDif} lines={[
+              { sign: "+", label: tr("Ingreso por servicio de decoración", "Decoration service income"), usd: A.disenoIng, detail: A.disenoD },
+              { sign: "−", label: tr("Compra de mobiliario", "Furniture purchases"), usd: A.mobiliario, detail: A.mobD },
+            ]} />
+          </div>
+        </section>
 
-        <PLSep>JOV</PLSep>
-        <PLGroup tr={tr} title={tr("Ingreso total JOV", "JOV total income")} totalLabel={tr("A facturar", "To invoice")} total={A.aFacturar} dark lines={[
-          { sign: "+", label: tr("Fee Spacio AM", "Spacio AM fee"), usd: A.fee, detail: A.feeD },
-          { sign: "+", label: tr("Ingreso neto Socio_002", "Socio_002 net income"), usd: A.socio002Neto, detail: A.socio002D },
-          { sign: "−", label: tr("Gastos operativos", "Operating expenses"), usd: A.opex },
-          { sign: "=", label: <b>{tr("Ingreso total JOV", "JOV total income")}</b>, usd: A.jov },
-          { sign: "−", label: tr("Facturas emitidas a huéspedes", "Invoices issued to guests"), usd: A.emitHues, detail: A.emitD },
-        ]} />
+        <section className="plx-sec">
+          <PLGroupHead kick={"JOV · " + period} title={tr("Ingreso del dueño y facturación", "Owner income and invoicing")} sub={tr("Fee más el neto de Socio_002, menos gastos operativos. Restando lo ya facturado a huéspedes queda lo que falta facturar.", "Fee plus Socio_002 net, less operating expenses, less guest invoices.")} />
+          <PLBlock n="8" tr={tr} dark title="JOV" purpose={tr("Ingreso total JOV: " + fUSD(A.jov) + ".", "JOV total income: " + fUSD(A.jov) + ".")} totalLabel={tr("A facturar", "To invoice")} total={A.aFacturar} lines={[
+            { sign: "+", label: tr("Fee Spacio AM", "Spacio AM fee"), usd: A.fee, detail: A.feeD },
+            { sign: "+", label: tr("Ingreso neto Socio_002", "Socio_002 net income"), usd: A.socio002Neto, detail: A.socio002D },
+            { sign: "−", label: tr("Gastos operativos", "Operating expenses"), usd: A.opex },
+            { sign: "=", eq: true, label: tr("Ingreso total JOV", "JOV total income"), usd: A.jov },
+            { sign: "−", label: tr("Facturas emitidas a huéspedes", "Invoices issued to guests"), usd: A.emitHues, detail: A.emitD },
+            { sign: "=", eq: true, label: tr("A facturar", "To invoice"), usd: A.aFacturar },
+          ]} />
+        </section>
       </React.Fragment>
     );
   }
@@ -449,7 +686,6 @@
     const ncol = monthsPresent.length + 2;
     return (
       <React.Fragment>
-      <PLYearCharts aggs={aggs} monthsPresent={monthsPresent} MONTHS={MONTHS} year={year} tr={tr} />
       <div style={{ border: "1px solid var(--ink-08)", borderRadius: 18, overflow: "hidden", background: "var(--alabaster)" }}>
         <div style={{ overflowX: "auto" }}>
           <table style={{ borderCollapse: "collapse", fontFamily: "var(--sans)", width: "100%", minWidth: 120 + monthsPresent.length * 96 + 120 }}>
@@ -475,41 +711,6 @@
         </div>
       </div>
       </React.Fragment>
-    );
-  }
-
-  // ---- gráficos del año: Ingreso neto Spacio AM vs Ingreso total JOV ----
-  function PLYearCharts({ aggs, monthsPresent, MONTHS, year, tr }) {
-    const labels = monthsPresent.map(m => MONTHS[m].slice(0, 3));
-    const neto = aggs.map(g => g.netoSpacio), jov = aggs.map(g => g.jov);
-    const cum = (arr) => { let a = 0; return arr.map(v => (a += v)); };
-    const tN = neto.reduce((a, v) => a + v, 0), tJ = jov.reduce((a, v) => a + v, 0);
-    const series = (n, j, sfx) => [
-      { key: "jov" + sfx, name: tr("Ingreso total JOV", "JOV total income"), color: "var(--ink)", values: j, fill: 0.06, width: 2 },
-      { key: "neto" + sfx, name: tr("Ingreso neto Spacio AM", "Spacio AM net income"), color: "var(--peach)", values: n, fill: 0.16, width: 2.5 },
-    ];
-    const kpi = (label, v, dot) => (
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 10, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>
-          <span style={{ width: 8, height: 8, borderRadius: 2, background: dot }}></span>{label}
-        </span>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", fontVariantNumeric: "tabular-nums", color: "var(--ink)" }}>{fUSD(v)}</span>
-        <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{fGTQ(v)}</span>
-      </div>
-    );
-    const card = (title, sub, n, j, showKpis) => (
-      <div style={{ border: "1px solid var(--ink-08)", borderRadius: 22, background: "var(--alabaster)", boxShadow: "var(--shadow-sm)", padding: "20px 22px 16px", minWidth: 0 }}>
-        <div style={{ fontFamily: "var(--serif)", fontSize: 19, color: "var(--ink)", lineHeight: 1.15 }}>{title}</div>
-        <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", margin: "4px 0 16px" }}>{sub}</div>
-        {showKpis && <div style={{ display: "flex", gap: 28, flexWrap: "wrap", marginBottom: 14 }}>{kpi(tr("Neto Spacio AM", "Spacio AM net"), tN, "var(--peach)")}{kpi(tr("Total JOV", "JOV total"), tJ, "var(--ink)")}</div>}
-        <LineChart series={series(n, j, showKpis ? "m" : "c")} labels={labels} height={showKpis ? 200 : 268} formatY={v => "$" + Math.round(v / 1000) + "k"} formatTip={v => fUSD(v)} />
-      </div>
-    );
-    return (
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 420px), 1fr))", gap: 16, marginBottom: 22 }}>
-        {card(tr("Mes a mes", "Month by month"), tr("Ingreso neto Spacio AM y total JOV de cada mes de " + year + ".", "Each month of " + year + "."), neto, jov, true)}
-        {card(tr("Acumulado del año", "Year to date"), tr("Cómo crecen los dos a lo largo de " + year + ".", "How both grow through " + year + "."), cum(neto), cum(jov), false)}
-      </div>
     );
   }
 
