@@ -135,9 +135,14 @@ const PedidosYaImport = ({ lang }) => {
 
   // lee "insumos & gastos" para conocer orderId / autorizaciones ya guardadas
   pyUseEffect(() => {
-    const sid = window.SPACIO_SHEET_ID; if (!sid) return;
-    const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos");
-    fetch(url).then(r => r.text()).then(txt => {
+    window.pyaFetchSheetExpenses().then(({ rows, ids }) => {
+      setSheetExpenses(rows);
+      if (ids.size) setImported(prev => { const n = new Set(prev); ids.forEach(x => n.add(x)); return n; });
+    }).catch(() => {});
+  }, []);
+  pyUseEffect(() => {
+    if (true) return;
+    fetch("").then(r => r.text()).then(txt => {
       const parsed = pyaParseCSV(txt); if (!parsed.length) return;
       const head = parsed[0].map(h => h.trim().toLowerCase());
       const mesCol = head.indexOf("mes");
@@ -325,6 +330,32 @@ function PyaDteBox({ inv, lang, onClose, headerExtra }) {
 //    (sin factura) por FECHA + MONTO: 1 factura, luego combos de 2 del
 //    mismo día. La conciliación manual es solo para los sobrantes.
 // ============================================================
+// "insumos & gastos" de la hoja → gastos con fecha/valor/autorizaciones (lo usa también Contabilidad)
+window.pyaFetchSheetExpenses = function () {
+  const sid = window.SPACIO_SHEET_ID; if (!sid) return Promise.resolve({ rows: [], ids: new Set() });
+  const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos");
+  return fetch(url).then(r => r.text()).then(txt => {
+    const parsed = pyaParseCSV(txt); const ids = new Set(), rows = [];
+    if (!parsed.length) return { rows, ids };
+    const head = parsed[0].map(h => h.trim().toLowerCase());
+    const col = (n) => head.findIndex(h => h === n);
+    const mesCol = col("mes"), oidCol = head.findIndex(h => h === "orderid" || h === "order id"), apCol = col("authproductos"), atCol = col("authtarifa");
+    const fCol = col("fecha de pedido"), vCol = col("valor"), cCol = col("comentario"), pCol = col("property_name"), catCol = col("categoria");
+    for (let i = 1; i < parsed.length; i++) {
+      const r = parsed[i];
+      [oidCol, apCol, atCol].forEach(c => { if (c > -1 && r[c] && String(r[c]).trim()) ids.add(String(r[c]).trim()); });
+      const hasAuth = (apCol > -1 && String(r[apCol] || "").trim()) || (atCol > -1 && String(r[atCol] || "").trim());
+      const fecha = fCol > -1 ? pyaNormFecha(r[fCol], mesCol > -1 ? pyaYearOfMes(r[mesCol]) : null) : "";
+      const valor = vCol > -1 ? (parseFloat(String(r[vCol]).replace(/[^0-9.\-]/g, "")) || 0) : 0;
+      const cm = cCol > -1 ? String(r[cCol] || "") : "";
+      const mm = cm.match(/\(compartido ÷(\d+)\)/);
+      if (fecha && valor) rows.push({ fecha, valor, mult: mm ? parseInt(mm[1], 10) : 1, hasAuth: !!hasAuth, property_name: pCol > -1 ? String(r[pCol] || "").trim() : "", comentario: cm, orderId: oidCol > -1 ? String(r[oidCol] || "").trim() : "", category: catCol > -1 ? String(r[catCol] || "").trim() : "" });
+    }
+    return { rows, ids };
+  });
+};
+window.pyaLocalAdd = (ids) => pyaLocalAdd(ids);
+
 function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }) {
   const P = window.PedidosYa;
   const es = lang !== "en";

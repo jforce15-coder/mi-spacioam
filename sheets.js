@@ -577,7 +577,9 @@
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(Object.assign({ action: action, token: this.token() }, payload || {})),
         });
-        return await res.json();
+        const txt = await res.text();
+        try { return JSON.parse(txt); }
+        catch (pe) { return { ok: false, error: /<html|<!doctype/i.test(txt) ? "el servidor tardó demasiado o el Apps Script no está actualizado (respuesta HTML)" : "respuesta inválida del servidor" }; }
       } catch (e) { return { ok: false, error: String(e) }; }
     },
     ping() { return this.post("ping", {}); },

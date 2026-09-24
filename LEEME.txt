@@ -1,28 +1,13 @@
-ENTREGA COMPLETA — Dashboard de propietarios (24 sep 2026)
-=========================================================
-Incluye TODOS los cambios hasta hoy. Reemplaza los archivos en producción.
-
+ENTREGA — Facturas v3
+=====================
 APP
-  index.html            versiones nuevas + carga los archivos nuevos
-  sheets.js             correos secundarios múltiples · pestañas Facturas/Contratos/Long term · registro completo de archivos
-  i18n.js               textos de correos secundarios
-  sa-rows.js            NUEVO · guardado de filas (Facturas, Contratos, Long term)
-  sa-combo.jsx          NUEVO · selector con autocompletar (Enter elige)
-  conta.jsx             pestañas Facturas y Long term · selector de tag nuevo
-  conta-pl.jsx          Resumen contable por bloques (Socios · Operativo · Gastos operativos · Comparativos · JOV) · gráficos · USD primero
-  conta-facturas.jsx    NUEVO · Facturas (recibidas en 4 destinos + emitidas) y Long term
-  contratos.jsx         NUEVO · contratos en Setup y en Mi cuenta
-  pedidosya.jsx         lote SAT compartido con Contabilidad
-  pedidosya-ui.jsx      "Ver factura" en formato Spacio AM (SAT solo abajo)
-  pedidosya-parse.js    lector de XML SAT
-  sections.jsx          CLEANING_SOCIO · correos secundarios · contratos · ver factura
+  sa-rows.js          guarda en lotes de 100, cambios pequeños en el navegador, "Reintentar"
+  sheets.js           errores del servidor legibles (antes: "SyntaxError…")
+  conta-facturas.jsx  regla de insumos · botón "Vincular con gastos" · reintentar pendientes
+  conta-pl.jsx        viáticos nunca incluye insumos
+  pedidosya.jsx       comparte el lector de "insumos & gastos" con Contabilidad
+  index.html          versiones nuevas (?v=20260938)
 
-APPS SCRIPT (pegar cada .txt sobre su archivo y publicar NUEVA VERSIÓN)
-  Codigo.gs.txt               cleaning fee pagado al dueño (columna CLEANING_SOCIO)
-  Escrituradesdeapp.gs.txt    CLEANING_SOCIO · correos secundarios · writeRows/deleteRows · subida de contratos y long term
-  PLANTILLA-CORREOS.gs.txt    envío a todos los correos secundarios
-
-HOJA
-  SETUP → columna CLEANING_SOCIO (SI en Likin y Monterrico)
-  SETUP → "secondary user email": varios correos separados por coma
-  Las pestañas Facturas, Contratos y Long term se crean solas al guardar.
+APPS SCRIPT (OBLIGATORIO)
+  apps-script/Escrituradesdeapp.gs.txt → pegar y publicar NUEVA VERSIÓN
+  writeRows ahora escribe en bloque (antes fila por fila → se agotaba el tiempo con 1,000+)

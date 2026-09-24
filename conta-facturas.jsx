@@ -51,6 +51,11 @@ const CF_CSS = `
 .cfr-row { display: grid; grid-template-columns: 28px minmax(0,1fr) minmax(0,1.3fr) minmax(0,1.1fr) 104px; gap: 12px; align-items: center; padding: 10px 24px; border-top: 1px solid var(--ink-08); transition: opacity .18s var(--ease); }
 .cfr-row.head { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); background: var(--bg-alt); padding-top: 10px; padding-bottom: 10px; }
 .cfr-row.off { opacity: .45; }
+.cfl-row { display: grid; grid-template-columns: 28px minmax(0,1fr) minmax(0,1.2fr) 120px; gap: 12px; align-items: center; padding: 10px 24px; border-top: 1px solid var(--ink-08); transition: opacity .18s var(--ease); }
+.cfl-row.head { font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); background: var(--bg-alt); }
+.cfl-row.off { opacity: .45; }
+.cfl-row .cfr-who b + span + b { margin-top: 6px; }
+@media (max-width: 779px) { .cfl-row { grid-template-columns: 28px minmax(0,1fr) auto; padding: 12px 16px; } .cfl-row > .cfr-who:nth-of-type(2) { grid-column: 2 / -1; } .cfl-row.head > span:nth-child(3) { display: none; } }
 .cfr-ck { display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .cfr-ck input { width: 16px; height: 16px; accent-color: var(--ink); cursor: pointer; }
 .cfr-who { min-width: 0; }
@@ -361,7 +366,7 @@ function cfSuggestReceived(pending, bank, grow) {
   return out;
 }
 const CF_BUCKET = { gastos: "Gastos e inversiones", banco: "Estados de cuenta", grow: "Mobiliario", otras: "Otras facturas", pend: "Sin clasificar" };
-function cfSrcLabel(sv) { return sv.fuente === "estado-cuenta" ? "Estado de cuenta" : sv.fuente === "grow" ? "Mobiliario · Grow" : sv.fuente === "similar" ? "Por similitud" : sv.clasificacion === CF_MOB ? "Mobiliario" : "Clasificada aquí"; }
+function cfSrcLabel(sv) { return sv.fuente === "estado-cuenta" ? "Estado de cuenta" : sv.fuente === "grow" ? "Mobiliario · Grow" : sv.fuente === "similar" ? "Por similitud" : sv.fuente === "regla" ? "Insumo por descripción" : sv.clasificacion === CF_MOB ? "Mobiliario" : "Clasificada aquí"; }
 function cfBucket(st) { if (st.k === "gastos" || st.k === "conc" || st.k === "na") return "gastos"; if (st.k === "conta") return "banco"; if (st.k === "here") return st.fuente === "estado-cuenta" ? "banco" : (st.fuente === "grow" || st.fuente === "mobiliario" || /^Compra de mobiliario/.test(st.label)) ? "grow" : "otras"; return st.k === "pend" ? "pend" : "otras"; }
 // ============================================================
 // APRENDIZAJE POR SIMILITUD
@@ -410,6 +415,14 @@ function cfLocalSummary(desc) {
   if (parts.length > 3) out += " +" + (parts.length - 3);
   return out.length > 90 ? out.slice(0, 88) + "…" : (out || "—");
 }
+// Regla fija: productos de limpieza, aseo y cafetería → siempre "Insumos y Gastos"
+// (nunca mobiliario ni viáticos), sin importar emisor, banco o Grow.
+const CF_INSUMO_RE = /desinfect|cloro|lejia|papel (toalla|higienic|de cocina)|toalla de papel|rollo(s)? de papel|servillet|panuel|shampoo|champu|champoo|acondicionador|gel (de )?(ducha|bano|antibacterial)|body ?wash|jabon|suavizante|azucar|endulzante|splenda|cafe (molido|en grano|instantaneo|soluble|tostado|de olla|premium|gourmet)|capsulas? de cafe|cafe \d+ ?(g|gr|kg|lb|oz)|nescafe|coffee ?mate|creamer|\bte (verde|negro|manzanilla|de hierbas|en bolsa|helado|chai)|bolsitas? de te|infusion|detergente|vanish|clorox|ajax|axion|fabuloso|poett|downy|ariel|rinso|lavaplatos|lava ?trastos|esponja|bolsa(s)? (de|para) basura|ambientador|aromatizante|insecticida|limpiador|limpia ?vidrio|multiusos|quitamanchas|crema dental|pasta dental|cepillo dental|agua pura|garrafon|filtro(s)? de cafe|papel aluminio|papel film|bolsa ziploc|guantes (de )?(latex|limpieza)|trapeador|escoba|mechas/;
+// mobiliario / textiles: nunca se tratan como insumo aunque digan "café" (color) o "té" (juego de té)
+const CF_MUEBLE_RE = /\b(mesa|mesita|sofa|sillon|silla|banco|banca|taburete|cama|colchon|base de cama|cabecera|duvet|edredon|sabana|funda|almohada|cojin|alfombra|tapete|cortina|persiana|lampara|mueble|gabinete|repisa|estante|librera|escritorio|comoda|closet|espejo|cuadro|jarron|florero|juego de (te|cafe)|vajilla|cristaleria|porcelana|madera|tela|color)\b/;
+function cfIsInsumoNorm(t) { return !!t && CF_INSUMO_RE.test(t) && !CF_MUEBLE_RE.test(t); }
+function cfIsInsumo(inv) { return cfIsInsumoNorm(window.SaRows.norm(cfDescOf(inv) + " " + (inv.desc || ""))); }
+window.cfIsInsumoText = (t) => cfIsInsumoNorm(window.SaRows.norm(t || ""));
 const CF_SUM_KEY = "sa-fact-sum";
 function cfSumCache() { try { return JSON.parse(localStorage.getItem(CF_SUM_KEY)) || {}; } catch (e) { return {}; } }
 
@@ -489,6 +502,49 @@ function CfReviewModal({ review, itemsBy, tagOptions, busy, onApply, onClose, tr
   );
 }
 
+// ---------- revisión de vínculos factura ⇄ gasto ----------
+function CfLinkModal({ box, busy, onApply, onClose, tr }) {
+  const [sel, setSel] = cfUseState(() => new Set(box.matches.map((_, i) => i)));
+  cfUseEffect(() => { const h = (e) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
+  const all = sel.size === box.matches.length;
+  const toggle = (i) => setSel(p => { const n = new Set(p); n.has(i) ? n.delete(i) : n.add(i); return n; });
+  return (
+    <div className="cfr-ov" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="cfr" role="dialog" aria-modal="true">
+        <div className="cfr-hd">
+          <div style={{ minWidth: 0 }}>
+            <div className="cfr-k">{tr("Vincular con Gastos e inversiones", "Link to expenses")} · {box.matches.length}</div>
+            <div className="cfr-t">{tr("Facturas de insumos ⇄ gastos sin factura", "Supply invoices ⇄ expenses")}</div>
+            <div className="cfr-s">{tr("Mismo valor (1 o 2 facturas por gasto) y factura del mismo día del gasto hasta 3 días después. Se revisaron " + box.nInv + " facturas y " + box.nExp + " gastos.", "Same value, invoice same day up to 3 days after.")}</div>
+          </div>
+          <button className="cf-eye" onClick={onClose} title={tr("Cerrar", "Close")}><Icon name="x" size={15} stroke="currentColor" /></button>
+        </div>
+        <div className="cfl-row head">
+          <label className="cfr-ck"><input type="checkbox" checked={all} onChange={() => setSel(all ? new Set() : new Set(box.matches.map((_, i) => i)))} /></label>
+          <span>{tr("Gasto reportado", "Expense")}</span><span>{tr("Factura(s)", "Invoice(s)")}</span><span style={{ textAlign: "right" }}>{tr("Valor", "Value")}</span>
+        </div>
+        <div className="cfr-list">
+          {box.matches.map((m, i) => (
+            <div key={i} className={"cfl-row" + (sel.has(i) ? "" : " off")}>
+              <label className="cfr-ck"><input type="checkbox" checked={sel.has(i)} onChange={() => toggle(i)} /></label>
+              <span className="cfr-who"><b>{m.expense.property_name || "—"}</b><span>{cfDay(m.expense.fecha)}{m.expense.comentario ? " · " + m.expense.comentario : ""}</span></span>
+              <span className="cfr-who">{m.invoices.map((iv, k) => <React.Fragment key={k}><b title={iv.emisor}>{iv.emisor || iv.auth}</b><span>{cfDay(iv.day)} · {cfMoney(iv.total)}</span></React.Fragment>)}</span>
+              <span className="cfr-amt">{cfMoney(m.expense.target || m.expense.valor)}{m.kind === "pair" && <span className="cfr-why" style={{ display: "block" }}>{tr("2 facturas", "2 invoices")}</span>}</span>
+            </div>
+          ))}
+        </div>
+        <div className="cfr-ft">
+          <span className="cf-auto-s">{tr(sel.size + " de " + box.matches.length + " seleccionados. Se escribe la autorización en la fila del gasto, igual que en Gastos e inversiones.", sel.size + " selected.")}</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="cf-btn ghost" onClick={onClose}>{tr("Cancelar", "Cancel")}</button>
+            <button className="cf-btn dark" disabled={!sel.size || busy} onClick={() => onApply(box.matches.filter((_, i) => sel.has(i)))}><Icon name="link" size={14} stroke="currentColor" />{busy ? tr("Vinculando…", "Linking…") : tr("Vincular", "Link") + " · " + sel.size}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 function ContaFacturasSection({ lang }) {
   const es = lang !== "en"; const tr = (a, b) => (es ? a : b);
@@ -501,6 +557,9 @@ function ContaFacturasSection({ lang }) {
   const [expBox, setExpBox] = cfUseState(null);
   const [review, setReview] = cfUseState(null);   // { title, sub, rows:[{rid, clas, prop, fuente, ref, why}] }
   const [learn, setLearn] = cfUseState(null);     // última clasificación manual con parecidas
+  const [linkBox, setLinkBox] = cfUseState(null);  // vinculación inversa con Gastos e inversiones
+  const [pendSync, setPendSync] = cfUseState(() => window.SaRows.pendingCount("Facturas"));
+  cfUseEffect(() => { const h = () => setPendSync(window.SaRows.pendingCount("Facturas")); window.addEventListener("sa-rows", h); return () => window.removeEventListener("sa-rows", h); }, []);
   const [msg, setMsg] = cfUseState("");
   const [busy, setBusy] = cfUseState(false);
   const [drag, setDrag] = cfUseState(false);
@@ -568,6 +627,7 @@ function ContaFacturasSection({ lang }) {
     return out;
   }, []);
   const emitOptions = cfUseMemo(() => cfEmitCats(), [catsTick, saved.length]);
+  const INSUMO_TAG = cfUseMemo(() => { const o = tagOptions.find(t => /^insumos/i.test(t.value)); return o ? o.value : "Insumos y Gastos"; }, [tagOptions]);
   const propOptions = cfUseMemo(() => cfPropOptions(), []);
 
   // lista unificada según pestaña
@@ -586,6 +646,8 @@ function ContaFacturasSection({ lang }) {
   const examples = cfUseMemo(() => cfExamples(saved), [exSig]);
   if (kind === "recibidas") {
     const sugs = cfSuggestReceived(items.filter(x => x.st.k === "pend").map(x => x.inv), bank, grow || []);
+    // regla de insumos: manda sobre banco, Grow y similitud
+    items.forEach(x => { if (x.st.k === "pend" && !x.inv._arch && cfIsInsumo(x.inv)) sugs[x.inv._rid] = { clas: INSUMO_TAG, prop: "", fuente: "regla", ref: "", why: "Insumo por descripción" }; });
     // lo que no empató con banco / Grow se busca por similitud con lo ya clasificado
     if (examples.list.length) items.forEach(x => { if (x.st.k === "pend" && !sugs[x.inv._rid] && !x.inv._arch) { const m = cfMatchSimilar(x.inv, examples); if (m) sugs[x.inv._rid] = m; } });
     items.forEach(x => { if (x.st.k === "pend" && sugs[x.inv._rid]) x.st.rs = sugs[x.inv._rid]; x.b = cfBucket(x.st); });
@@ -611,7 +673,9 @@ function ContaFacturasSection({ lang }) {
   });
   const save = async (rows, okText) => {
     setBusy(true);
+    if (rows.length > 100) setMsg(tr("Guardando " + rows.length + " facturas en lotes…", "Saving " + rows.length + " invoices in batches…"));
     const res = await window.SaRows.upsert("Facturas", rows);
+    if (!res.ok && res.n) { setMsg(tr(res.n + " guardadas en la hoja; " + res.pending + " quedaron pendientes en este navegador (" + res.error + "). Usa “Reintentar”.", res.n + " saved; " + res.pending + " pending (" + res.error + ").")); setBusy(false); return; }
     setMsg(res.ok ? (okText || tr("Guardado.", "Saved.")) + (res.local ? tr(" (solo en este navegador — conecta la escritura en Setup)", " (this browser only)") : "") : tr("No se pudo guardar en la hoja: " + (res.error || "sin conexión") + ". Quedó en este navegador.", "Could not save: " + (res.error || "offline") + "."));
     setBusy(false);
   };
@@ -630,14 +694,47 @@ function ContaFacturasSection({ lang }) {
     save([rowFor(x, v, extra)], tr("Factura clasificada como “" + v + "”.", "Classified as “" + v + "”."));
   };
   const itemsBy = {}; items.forEach(x => { itemsBy[x.inv._rid] = x; });
+  // ---- vincular facturas de insumos con gastos reportados SIN factura (al revés de Gastos e inversiones) ----
+  const insumoInvs = items.filter(x => !x.inv._arch && !x.inv._exp && x.inv.auth && x.st.k === "here" && /^insumos/i.test((x.sv && x.sv.clasificacion) || ""));
+  const findLinks = async () => {
+    const P = window.PedidosYa;
+    if (!P || !window.pyaFetchSheetExpenses) { setMsg(tr("Abre Gastos e inversiones una vez para cargar el motor de conciliación.", "Open Expenses once first.")); return; }
+    setBusy(true); setMsg(tr("Buscando gastos sin factura…", "Looking for expenses without invoice…"));
+    try {
+      const { rows } = await window.pyaFetchSheetExpenses();
+      const targets = rows.filter(e => !e.hasAuth && (/insumos/i.test(e.comentario || "") || /insumos/i.test(e.category || ""))).map((e, i) => Object.assign({ _k: "e" + i }, e));
+      const invs = insumoInvs.map(x => ({ id: x.inv._rid, auth: x.inv.auth, day: x.inv.day, total: +x.inv.total || 0, kind: x.inv.kind || "", emisor: x.inv.emisor || x.inv.comercial || "", _x: x }));
+      const conc = P.autoConciliate(targets, invs, { dayWindow: 3 });
+      if (!conc.matches.length) { setMsg(tr("Sin coincidencias: " + invs.length + " factura(s) de insumos contra " + targets.length + " gasto(s) sin factura (mismo valor, factura del mismo día hasta 3 días después).", "No matches.")); setBusy(false); return; }
+      setLinkBox({ matches: conc.matches, nInv: invs.length, nExp: targets.length }); setMsg("");
+    } catch (e) { setMsg(tr("No se pudo leer “insumos & gastos”.", "Could not read expenses.")); }
+    setBusy(false);
+  };
+  const applyLinks = async (ms) => {
+    const P = window.PedidosYa;
+    if (!(window.SpacioWrite && window.SpacioWrite.enabled())) { setMsg(tr("Conecta la escritura en Setup para vincular.", "Connect writing in Setup.")); return; }
+    setBusy(true);
+    const links = ms.map(m => P.linkPayload(m.expense, m.invoices));
+    let done = 0, err = "";
+    for (let k = 0; k < links.length; k += 60) {
+      const res = await window.SpacioWrite.post("linkFacturas", { links: links.slice(k, k + 60) });
+      if (res && res.ok) done += Math.min(60, links.length - k); else { err = (res && res.error) || "sin conexión"; break; }
+    }
+    const linked = ms.slice(0, done);
+    const auths = linked.flatMap(m => m.invoices.map(i => i.auth));
+    try { window.pyaLocalAdd && window.pyaLocalAdd(auths); } catch (e) {}
+    setSheetAuths(s => { const n = Object.assign({}, s); linked.forEach(m => m.invoices.forEach(i => { n[i.auth] = { property_name: m.expense.property_name, categoria: m.expense.category || "insumos & gastos" }; })); return n; });
+    setLinkBox(null); setBusy(false);
+    setMsg(err ? tr(done + " vinculadas; se detuvo por: " + err + ".", done + " linked; stopped: " + err) : tr(done + " gasto(s) vinculados con su factura en “insumos & gastos”.", done + " expense(s) linked."));
+  };
   const applyReview = async (rows) => {
     const out = rows.map(r => itemsBy[r.rid] && rowFor(itemsBy[r.rid], r.clas, { fuente: r.fuente, ref: r.ref || "", propiedad: r.prop || "" })).filter(Boolean);
     setReview(null); setLearn(null);
     await save(out, tr(out.length + " factura(s) clasificadas.", out.length + " invoice(s) classified."));
   };
-  const rsReviewRows = (list) => list.map(x => ({ rid: x.inv._rid, clas: x.st.rs.clas, prop: x.st.rs.prop || "", fuente: x.st.rs.fuente, ref: x.st.rs.ref || "", why: x.st.rs.fuente === "grow" ? "Grow" : x.st.rs.fuente === "similar" ? x.st.rs.why.split(" · ")[0] : tr("Estado de cuenta", "Bank statement") }));
+  const rsReviewRows = (list) => list.map(x => ({ rid: x.inv._rid, clas: x.st.rs.clas, prop: x.st.rs.prop || "", fuente: x.st.rs.fuente, ref: x.st.rs.ref || "", why: x.st.rs.fuente === "grow" ? "Grow" : x.st.rs.fuente === "similar" ? x.st.rs.why.split(" · ")[0] : x.st.rs.fuente === "regla" ? tr("Insumo por descripción", "Supply by description") : tr("Estado de cuenta", "Bank statement") }));
   const rsRow = (x) => rowFor(x, x.st.rs.clas, { fuente: x.st.rs.fuente, ref: x.st.rs.ref, propiedad: x.st.rs.prop || "" });
-  const applyRs = (x) => save([rsRow(x)], tr("Clasificada " + (x.st.rs.fuente === "grow" ? "con Grow" : x.st.rs.fuente === "similar" ? "por similitud" : "con el estado de cuenta") + ".", "Classified."));
+  const applyRs = (x) => save([rsRow(x)], tr("Clasificada " + (x.st.rs.fuente === "grow" ? "con Grow" : x.st.rs.fuente === "similar" ? "por similitud" : x.st.rs.fuente === "regla" ? "como insumo" : "con el estado de cuenta") + ".", "Classified."));
   const withRs = inMonth.filter(x => x.st.rs);
   const applyAllRs = () => save(withRs.map(rsRow), tr(withRs.length + " factura(s) clasificadas automáticamente.", withRs.length + " auto-classified."));
   const setProp = (x, v) => save([rowFor(x, (x.sv && x.sv.clasificacion) || "", { propiedad: v, fuente: (x.sv && x.sv.fuente) || "", ref: (x.sv && x.sv.ref) || "" })]);
@@ -789,7 +886,9 @@ function ContaFacturasSection({ lang }) {
           </div>
           <button className="cf-btn ghost" onClick={() => setReview({ title: tr("Todas las coincidencias", "All matches"), sub: tr("Estados de cuenta, Grow y similitud con lo que ya clasificaste.", "Bank, Grow and similarity."), rows: rsReviewRows(withRs) })} disabled={!withRs.length}><Icon name="eye" size={13} stroke="currentColor" />{tr("Revisar", "Review")}</button>
           <button className="cf-btn warm" onClick={applyAllRs} disabled={busy || !withRs.length}><Icon name="sparkles" size={14} stroke="var(--ink)" />{tr("Aplicar", "Apply")}{withRs.length ? " · " + withRs.length : ""}</button>
+          <button className="cf-btn ghost" onClick={findLinks} disabled={busy || !insumoInvs.length} title={tr("Busca gastos reportados sin factura con el mismo valor (1 o 2 facturas, del mismo día hasta 3 días después)", "Find expenses without invoice")}><Icon name="link" size={13} stroke="currentColor" />{tr("Vincular con gastos", "Link to expenses")}{insumoInvs.length ? " · " + insumoInvs.length : ""}</button>
           <button className="cf-btn ghost" onClick={() => setGrowOpen(o => !o)}><Icon name="link" size={13} stroke="currentColor" />Grow{grow ? " · " + grow.length : ""}</button>
+          {pendSync > 0 && <button className="cf-btn warm" disabled={busy} onClick={async () => { setBusy(true); const r = await window.SaRows.flush("Facturas"); setBusy(false); setMsg(r.ok ? tr("Pendientes guardados en la hoja.", "Pending saved.") : tr("Aún no se pudo guardar: " + r.error, "Still failing: " + r.error)); }}><Icon name="upload" size={13} stroke="var(--ink)" />{tr("Reintentar", "Retry")} · {pendSync}</button>}
           {growOpen && (
             <div className="cf-grow">
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -829,7 +928,7 @@ function ContaFacturasSection({ lang }) {
                         recentKey={kind === "recibidas" ? "sa-combo-tags" : "sa-combo-emit"} placeholder={x.st.sug ? x.st.sug : x.st.rs ? x.st.rs.clas : tr("Escribe para clasificar…", "Type to classify…")} />
                       {x.st.rs && (
                         <button className="cf-sug cf-sug-btn" onClick={() => applyRs(x)} title={x.st.rs.why}>
-                          <Icon name="sparkles" size={11} stroke="var(--peach)" /><span>{x.st.rs.clas}{x.st.rs.prop ? " · " + x.st.rs.prop : ""}</span><span className="why">{x.st.rs.fuente === "grow" ? "Grow" : x.st.rs.fuente === "similar" ? tr("Similar", "Similar") : tr("Estado de cuenta", "Bank")}</span><b>{tr("Aplicar", "Apply")}</b>
+                          <Icon name="sparkles" size={11} stroke="var(--peach)" /><span>{x.st.rs.clas}{x.st.rs.prop ? " · " + x.st.rs.prop : ""}</span><span className="why">{x.st.rs.fuente === "grow" ? "Grow" : x.st.rs.fuente === "similar" ? tr("Similar", "Similar") : x.st.rs.fuente === "regla" ? tr("Insumo", "Supply") : tr("Estado de cuenta", "Bank")}</span><b>{tr("Aplicar", "Apply")}</b>
                         </button>
                       )}
                       {x.st.k === "here" && kind === "recibidas" && x.sv && x.sv.clasificacion === CF_MOB && (
@@ -860,6 +959,7 @@ function ContaFacturasSection({ lang }) {
       ) : null}
 
       {box && window.PyaDteBox && <PyaDteBox inv={box} lang={lang} onClose={() => setBox(null)} />}
+      {linkBox && <CfLinkModal box={linkBox} busy={busy} onApply={applyLinks} onClose={() => setLinkBox(null)} tr={tr} />}
       {review && <CfReviewModal review={review} itemsBy={itemsBy} tagOptions={tagOptions} busy={busy} onApply={applyReview} onClose={() => setReview(null)} tr={tr} />}
       {expBox && window.InvoiceViewBox && <InvoiceViewBox data={expBox} lang={lang} onClose={() => setExpBox(null)} />}
     </div>

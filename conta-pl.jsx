@@ -61,6 +61,8 @@
   const VIAT_RE = /gasolin|combustib|diesel|shell|puma|texaco|\buno\b|estacion de servicio|restaur|comedor|cafeter|\bcafe\b|campero|mcdonald|burger|pizza|taco|starbucks|subway|domino|kfc|wendy|pollo|oxxo|super ?24|conveniencia|circle k|am ?pm/;
   function isViatico(f, insumoAuths) {
     if (insumoAuths[f.auth]) return false;
+    if (window.cfIsInsumoText && window.cfIsInsumoText(f.who + " " + f.desc)) return false;
+    if (/^insumos/.test(nrm(f.clas))) return false;
     if (f.clas) return /viatic/.test(nrm(f.clas));
     return VIAT_RE.test(nrm(f.who + " " + f.desc));
   }

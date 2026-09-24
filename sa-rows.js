@@ -8,37 +8,73 @@
   "use strict";
   var PFX = "sa-rows-";
   function readLocal(tab) { try { return JSON.parse(localStorage.getItem(PFX + tab)) || {}; } catch (e) { return {}; } }
-  function writeLocal(tab, o) { try { localStorage.setItem(PFX + tab, JSON.stringify(o)); } catch (e) {} }
+  function writeLocal(tab, o) {
+    try { localStorage.setItem(PFX + tab, JSON.stringify(o)); return true; }
+    catch (e) { // sin espacio: se guardan solo campos clave (la memoria de la sesión conserva todo)
+      try { var s = {}; Object.keys(o).forEach(function (k) { var v = o[k]; s[k] = v === null ? null : { id: v.id, tipo: v.tipo, auth: v.auth, clasificacion: v.clasificacion, propiedad: v.propiedad, fuente: v.fuente, ref: v.ref, fecha: v.fecha, mes: v.mes, total: v.total, moneda: v.moneda, contraparte: v.contraparte, nit: v.nit, property_name: v.property_name, monto: v.monto, url: v.url, nombre: v.nombre, origen: v.origen, estado: v.estado }; }); localStorage.setItem(PFX + tab, JSON.stringify(s)); return true; } catch (e2) { return false; }
+    }
+  }
   function emit(tab) { try { window.dispatchEvent(new CustomEvent("sa-rows", { detail: { tab: tab } })); } catch (e) {} }
   function backend(tab) { var d = window.SpacioData && window.SpacioData.rows; return (d && d[tab]) || []; }
 
+  // Cambios pendientes: solo el DELTA de cada fila (no la fila completa) para no
+  // llenar localStorage. MEM mantiene lo confirmado por la hoja en esta sesión.
+  var MEM = {};
+  function mem(tab) { return (MEM[tab] = MEM[tab] || {}); }
   function list(tab) {
-    var loc = readLocal(tab), out = {}, order = [];
+    var loc = readLocal(tab), m = mem(tab), out = {}, order = [];
     backend(tab).forEach(function (r) { var id = String(r.id || "").trim(); if (!id) return; if (!(id in out)) order.push(id); out[id] = r; });
-    Object.keys(loc).forEach(function (id) { if (!(id in out)) order.push(id); out[id] = loc[id]; });
+    [m, loc].forEach(function (src) { Object.keys(src).forEach(function (id) {
+      if (src[id] === null) { out[id] = null; return; }
+      if (!(id in out)) order.push(id);
+      out[id] = Object.assign({}, out[id] || {}, src[id]);
+    }); });
     return order.map(function (id) { return out[id]; }).filter(Boolean);
   }
   function get(tab, id) { return list(tab).find(function (r) { return String(r.id) === String(id); }) || null; }
 
+  var CHUNK = 100;
   async function upsert(tab, rows) {
     rows = (rows || []).filter(function (r) { return r && r.id; });
     if (!rows.length) return { ok: true, n: 0 };
-    var loc = readLocal(tab);
-    rows.forEach(function (r) { r.savedAt = new Date().toISOString(); loc[r.id] = Object.assign({}, loc[r.id] || get(tab, r.id) || {}, r); });
+    var now = new Date().toISOString();
+    rows = rows.map(function (r) { return Object.assign({}, r, { savedAt: now }); });
+    var loc = readLocal(tab), m = mem(tab);
+    rows.forEach(function (r) { loc[r.id] = Object.assign({}, loc[r.id] || {}, r); m[r.id] = Object.assign({}, m[r.id] || {}, r); });
     writeLocal(tab, loc); emit(tab);
     var W = window.SpacioWrite;
     if (!(W && W.enabled && W.enabled())) return { ok: true, local: true, n: rows.length };
-    var res = await W.post("writeRows", { tab: tab, rows: rows });
-    return res && res.ok ? Object.assign({ n: rows.length }, res) : Object.assign({ ok: false }, res || {});
+    var okN = 0, err = "";
+    for (var k = 0; k < rows.length; k += CHUNK) {
+      var part = rows.slice(k, k + CHUNK);
+      var res = await W.post("writeRows", { tab: tab, rows: part });
+      if (res && res.ok) {
+        okN += part.length;
+        var l2 = readLocal(tab); part.forEach(function (r) { delete l2[r.id]; }); writeLocal(tab, l2);
+      } else { err = (res && res.error) || "sin conexión"; break; }
+    }
+    emit(tab);
+    return okN === rows.length ? { ok: true, n: okN } : { ok: false, n: okN, pending: rows.length - okN, error: err };
   }
   async function remove(tab, ids) {
-    var loc = readLocal(tab);
-    (ids || []).forEach(function (id) { loc[id] = null; });
+    var loc = readLocal(tab), m = mem(tab);
+    (ids || []).forEach(function (id) { loc[id] = null; m[id] = null; });
     writeLocal(tab, loc); emit(tab);
     var W = window.SpacioWrite;
     if (!(W && W.enabled && W.enabled())) return { ok: true, local: true };
-    return await W.post("deleteRows", { tab: tab, ids: ids });
+    var res = await W.post("deleteRows", { tab: tab, ids: ids });
+    if (res && res.ok) { var l2 = readLocal(tab); (ids || []).forEach(function (id) { delete l2[id]; }); writeLocal(tab, l2); }
+    return res;
   }
+  // reintenta lo que quedó pendiente en este navegador
+  async function flush(tab) {
+    var loc = readLocal(tab), ups = [], dels = [];
+    Object.keys(loc).forEach(function (id) { if (loc[id] === null) dels.push(id); else ups.push(Object.assign({ id: id }, loc[id])); });
+    var a = ups.length ? await upsert(tab, ups) : { ok: true, n: 0 };
+    if (dels.length) await remove(tab, dels);
+    return a;
+  }
+  function pendingCount(tab) { return Object.keys(readLocal(tab)).length; }
 
   function fileToBase64(file) {
     return new Promise(function (res, rej) {
@@ -80,5 +116,5 @@
     return { name: top.name, score: top.score, sure: top.score >= 5 && (!second || top.score > second.score) };
   }
 
-  window.SaRows = { list: list, get: get, upsert: upsert, remove: remove, uploadToDrive: uploadToDrive, fileToBase64: fileToBase64, norm: norm, suggestProperty: suggestProperty };
+  window.SaRows = { list: list, get: get, upsert: upsert, remove: remove, flush: flush, pendingCount: pendingCount, uploadToDrive: uploadToDrive, fileToBase64: fileToBase64, norm: norm, suggestProperty: suggestProperty };
 })();
