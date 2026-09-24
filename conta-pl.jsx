@@ -4,7 +4,7 @@
 // Estado de resultados de Spacio AM, por bloques:
 //   1) Socios            neto − retenciones = a pagar a socios
 //   2) Operativo         fee + cleaning + gastos e inversión + long term = ingreso bruto
-//   3) Gastos operativos software + viáticos + contabilidad → ingreso neto Spacio AM
+//   3) Gastos operativos software + salarios + viáticos + contabilidad → ingreso neto Spacio AM
 //   4) Base de costos    cleaning − pago EPI
 //   5) Gastos e inversión por categoría
 //   6) Otros ingresos    huéspedes (long term)
@@ -119,7 +119,7 @@
       const catList = Object.keys(cat).sort((a, b) => cat[b] - cat[a]).map(c => ({ label: c, usd: cat[c] }));
       const bank = SRC.bank.filter(b => b.ym === key);
       const mov = (re, side) => bank.filter(b => re.test(nrm(b.tag)) && b[side] > 0).map(b => ({ label: b.desc + (b.date ? " · " + b.date : ""), usd: b[side] }));
-      const softwareD = mov(/software/, "debit"), contabD = mov(/^contabilidad$/, "debit"), epiD = mov(/primera impresi/, "debit");
+      const softwareD = mov(/software/, "debit"), salariosD = mov(/salari|sueldo|planilla|nomina|bonificaci|aguinaldo|bono 14|igss/, "debit"), contabD = mov(/^contabilidad$/, "debit"), epiD = mov(/primera impresi/, "debit");
       const disenoD = mov(/servicio.*decoraci|decoracion de interiores/, "credit");
       const mobBank = mov(/compra de mobiliario/, "debit");
       const rec = SRC.rec.filter(f => f.ym === key);
@@ -133,12 +133,12 @@
 
       const A = { rows, opexList, otroList, opexManual, otrosManual, catList,
         netoD: per("neto"), retD: per("ret"), feeD: per("fee"), cleanD: per("cleaning"), invD: per("gastosInv"),
-        softwareD, contabD, viatD, epiD, disenoD, mobD, ltD, emitD };
+        softwareD, salariosD, contabD, viatD, epiD, disenoD, mobD, ltD, emitD };
       A.neto = sum("neto"); A.ret = sum("ret"); A.pagarSocios = A.neto - A.ret;
       A.fee = sum("fee"); A.cleaning = sum("cleaning"); A.gastosInv = sum("gastosInv"); A.longTerm = sumU(ltD);
       A.bruto = A.fee + A.cleaning + A.gastosInv + A.longTerm + otrosManual;
-      A.software = sumU(softwareD); A.viaticos = sumU(viatD); A.contab = sumU(contabD);
-      A.opex = A.software + A.viaticos + A.contab + opexManual;
+      A.software = sumU(softwareD); A.salarios = sumU(salariosD); A.viaticos = sumU(viatD); A.contab = sumU(contabD);
+      A.opex = A.software + A.salarios + A.viaticos + A.contab + opexManual;
       A.netoSpacio = A.bruto - A.opex;
       A.epi = sumU(epiD); A.baseCostos = A.cleaning - A.epi;
       A.disenoIng = sumU(disenoD); A.mobiliario = sumU(mobD); A.disenoDif = A.disenoIng - A.mobiliario;
@@ -171,33 +171,34 @@
 
   // ---------- piezas de la vista mensual ----------
   const PL_CSS = `
-.pl-sep { display: flex; align-items: center; gap: 14px; margin: 44px 0 18px; }
+.pl-sep { display: flex; align-items: center; gap: 14px; margin: 56px 0 20px; }
 .pl-sep:first-child { margin-top: 0; }
 .pl-sep span { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.28em; text-transform: uppercase; color: var(--fg-muted); white-space: nowrap; }
 .pl-sep i { flex: 1; height: 1px; background: var(--warm-grey); }
-.pl-grp { border: 1px solid var(--ink-08); border-radius: 18px; background: var(--alabaster); overflow: hidden; margin-bottom: 14px; }
-.pl-hd { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; cursor: pointer; background: transparent; padding: 16px 20px; text-align: left; }
+.pl-grp { border: 1px solid var(--ink-08); border-radius: 28px; background: var(--surface, #FFFFFF); box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 24px; transition: box-shadow .18s var(--ease); }
+.pl-grp:hover { box-shadow: var(--shadow-md); }
+.pl-hd { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; cursor: pointer; background: transparent; padding: 20px 28px; text-align: left; }
 .pl-hd:hover { background: var(--bg-alt); }
 .pl-hd-l { display: inline-flex; align-items: center; gap: 11px; min-width: 0; }
 .pl-hd-n { font-family: var(--sans); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: var(--fg-muted); }
 .pl-hd-t { font-family: var(--serif); font-size: 18px; color: var(--ink); line-height: 1.15; }
 .pl-hd-s { display: block; font-family: var(--sans); font-size: 9.5px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg-muted); margin-bottom: 2px; text-align: right; }
 .pl-ln { border-top: 1px solid var(--ink-08); }
-.pl-ln-b { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; background: transparent; padding: 12px 20px; text-align: left; font-family: var(--sans); }
+.pl-ln-b { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 14px; border: none; background: transparent; padding: 12px 28px; text-align: left; font-family: var(--sans); }
 .pl-ln-b.x { cursor: pointer; }
 .pl-ln-b.x:hover { background: var(--bg-alt); }
 .pl-ln-l { display: inline-flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; letter-spacing: 0.02em; color: var(--ink); }
 .pl-sg { width: 16px; flex-shrink: 0; text-align: center; font-size: 15px; font-weight: 500; color: var(--fg-muted); }
 .pl-sub { font-size: 10.5px; letter-spacing: 0.04em; color: var(--fg-muted); }
 .pl-det { background: var(--bg-alt); padding: 4px 0 8px; }
-.pl-det-r { display: flex; justify-content: space-between; gap: 14px; padding: 7px 20px 7px 66px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.02em; color: var(--ink); }
+.pl-det-r { display: flex; justify-content: space-between; gap: 14px; padding: 7px 28px 7px 74px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.02em; color: var(--ink); }
 .pl-det-r span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pl-det-e { padding: 8px 20px 8px 66px; font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.03em; color: var(--fg-muted); }
-.pl-tot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 16px 20px; border-top: 1.5px solid var(--ink); background: var(--beige-soft); }
+.pl-det-e { padding: 8px 28px 8px 74px; font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.03em; color: var(--fg-muted); }
+.pl-tot { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 28px; border-top: 1.5px solid var(--ink); background: var(--beige-soft); }
 .pl-tot.dark { background: var(--ink); border-top-color: var(--ink); }
 .pl-tot-l { font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fg-muted); }
 .pl-tot.dark .pl-tot-l { color: rgba(250,250,250,0.72); }
-.pl-man { padding: 12px 16px 2px; border-top: 1px solid var(--ink-08); }
+.pl-man { padding: 12px 24px 2px; border-top: 1px solid var(--ink-08); }
 .pl-man > div { margin-bottom: 10px !important; }
 @media (max-width: 779px) { .pl-det-r, .pl-det-e { padding-left: 46px; } .pl-hd, .pl-ln-b, .pl-tot { padding-left: 16px; padding-right: 16px; } }
 `;
@@ -279,6 +280,7 @@
         <PLGroup n="03" tr={tr} title={tr("Gastos operativos", "Operating expenses")} totalLabel={tr("Ingreso neto Spacio AM", "Spacio AM net income")} total={A.netoSpacio} dark lines={[
           { sign: "", label: tr("Ingreso bruto", "Gross income"), usd: A.bruto },
           { sign: "−", label: "Software", sub: tr("estados de cuenta", "bank statements"), usd: A.software, detail: A.softwareD },
+          { sign: "−", label: tr("Salarios", "Salaries"), sub: tr("estados de cuenta", "bank statements"), usd: A.salarios, detail: A.salariosD },
           { sign: "−", label: tr("Viáticos", "Travel & meals"), sub: tr("gasolina y comida · facturas", "fuel & meals · invoices"), usd: A.viaticos, detail: A.viatD },
           { sign: "−", label: tr("Contabilidad", "Accounting"), sub: tr("estados de cuenta", "bank statements"), usd: A.contab, detail: A.contabD },
           A.opexManual ? { sign: "−", label: tr("Otros gastos manuales", "Manual expenses"), usd: A.opexManual, detail: A.opexList.map(r => ({ label: r.concepto, usd: window.SpacioContaOpex.totalUsd([r]) })) } : null,
@@ -419,6 +421,7 @@
       { label: tr("Ingreso bruto", "Gross income"), key: "bruto", strong: true },
       H(tr("3 · Gastos operativos", "3 · Operating expenses")),
       { label: "Software", key: "software" },
+      { label: tr("Salarios", "Salaries"), key: "salarios" },
       { label: tr("Viáticos", "Travel & meals"), key: "viaticos" },
       { label: tr("Contabilidad", "Accounting"), key: "contab" },
       { label: tr("Ingreso neto Spacio AM", "Spacio AM net income"), key: "netoSpacio", strong: true, dark: true },
