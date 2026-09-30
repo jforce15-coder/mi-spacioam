@@ -1,13 +1,9 @@
-ENTREGA — Facturas v3
-=====================
-APP
-  sa-rows.js          guarda en lotes de 100, cambios pequeños en el navegador, "Reintentar"
-  sheets.js           errores del servidor legibles (antes: "SyntaxError…")
-  conta-facturas.jsx  regla de insumos · botón "Vincular con gastos" · reintentar pendientes
-  conta-pl.jsx        viáticos nunca incluye insumos
-  pedidosya.jsx       comparte el lector de "insumos & gastos" con Contabilidad
-  index.html          versiones nuevas (?v=20260938)
+ENTREGA — Botón "Actualizar datos" (Hospitable)
+===============================================
+ui.jsx          ícono "refresh" nuevo
+dashboard.jsx   ícono de actualizar en la barra superior (solo admin) + rango de fechas discreto
+index.html      estilos + versión nueva (?v=20260941)
+apps-script/Escrituradesdeapp.gs.txt  acción "hospitableSync" → llama hospitableAutomatico()
 
-APPS SCRIPT (OBLIGATORIO)
-  apps-script/Escrituradesdeapp.gs.txt → pegar y publicar NUEVA VERSIÓN
-  writeRows ahora escribe en bloque (antes fila por fila → se agotaba el tiempo con 1,000+)
+Actualizacion.gs debe estar en el MISMO proyecto de Apps Script (ya lo está).
+Pegar Escrituradesdeapp.gs y publicar NUEVA VERSIÓN.

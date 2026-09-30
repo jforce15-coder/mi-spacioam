@@ -2,6 +2,43 @@
 // Spacio AM — Owner Dashboard · Shell + Summary/Financial/Occupancy
 // ============================================================
 
+// ---- Sincronizar Hospitable (solo admin) ----
+// Ejecuta hospitableAutomatico() del Apps Script: últimos 90 días hasta hoy (UTC).
+const HSP_DIAS = 90;
+function hspRango() {
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const hoy = new Date(); const ini = new Date(hoy.getTime()); ini.setUTCDate(ini.getUTCDate() - HSP_DIAS);
+  return { start: iso(ini), end: iso(hoy) };
+}
+function hspCorto(iso, lang) {
+  const M = lang === "en" ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] : ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  const [y, m, d] = iso.split("-").map(Number); return d + " " + M[m - 1];
+}
+const HospitableSync = ({ lang }) => {
+  const es = lang !== "en"; const tr = (a, b) => (es ? a : b);
+  const [st, setSt] = useState(null); // null | "run" | {ok,...} | {error}
+  const r = hspRango();
+  const run = async () => {
+    if (st === "run") return;
+    if (!(window.SpacioWrite && window.SpacioWrite.enabled())) { setSt({ error: tr("Conecta la escritura en Setup", "Connect writing in Setup") }); return; }
+    setSt("run");
+    const res = await window.SpacioWrite.post("hospitableSync", {});
+    if (res && res.ok) {
+      setSt({ ok: true, txt: tr((res.reservas || 0) + " reservas · " + (res.nuevas || 0) + " nuevas · " + (res.actualizadas || 0) + " act.", (res.reservas || 0) + " bookings · " + (res.nuevas || 0) + " new") + (res.errores && res.errores.length ? tr(" · fallaron " + res.errores.length, " · " + res.errores.length + " failed") : "") });
+    } else setSt({ error: (res && res.error) || tr("sin conexión", "offline") });
+  };
+  const busy = st === "run";
+  const label = st && st.ok ? st.txt : st && st.error ? st.error : hspCorto(r.start, lang) + " – " + hspCorto(r.end, lang);
+  return (
+    <div className="sa-hsp" title={tr("Actualizar reservas de Hospitable (" + r.start + " → " + r.end + ")", "Sync Hospitable bookings")}>
+      <button type="button" className={"sa-hsp-btn" + (busy ? " busy" : "")} onClick={run} disabled={busy} aria-label={tr("Actualizar datos", "Refresh data")}>
+        <Icon name="refresh" size={16} stroke="currentColor" />
+      </button>
+      <span className="sa-hsp-txt" style={st && st.error ? { color: "var(--attention-text, #B54D36)" } : st && st.ok ? { color: "#3d6b52" } : null}>{busy ? tr("Actualizando…", "Syncing…") : label}</span>
+    </div>
+  );
+};
+
 // ---- Top bar ----
 const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t, notiTotal, onNotiOpen, isAdmin, isContador, onAccount, onSetup }) => {
   const [menu, setMenu] = useState(false);
@@ -39,6 +76,7 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
         </div>
 
         <div className="sa-topbar-right">
+          {isAdmin && <HospitableSync lang={lang} />}
           <div ref={mref} style={{ position: "relative" }}>
             <button onClick={() => setMenu(m => !m)} className="sa-avatar" aria-label="account" style={owner.avatar ? { padding: 0, overflow: "hidden" } : undefined}>
               {owner.avatar
