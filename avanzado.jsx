@@ -97,6 +97,11 @@ function AdvancedSection({ lang }) {
   const [busy, setBusy] = avUseState("");
   const [msg, setMsg] = avUseState("");
   avUseEffect(() => { try { localStorage.setItem("sa-av-ym", ym); } catch (e) {} setData(null); setMsg(""); }, [ym]);
+  const years = avUseMemo(() => [...new Set(periods.map(k => k.slice(0, 4)))], [periods]);
+  const [yr, setYr] = avUseState(() => ym.slice(0, 4));
+  // meses del año elegido, en orden cronológico (enero → diciembre)
+  const monthsOfYr = periods.filter(k => k.slice(0, 4) === yr).slice().sort();
+  const pickYear = (y) => { setYr(y); const ks = periods.filter(k => k.slice(0, 4) === y); if (ks.indexOf(ym) < 0 && ks.length) setYm(ks[0]); };
 
   const W = () => (window.SpacioWrite && window.SpacioWrite.enabled() ? window.SpacioWrite : null);
   const label = (k) => { const [y, m] = k.split("-"); return (es ? AV_MES : AV_MES_EN)[+m - 1] + " " + y; };
@@ -151,7 +156,8 @@ function AdvancedSection({ lang }) {
         sub={tr("Calcula el resumen de un mes con los mismos datos y reglas del Apps Script (Database, SETUP, insumos & gastos y TC) y te lo muestra aquí, sin tocar la pestaña Resumen.", "Computes the month with the same data and rules as the Apps Script and shows it here.")} />
 
       <div className="av-bar">
-        <Select value={ym} onChange={setYm} icon="calendar" minWidth={200} options={periods.map(k => ({ value: k, label: label(k) }))} />
+        <Segmented size="sm" value={yr} onChange={pickYear} options={years.slice().sort().map(y => ({ value: y, label: y }))} />
+        <Select value={ym} onChange={setYm} icon="calendar" minWidth={180} sort={false} searchable={false} options={monthsOfYr.map(k => ({ value: k, label: (es ? AV_MES : AV_MES_EN)[+k.slice(5) - 1] }))} />
         <button className="av-btn dark" onClick={generate} disabled={!!busy}><Icon name="refresh" size={14} stroke="currentColor" />{busy === "gen" ? tr("Calculando…", "Computing…") : tr("Generar resumen", "Generate")}</button>
         <button className="av-btn warm" onClick={append} disabled={!view || !view.rows.length || !!busy || !pending} title={tr("Agrega las nuevas y actualiza las que cambiaron en Resumenconsolidado", "Upsert into Resumenconsolidado")}>
           <Icon name="plus" size={14} stroke="currentColor" />{busy === "add" ? tr("Agregando…", "Adding…") : tr("Al acumulado", "To consolidated") + (view && pending ? " · " + pending : "")}

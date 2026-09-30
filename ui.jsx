@@ -139,7 +139,7 @@ const Segmented = ({ options, value, onChange, size = "md" }) => {
 // - multi=false (por defecto): value = string; onChange(value).
 // - multi=true: value = array de valores; onChange(nextArray). La opción "all"
 //   limpia la selección (equivale a "todas").
-const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180, multi = false, searchable, placeholder }) => {
+const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180, multi = false, searchable, placeholder, sort = true }) => {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef(null);
@@ -151,7 +151,7 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
   const isActive = (v) => multi ? (v === "all" ? sel.length === 0 : sel.indexOf(v) >= 0) : v === value;
   // orden alfabético, dejando "all" (Todos) siempre primero
   const sentinel = options.filter(o => o.value === "all");
-  const rest = options.filter(o => o.value !== "all").slice()
+  const rest = !sort ? options.filter(o => o.value !== "all") : options.filter(o => o.value !== "all").slice()
     .sort((a, b) => String(a.label).localeCompare(String(b.label), "es", { numeric: true, sensitivity: "base" }));
   const ordered = sentinel.concat(rest);
   const showSearch = searchable != null ? searchable : options.length > 6;

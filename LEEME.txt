@@ -1,15 +1,7 @@
-ENTREGA — Opciones avanzadas (Resumen mensual + "Al acumulado")
-===============================================================
-APP
-  avanzado.jsx    NUEVO · pantalla Opciones avanzadas
-  dashboard.jsx   ícono de opciones avanzadas junto al de actualizar (solo admin)
-  ui.jsx          ícono "sliders"
-  index.html      pestaña "advanced" + carga avanzado.jsx (?v=20260943)
+ENTREGA — Selector de meses (Opciones avanzadas)
+================================================
+avanzado.jsx  año primero + meses en orden cronológico
+ui.jsx        Select acepta sort={false}
+index.html    versiones nuevas (?v=20260945)
 
-APPS SCRIPT (mismo proyecto; pegar ambos y publicar NUEVA VERSIÓN)
-  Codigo.gs.txt              generarResumenMensual() sigue igual desde el editor (usa C1);
-                             el cálculo ahora vive en calcularResumenMensual(mes) y no escribe.
-  Escrituradesdeapp.gs.txt   resumenPreview (muestra) · resumenAppend (Resumenconsolidado)
-
-Resumenconsolidado: una fila por propiedad + mes. Agrega nuevas, actualiza cambios,
-borra duplicados. Columnas por nombre de encabezado.
+Subir los 3 a producción. Sin cambios en Apps Script.
