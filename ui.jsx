@@ -44,6 +44,7 @@ const ICONS = {
   info: "M12 16v-5M12 8h.01M12 21a9 9 0 100-18 9 9 0 000 18z",
   x: "M6 6l12 12M18 6L6 18",
   refresh: "M20 12a8 8 0 01-14.3 4.9M4 12a8 8 0 0114.3-4.9M18.5 3v4.2h-4.2M5.5 21v-4.2h4.2",
+  sliders: "M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4",
   plus: "M12 5v14M5 12h14",
   menu: "M4 7h16M4 12h16M4 17h16",
   trendUp: "M3 17l6-6 4 4 8-8M15 7h6v6",

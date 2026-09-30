@@ -1,12 +1,15 @@
-ENTREGA — Botón "Actualizar datos" (Hospitable) v2
-==================================================
-ui.jsx          ícono "refresh"
-dashboard.jsx   ícono en la barra superior (solo admin) · rango de fechas · estado en vivo
-index.html      estilos + versión nueva (?v=20260942)
-apps-script/Escrituradesdeapp.gs.txt  hospitableSync (en segundo plano) + hospitableStatus
+ENTREGA — Opciones avanzadas (Resumen mensual + "Al acumulado")
+===============================================================
+APP
+  avanzado.jsx    NUEVO · pantalla Opciones avanzadas
+  dashboard.jsx   ícono de opciones avanzadas junto al de actualizar (solo admin)
+  ui.jsx          ícono "sliders"
+  index.html      pestaña "advanced" + carga avanzado.jsx (?v=20260943)
 
-PASOS
-1. Pegar Escrituradesdeapp.gs (mismo proyecto que Actualizacion.gs).
-2. En el editor, ejecutar UNA VEZ la función sa_hospitableStatus y aceptar permisos
-   (pide permiso nuevo para crear activadores / triggers).
-3. Implementar → Administrar implementaciones → Nueva versión.
+APPS SCRIPT (mismo proyecto; pegar ambos y publicar NUEVA VERSIÓN)
+  Codigo.gs.txt              generarResumenMensual() sigue igual desde el editor (usa C1);
+                             el cálculo ahora vive en calcularResumenMensual(mes) y no escribe.
+  Escrituradesdeapp.gs.txt   resumenPreview (muestra) · resumenAppend (Resumenconsolidado)
+
+Resumenconsolidado: una fila por propiedad + mes. Agrega nuevas, actualiza cambios,
+borra duplicados. Columnas por nombre de encabezado.

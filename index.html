@@ -60,6 +60,8 @@
   .sa-hsp-btn:hover { color: var(--ink); border-color: var(--warm-grey); }
   .sa-hsp-btn:active { transform: scale(0.98); }
   .sa-hsp-btn:disabled { cursor: default; }
+  .sa-hsp-btn.on { color: var(--ink); border-color: var(--ink); }
+  .sa-hsp-btn:focus-visible { outline: none; box-shadow: var(--focus-ring, 0 0 0 3px rgba(233,130,106,0.35)); border-color: var(--ink); }
   .sa-hsp-btn.busy svg { animation: sa-hsp-spin 1.2s linear infinite; }
   @keyframes sa-hsp-spin { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .sa-hsp-btn.busy svg { animation: none; opacity: .5; } }
@@ -437,7 +439,7 @@
   <script src="conta-export.js?v=20260820"></script>
   <script src="conta-pdfs.js?v=20260820"></script>
   <script src="conta-opex.js?v=20260820"></script>
-  <script type="text/babel" src="ui.jsx?v=20260941"></script>
+  <script type="text/babel" src="ui.jsx?v=20260943"></script>
   <script type="text/babel" src="sa-combo.jsx?v=20260923"></script>
   <script src="noti-data.js?v=20260821"></script>
   <script type="text/babel" src="noti-center.jsx?v=20260852"></script>
@@ -445,11 +447,12 @@
   <script type="text/babel" src="login.jsx?v=20260823"></script>
   <script type="text/babel" src="pedidosya-ui.jsx?v=20260932"></script>
   <script type="text/babel" src="pedidosya.jsx?v=20260938"></script>
-  <script type="text/babel" src="dashboard.jsx?v=20260942"></script>
+  <script type="text/babel" src="dashboard.jsx?v=20260943"></script>
   <script type="text/babel" src="sections.jsx?v=20260929"></script>
   <script type="text/babel" src="conta.jsx?v=20260923"></script>
   <script type="text/babel" src="conta-facturas.jsx?v=20260940"></script>
   <script type="text/babel" src="contratos.jsx?v=20260923"></script>
+  <script type="text/babel" src="avanzado.jsx?v=20260944"></script>
   <script type="text/babel" src="conta-pl.jsx?v=20260938"></script>
 
   <script type="text/babel">
@@ -602,7 +605,7 @@
             months={months} periodText={periodText} hidePropSelect={isAdmin || isContador} hidePeriod={isContador}
             invoiceAlert={(tab === "dashboard" && !isAdmin && !isContador) ? invAlert : null} onAlertClick={scrollToLiq}
             onLogout={onLogout} t={t} notiTotal={notis.length} onNotiOpen={() => setNotiOpen(true)}
-            isAdmin={isAdmin} isContador={isContador} onAccount={() => switchTab("account")} onSetup={() => switchTab("setup")} />
+            isAdmin={isAdmin} isContador={isContador} onAccount={() => switchTab("account")} onSetup={() => switchTab("setup")} onAdvanced={() => switchTab("advanced")} advActive={tab === "advanced"} />
 
           {window.NotiCenter && <NotiCenter open={notiOpen} onClose={() => setNotiOpen(false)} notis={notis} onDismiss={dismissNoti} onSnooze={snoozeNoti} />}
           {window.NotiPush && <NotiPush notis={notis} storeKey="sam:notiSeen" onOpen={() => setNotiOpen(true)} />}
@@ -621,7 +624,7 @@
             {isAdmin && tab === "dashboard" && typeof MailNudgeCard !== "undefined" && (
               <MailNudgeCard lang={lang} />
             )}
-            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && (
+            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && tab !== "advanced" && (
               <AdminFilters allProps={allOwnerProps} owner={adminOwner} setOwner={setAdminOwner} zona={adminZona} setZona={setAdminZona}
                 edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={adminProps} setSelProp={setAdminProps} t={t} lang={lang} />
             )}
@@ -631,7 +634,7 @@
                 <h1 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "clamp(28px,4.4vw,46px)", letterSpacing: "-0.015em", lineHeight: 1.04, margin: 0, color: "var(--ink)" }}>
                   {isContador ? "Contabilidad" : isAll ? (isAdmin ? "Spacio AM" : (lang === "es" ? "Tu portafolio" : "Your portfolio")) : property.name}
                 </h1>
-                {tab !== "account" && !isContador && (
+                {tab !== "account" && tab !== "advanced" && !isContador && (
                   <div className="sa-period-chip">
                     <Icon name="calendar" size={13} stroke="var(--fg-muted)" />
                     <span>{t("period_showing")}</span><strong>{periodText}</strong>
@@ -679,6 +682,10 @@
 
             {tab === "account" && (
               <AccountSection owner={owner} lang={lang} t={t} onUpdate={onUpdateOwner} />
+            )}
+
+            {tab === "advanced" && isAdmin && typeof AdvancedSection !== "undefined" && (
+              <AdvancedSection lang={lang} />
             )}
 
             {tab === "setup" && isAdmin && (

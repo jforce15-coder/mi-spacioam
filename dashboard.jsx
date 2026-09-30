@@ -70,7 +70,7 @@ const HospitableSync = ({ lang }) => {
 };
 
 // ---- Top bar ----
-const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t, notiTotal, onNotiOpen, isAdmin, isContador, onAccount, onSetup }) => {
+const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selProp, setSelProp, period, setPeriod, months, periodText, hidePropSelect, hidePeriod, invoiceAlert, onAlertClick, onLogout, t, notiTotal, onNotiOpen, isAdmin, isContador, onAccount, onSetup, onAdvanced, advActive }) => {
   const [menu, setMenu] = useState(false);
   const mref = useRef(null);
   useEffect(() => {
@@ -107,6 +107,11 @@ const TopBar = ({ owner, lang, setLang, currency, setCurrency, propOptions, selP
 
         <div className="sa-topbar-right">
           {isAdmin && <HospitableSync lang={lang} />}
+          {isAdmin && onAdvanced && (
+            <button type="button" className={"sa-hsp-btn" + (advActive ? " on" : "")} onClick={onAdvanced} title={lang === "en" ? "Advanced options" : "Opciones avanzadas"} aria-label={lang === "en" ? "Advanced options" : "Opciones avanzadas"}>
+              <Icon name="sliders" size={16} stroke="currentColor" />
+            </button>
+          )}
           <div ref={mref} style={{ position: "relative" }}>
             <button onClick={() => setMenu(m => !m)} className="sa-avatar" aria-label="account" style={owner.avatar ? { padding: 0, overflow: "hidden" } : undefined}>
               {owner.avatar
