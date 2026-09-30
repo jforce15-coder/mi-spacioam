@@ -1,7 +1,12 @@
-ENTREGA — Selector de meses (Opciones avanzadas)
-================================================
-avanzado.jsx  año primero + meses en orden cronológico
-ui.jsx        Select acepta sort={false}
-index.html    versiones nuevas (?v=20260945)
+ENTREGA — Cierre de mes en "Al acumulado"
+=========================================
+avanzado.jsx  estado Abierto / Cerrado · bloqueo · confirmación con Face ID o contraseña
+sheets.js     marca al administrador principal
+index.html    versiones nuevas (?v=20260946)
+apps-script/Escrituradesdeapp.gs.txt  valida el cierre en el servidor · registro de dispositivos · bitácora
 
-Subir los 3 a producción. Sin cambios en Apps Script.
+REGLA: el mes M se puede agregar/actualizar hasta el día 10 del mes siguiente (23:59 GT).
+Después está cerrado; solo el administrador principal puede modificarlo confirmando identidad.
+
+Apps Script: SA_ADMIN_PASS (arriba del archivo) es la contraseña que confirma los cambios.
+Pegar y publicar NUEVA VERSIÓN.

@@ -417,7 +417,7 @@
   </template>
   <div id="app"></div>
 
-  <script src="sheets.js?v=20260938"></script>
+  <script src="sheets.js?v=20260946"></script>
   <script src="sa-auth-client.js?v=20260823"></script>
   <script src="files.js?v=20260820"></script>
   <script src="sa-rows.js?v=20260940"></script>
@@ -452,7 +452,7 @@
   <script type="text/babel" src="conta.jsx?v=20260923"></script>
   <script type="text/babel" src="conta-facturas.jsx?v=20260940"></script>
   <script type="text/babel" src="contratos.jsx?v=20260923"></script>
-  <script type="text/babel" src="avanzado.jsx?v=20260945"></script>
+  <script type="text/babel" src="avanzado.jsx?v=20260946"></script>
   <script type="text/babel" src="conta-pl.jsx?v=20260938"></script>
 
   <script type="text/babel">
@@ -685,7 +685,7 @@
             )}
 
             {tab === "advanced" && isAdmin && typeof AdvancedSection !== "undefined" && (
-              <AdvancedSection lang={lang} />
+              <AdvancedSection lang={lang} owner={owner} />
             )}
 
             {tab === "setup" && isAdmin && (

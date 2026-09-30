@@ -396,7 +396,7 @@
     // admin account — sees every property; can filter by zona/edificio/propiedad
     const allProps = Object.keys(propByName).filter(hasData);
     const admin = {
-      code: "__admin__", codes: ["__admin__"], name: "Spacio AM", isAdmin: true,
+      code: "__admin__", codes: ["__admin__"], name: "Spacio AM", isAdmin: true, isPrincipal: true,
       email: ADMIN_EMAIL, pass: ADMIN_PASS, secondaryEmail: "", props: allProps,
     };
     // cuenta del contador (solo lectura de Contabilidad; 4 correos alternativos)

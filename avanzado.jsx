@@ -17,6 +17,23 @@ const AV_CSS = `
 .av-btn:disabled, .av-btn.warm:disabled, .av-btn.dark:disabled { background: var(--divider); color: var(--fg-subtle); cursor: not-allowed; border-color: var(--divider); box-shadow: none; filter: none; }
 .av-btn.dark { background: var(--ink); color: var(--alabaster); }
 .av-btn.warm { background: var(--peach-12, rgba(233,130,106,0.12)); color: var(--ink); border: 1px solid var(--peach); }
+.av-btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--divider); }
+.av-close { display: inline-flex; align-items: center; gap: 7px; font-family: var(--sans); font-size: 10.5px; font-weight: 500; letter-spacing: 0.08em; color: var(--fg-muted); }
+.av-close i { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success, #3d6b52); }
+.av-close.closed i { background: var(--fg-muted); }
+.av-ov { position: fixed; inset: 0; z-index: 300; background: rgba(62,63,63,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: sa-fade .18s var(--ease); }
+.av-modal { width: min(420px, 100%); background: var(--surface, #fff); border-radius: 28px; box-shadow: var(--shadow-lg); padding: 28px 26px 22px; display: flex; flex-direction: column; gap: 12px; }
+.av-lock { width: 48px; height: 48px; border-radius: 50%; background: var(--bg-alt); display: flex; align-items: center; justify-content: center; margin: 0 auto 4px; }
+.av-m-t { font-family: var(--serif); font-size: 24px; line-height: 1.12; color: var(--ink); text-align: center; }
+.av-m-s { font-family: var(--sans); font-size: 12px; line-height: 1.6; letter-spacing: 0.03em; color: var(--fg-muted); text-align: center; margin: 0 0 6px; text-wrap: pretty; }
+.av-or { display: flex; align-items: center; gap: 10px; font-family: var(--sans); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-muted); }
+.av-or::before, .av-or::after { content: ""; flex: 1; height: 1px; background: var(--divider); }
+.av-in { width: 100%; box-sizing: border-box; font-family: var(--sans); font-size: 14px; color: var(--ink); padding: 12px 14px; border: 1px solid var(--divider); border-radius: 14px; background: var(--surface, #fff); outline: none; transition: border-color .18s var(--ease), box-shadow .18s var(--ease); }
+.av-in:focus { border-color: var(--ink); box-shadow: var(--focus-ring, 0 0 0 3px rgba(233,130,106,0.35)); }
+.av-rem { display: flex; align-items: center; gap: 8px; font-family: var(--sans); font-size: 11.5px; letter-spacing: 0.02em; color: var(--ink); cursor: pointer; }
+.av-rem input { width: 16px; height: 16px; accent-color: var(--ink); }
+.av-m-err { font-family: var(--sans); font-size: 11.5px; color: var(--color-error, #C0392B); margin: 0; }
+.av-m-ft { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 .av-msg { font-family: var(--sans); font-size: 12px; line-height: 1.55; letter-spacing: 0.03em; color: var(--fg-muted); flex-basis: 100%; text-wrap: pretty; }
 .av-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 14px; margin-bottom: 20px; }
 .av-kpi { background: var(--surface, #fff); border: 1px solid var(--ink-08); border-radius: 22px; box-shadow: var(--shadow-sm); padding: 18px 20px; }
@@ -83,13 +100,101 @@ function avFmt(v, f) {
   if (f === "n1") return n.toFixed(1);
   return Math.round(n).toLocaleString("en-US");
 }
+// Cierre de mes: un mes queda abierto hasta el día 10 del mes siguiente (23:59, hora de
+// Guatemala). Después solo el administrador principal puede tocarlo, confirmando con
+// Face ID o contraseña. La misma regla se valida en el Apps Script.
+function avCloseAt(ym) { const [y, m] = ym.split("-").map(Number); return Date.UTC(y, m, 11, 6, 0, 0); } // día 11 00:00 GT = 06:00 UTC
+function avIsClosed(ym) { return Date.now() >= avCloseAt(ym); }
+function avCloseLabel(ym, es) {
+  const [y, m] = ym.split("-").map(Number); const n = new Date(Date.UTC(y, m, 10));
+  const M = es ? ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"] : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return "10 " + M[n.getUTCMonth()] + " " + n.getUTCFullYear();
+}
+// ---- Face ID / huella (WebAuthn, autenticador del dispositivo) ----
+const AV_DEV_KEY = "sa-unlock-device";
+const avB64 = { enc: (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, ""), dec: (s) => { s = s.replace(/-/g, "+").replace(/_/g, "/"); while (s.length % 4) s += "="; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); } };
+function avDevice() { try { return JSON.parse(localStorage.getItem(AV_DEV_KEY)) || null; } catch (e) { return null; } }
+async function avBioAvailable() { try { return !!(window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable()); } catch (e) { return false; } }
+async function avBioRegister(email) {
+  const cred = await navigator.credentials.create({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: "Spacio AM" },
+    user: { id: crypto.getRandomValues(new Uint8Array(16)), name: email || "admin@spacioam", displayName: "Spacio AM · administrador" },
+    pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "preferred" }, timeout: 60000,
+  } });
+  return avB64.enc(cred.rawId);
+}
+async function avBioVerify(credId) {
+  await navigator.credentials.get({ publicKey: { challenge: crypto.getRandomValues(new Uint8Array(32)), allowCredentials: [{ type: "public-key", id: avB64.dec(credId) }], userVerification: "required", timeout: 60000 } });
+  return true;
+}
+
+function AvUnlockModal({ ym, label, email, onUnlock, onClose, tr }) {
+  const [pass, setPass] = avUseState("");
+  const [err, setErr] = avUseState("");
+  const [busy, setBusy] = avUseState(false);
+  const [bio, setBio] = avUseState(false);
+  const [remember, setRemember] = avUseState(true);
+  const dev = avDevice();
+  avUseEffect(() => { avBioAvailable().then(setBio); const h = (e) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
+  const withBio = async () => {
+    setErr(""); setBusy(true);
+    try { await avBioVerify(dev.cred); await onUnlock({ deviceKey: dev.key }); }
+    catch (e) { setErr(e && e.name === "NotAllowedError" ? tr("Se canceló la verificación. Intenta de nuevo o usa tu contraseña.", "Verification cancelled.") : (e && e.message) || tr("No se pudo verificar.", "Could not verify.")); }
+    setBusy(false);
+  };
+  const withPass = async (e) => {
+    e && e.preventDefault();
+    if (!pass) { setErr(tr("Escribe tu contraseña.", "Enter your password.")); return; }
+    setErr(""); setBusy(true);
+    const W = window.SpacioWrite;
+    // registrar este dispositivo para Face ID (la contraseña se valida en el servidor)
+    if (bio && !dev && remember) {
+      const r = await W.post("registerUnlockDevice", { pass, label: navigator.userAgent.slice(0, 80) });
+      if (r && r.ok) { try { const cred = await avBioRegister(email); localStorage.setItem(AV_DEV_KEY, JSON.stringify({ cred, key: r.deviceKey })); } catch (e2) {} }
+      else if (r && r.error) { setErr(r.error); setBusy(false); return; }
+    }
+    const ok = await onUnlock({ pass });
+    if (!ok) setErr(tr("Contraseña incorrecta.", "Wrong password."));
+    setBusy(false);
+  };
+  return (
+    <div className="av-ov" onMouseDown={e => { if (e.target === e.currentTarget && !busy) onClose(); }}>
+      <form className="av-modal" role="dialog" aria-modal="true" onSubmit={withPass}>
+        <div className="av-lock"><Icon name="lock" size={20} stroke="var(--ink)" /></div>
+        <div className="av-kpi-k" style={{ textAlign: "center" }}>{tr("Mes cerrado", "Closed month")}</div>
+        <div className="av-m-t">{label}</div>
+        <p className="av-m-s">{tr("Este mes se cerró el " + avCloseLabel(ym, true) + ". Confirma que quieres modificar Resumenconsolidado de un mes cerrado.", "This month closed on " + avCloseLabel(ym, false) + ". Confirm you want to change it.")}</p>
+        {bio && dev && (
+          <button type="button" className="av-btn dark" style={{ width: "100%", justifyContent: "center" }} disabled={busy} onClick={withBio}>
+            <Icon name="user" size={15} stroke="currentColor" />{busy ? tr("Verificando…", "Verifying…") : tr("Confirmar con Face ID", "Confirm with Face ID")}
+          </button>
+        )}
+        {bio && dev && <div className="av-or"><span>{tr("o con tu contraseña", "or with your password")}</span></div>}
+        <label className="av-kpi-k" htmlFor="av-pass" style={{ display: "block", marginBottom: 6 }}>{tr("Contraseña del administrador principal", "Principal admin password")}</label>
+        <input id="av-pass" className="av-in" type="password" autoComplete="current-password" autoFocus={!(bio && dev)} value={pass} onChange={e => setPass(e.target.value)} />
+        {bio && !dev && (
+          <label className="av-rem"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />{tr("Usar Face ID en este dispositivo la próxima vez", "Use Face ID on this device next time")}</label>
+        )}
+        {err && <p className="av-m-err">{err}</p>}
+        <div className="av-m-ft">
+          <button type="button" className="av-btn ghost" onClick={onClose} disabled={busy}>{tr("Cancelar", "Cancel")}</button>
+          <button type="submit" className={"av-btn " + (bio && dev ? "ghost" : "dark")} disabled={busy}>{busy && !(bio && dev) ? tr("Verificando…", "Verifying…") : tr("Confirmar y agregar", "Confirm & add")}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function avPeriods() {
   const out = [], now = new Date();
   for (let i = 0; i < 24; i++) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); out.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); }
   return out;
 }
 
-function AdvancedSection({ lang }) {
+function AdvancedSection({ lang, owner }) {
+  const principal = !!(owner && owner.isAdmin && owner.isPrincipal);
+  const [unlockOpen, setUnlockOpen] = avUseState(false);
   const es = lang !== "en"; const tr = (a, b) => (es ? a : b);
   const periods = avUseMemo(() => avPeriods(), []);
   const [ym, setYm] = avUseState(() => { try { return localStorage.getItem("sa-av-ym") || periods[1]; } catch (e) { return periods[1]; } });
@@ -114,15 +219,20 @@ function AdvancedSection({ lang }) {
     if (res && res.ok) { setData(Object.assign({ ym }, res)); if (!res.rows.length) setMsg(tr("No hay reservas aceptadas con check-in en " + label(ym) + ".", "No accepted bookings this month.")); }
     else setMsg(tr("No se pudo generar: ", "Could not generate: ") + ((res && res.error) || tr("sin conexión", "offline")));
   };
-  const append = async () => {
-    const w = W(); if (!w || !data) return;
+  const closed = avIsClosed(ym);
+  const append = async (unlock) => {
+    const w = W(); if (!w || !data) return false;
+    if (closed && !unlock) { if (principal) setUnlockOpen(true); return false; }
     setBusy("add"); setMsg("");
-    const res = await w.post("resumenAppend", { ym });
+    const res = await w.post("resumenAppend", unlock ? { ym, unlock } : { ym });
     setBusy("");
+    if (res && res.locked) { if (unlock) return false; setMsg(tr("Este mes está cerrado.", "This month is closed.")); return false; }
+    if (unlock) setUnlockOpen(false);
     if (res && res.ok) {
       setMsg(tr("Resumenconsolidado · " + label(ym) + ": " + res.added + " nuevas, " + res.updated + " actualizadas, " + res.same + " sin cambios" + (res.removed ? ", " + res.removed + " duplicadas eliminadas" : "") + ".", "Added " + res.added + ", updated " + res.updated + "."));
       const again = await w.post("resumenPreview", { ym }); if (again && again.ok) setData(Object.assign({ ym }, again));
-    } else setMsg(tr("No se pudo agregar: ", "Could not add: ") + ((res && res.error) || tr("sin conexión", "offline")));
+      return true;
+    } else { setMsg(tr("No se pudo agregar: ", "Could not add: ") + ((res && res.error) || tr("sin conexión", "offline"))); if (unlock) setUnlockOpen(false); return true; }
   };
 
   // filas como objetos por encabezado + estado vs acumulado
@@ -159,9 +269,11 @@ function AdvancedSection({ lang }) {
         <Segmented size="sm" value={yr} onChange={pickYear} options={years.slice().sort().map(y => ({ value: y, label: y }))} />
         <Select value={ym} onChange={setYm} icon="calendar" minWidth={180} sort={false} searchable={false} options={monthsOfYr.map(k => ({ value: k, label: (es ? AV_MES : AV_MES_EN)[+k.slice(5) - 1] }))} />
         <button className="av-btn dark" onClick={generate} disabled={!!busy}><Icon name="refresh" size={14} stroke="currentColor" />{busy === "gen" ? tr("Calculando…", "Computing…") : tr("Generar resumen", "Generate")}</button>
-        <button className="av-btn warm" onClick={append} disabled={!view || !view.rows.length || !!busy || !pending} title={tr("Agrega las nuevas y actualiza las que cambiaron en Resumenconsolidado", "Upsert into Resumenconsolidado")}>
-          <Icon name="plus" size={14} stroke="currentColor" />{busy === "add" ? tr("Agregando…", "Adding…") : tr("Al acumulado", "To consolidated") + (view && pending ? " · " + pending : "")}
+        <button className="av-btn warm" onClick={() => append()} disabled={!view || !view.rows.length || !!busy || !pending || (closed && !principal)} title={closed ? tr("Mes cerrado el " + avCloseLabel(ym, true), "Closed") : tr("Agrega las nuevas y actualiza las que cambiaron en Resumenconsolidado", "Upsert into Resumenconsolidado")}>
+          <Icon name={closed ? "lock" : "plus"} size={14} stroke="currentColor" />{busy === "add" ? tr("Agregando…", "Adding…") : (closed && principal ? tr("Desbloquear y agregar", "Unlock & add") : tr("Al acumulado", "To consolidated")) + (view && pending ? " · " + pending : "")}
         </button>
+        <span className={"av-close " + (closed ? "closed" : "open")}><i></i>{closed ? tr("Cerrado el " + avCloseLabel(ym, true), "Closed " + avCloseLabel(ym, false)) : tr("Abierto hasta el " + avCloseLabel(ym, true), "Open until " + avCloseLabel(ym, false))}</span>
+        {closed && !principal && <p className="av-msg">{tr("Este mes ya está cerrado: se puede consultar, pero solo el administrador principal puede modificarlo en Resumenconsolidado.", "This month is closed; only the principal admin can change it.")}</p>}
         {msg && <p className="av-msg" style={/No se pudo|Could not/.test(msg) ? { color: "var(--attention-text, #B54D36)" } : null}>{msg}</p>}
         {view && view.rows.length > 0 && !pending && !msg && <p className="av-msg">{tr("Resumenconsolidado ya tiene " + label(ym) + " igual a este cálculo.", "Already up to date.")}</p>}
       </div>
@@ -215,6 +327,7 @@ function AdvancedSection({ lang }) {
           </div>
         </React.Fragment>
       )}
+      {unlockOpen && <AvUnlockModal ym={ym} label={label(ym)} email={owner && owner.email} tr={tr} onClose={() => setUnlockOpen(false)} onUnlock={(u) => append(u)} />}
     </section>
   );
 }
