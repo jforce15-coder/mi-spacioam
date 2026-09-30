@@ -14,27 +14,57 @@ function hspCorto(iso, lang) {
   const M = lang === "en" ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] : ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
   const [y, m, d] = iso.split("-").map(Number); return d + " " + M[m - 1];
 }
+// Corre en segundo plano (Apps Script tarda minutos): se dispara y se consulta el estado.
+function hspHora(ms, lang) {
+  if (!ms) return "";
+  const dt = new Date(ms), now = new Date();
+  const hh = dt.toLocaleTimeString(lang === "en" ? "en-US" : "es-GT", { hour: "numeric", minute: "2-digit" });
+  return dt.toDateString() === now.toDateString() ? hh : hspCorto(dt.toISOString().slice(0, 10), lang) + " " + hh;
+}
 const HospitableSync = ({ lang }) => {
   const es = lang !== "en"; const tr = (a, b) => (es ? a : b);
-  const [st, setSt] = useState(null); // null | "run" | {ok,...} | {error}
+  const [st, setSt] = useState(null); // { state: "run"|"done"|"error", t0, t1, r, error } | { local error }
+  const timer = useRef(null);
   const r = hspRango();
-  const run = async () => {
-    if (st === "run") return;
-    if (!(window.SpacioWrite && window.SpacioWrite.enabled())) { setSt({ error: tr("Conecta la escritura en Setup", "Connect writing in Setup") }); return; }
-    setSt("run");
-    const res = await window.SpacioWrite.post("hospitableSync", {});
-    if (res && res.ok) {
-      setSt({ ok: true, txt: tr((res.reservas || 0) + " reservas · " + (res.nuevas || 0) + " nuevas · " + (res.actualizadas || 0) + " act.", (res.reservas || 0) + " bookings · " + (res.nuevas || 0) + " new") + (res.errores && res.errores.length ? tr(" · fallaron " + res.errores.length, " · " + res.errores.length + " failed") : "") });
-    } else setSt({ error: (res && res.error) || tr("sin conexión", "offline") });
+  const W = () => window.SpacioWrite && window.SpacioWrite.enabled() ? window.SpacioWrite : null;
+  const poll = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      const w = W(); if (!w) return;
+      const res = await w.post("hospitableStatus", {});
+      if (res && res.ok && res.state === "run" && Date.now() - (res.t0 || 0) < 9 * 60000) { setSt(res); poll(); }
+      else if (res && res.ok) setSt(res.state === "run" ? { state: "error", error: tr("No terminó en 9 minutos", "Did not finish in 9 min") } : res);
+      else poll();
+    }, 8000);
   };
-  const busy = st === "run";
-  const label = st && st.ok ? st.txt : st && st.error ? st.error : hspCorto(r.start, lang) + " – " + hspCorto(r.end, lang);
+  useEffect(() => {
+    const w = W(); if (!w) return;
+    w.post("hospitableStatus", {}).then(res => { if (res && res.ok && res.state) { setSt(res); if (res.state === "run") poll(); } });
+    return () => clearTimeout(timer.current);
+  }, []);
+  const run = async () => {
+    if (st && st.state === "run") return;
+    const w = W(); if (!w) { setSt({ state: "error", error: tr("Conecta la escritura en Setup", "Connect writing in Setup") }); return; }
+    setSt({ state: "run", t0: Date.now() });
+    const res = await w.post("hospitableSync", {});
+    if (res && res.ok) { setSt(Object.assign({ state: "run" }, res)); poll(); }
+    else setSt({ state: "error", error: (res && res.error) || tr("sin conexión", "offline") });
+  };
+  const busy = st && st.state === "run";
+  const res = st && st.r;
+  let label, tone = null;
+  if (busy) label = tr("Actualizando " + hspCorto(r.start, lang) + " – " + hspCorto(r.end, lang) + "…", "Syncing…");
+  else if (st && st.state === "error") { label = st.error; tone = { color: "var(--attention-text, #B54D36)" }; }
+  else if (st && st.state === "done") label = tr("Actualizado " + hspHora(st.t1, lang), "Updated " + hspHora(st.t1, lang)) + (res && res.nuevas != null ? " · " + res.nuevas + tr(" nuevas", " new") : "");
+  else label = hspCorto(r.start, lang) + " – " + hspCorto(r.end, lang);
+  const tip = tr("Actualizar reservas de Hospitable (" + r.start + " → " + r.end + ")", "Sync Hospitable bookings") +
+    (res ? "\n" + (res.reservas || 0) + tr(" reservas · ", " bookings · ") + (res.nuevas || 0) + tr(" nuevas · ", " new · ") + (res.actualizadas || 0) + tr(" actualizadas", " updated") + (res.errores ? tr(" · fallaron ", " · failed ") + res.errores : "") : "");
   return (
-    <div className="sa-hsp" title={tr("Actualizar reservas de Hospitable (" + r.start + " → " + r.end + ")", "Sync Hospitable bookings")}>
+    <div className="sa-hsp" title={tip}>
       <button type="button" className={"sa-hsp-btn" + (busy ? " busy" : "")} onClick={run} disabled={busy} aria-label={tr("Actualizar datos", "Refresh data")}>
         <Icon name="refresh" size={16} stroke="currentColor" />
       </button>
-      <span className="sa-hsp-txt" style={st && st.error ? { color: "var(--attention-text, #B54D36)" } : st && st.ok ? { color: "#3d6b52" } : null}>{busy ? tr("Actualizando…", "Syncing…") : label}</span>
+      <span className="sa-hsp-txt" style={tone}>{label}</span>
     </div>
   );
 };

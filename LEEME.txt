@@ -1,9 +1,12 @@
-ENTREGA — Botón "Actualizar datos" (Hospitable)
-===============================================
-ui.jsx          ícono "refresh" nuevo
-dashboard.jsx   ícono de actualizar en la barra superior (solo admin) + rango de fechas discreto
-index.html      estilos + versión nueva (?v=20260941)
-apps-script/Escrituradesdeapp.gs.txt  acción "hospitableSync" → llama hospitableAutomatico()
+ENTREGA — Botón "Actualizar datos" (Hospitable) v2
+==================================================
+ui.jsx          ícono "refresh"
+dashboard.jsx   ícono en la barra superior (solo admin) · rango de fechas · estado en vivo
+index.html      estilos + versión nueva (?v=20260942)
+apps-script/Escrituradesdeapp.gs.txt  hospitableSync (en segundo plano) + hospitableStatus
 
-Actualizacion.gs debe estar en el MISMO proyecto de Apps Script (ya lo está).
-Pegar Escrituradesdeapp.gs y publicar NUEVA VERSIÓN.
+PASOS
+1. Pegar Escrituradesdeapp.gs (mismo proyecto que Actualizacion.gs).
+2. En el editor, ejecutar UNA VEZ la función sa_hospitableStatus y aceptar permisos
+   (pide permiso nuevo para crear activadores / triggers).
+3. Implementar → Administrar implementaciones → Nueva versión.
