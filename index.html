@@ -446,7 +446,7 @@
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
   <script type="text/babel" src="login.jsx?v=20260823"></script>
   <script type="text/babel" src="pedidosya-ui.jsx?v=20260932"></script>
-  <script type="text/babel" src="pedidosya.jsx?v=20261007c"></script>
+  <script type="text/babel" src="pedidosya.jsx?v=20261007d"></script>
   <script type="text/babel" src="dashboard.jsx?v=20260943"></script>
   <script type="text/babel" src="sections.jsx?v=20260929"></script>
   <script type="text/babel" src="conta.jsx?v=20260923"></script>
@@ -829,6 +829,12 @@
       return <Dashboard key={owner.code} owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency} onLogout={() => setOwner(null)} onUpdateOwner={setOwnerState} />;
     }
 
+    // Si algo rompe la página en silencio (iPad), lo mostramos abajo en vez de dejarla en blanco.
+    (function () {
+      function show(t) { try { var el = document.getElementById("sa-crash"); if (!el) { el = document.createElement("div"); el.id = "sa-crash"; el.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:99999;background:#3E3F3F;color:#FAFAFA;font:12px/1.5 Montserrat,sans-serif;padding:12px 16px;border-radius:14px;box-shadow:0 12px 40px rgba(62,63,63,.2)"; el.onclick = function () { el.remove(); }; document.body.appendChild(el); } el.textContent = "Algo falló en la página: " + t + " · toca para cerrar"; } catch (e) {} }
+      window.addEventListener("error", function (e) { if (e && e.message) show(e.message); });
+      window.addEventListener("unhandledrejection", function (e) { var r = e && e.reason; show(r && r.message ? r.message : String(r)); });
+    })();
     ReactDOM.createRoot(document.getElementById("app")).render(<App />);
   </script>
 </body>

@@ -807,7 +807,7 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
     setBusy(true); setMsg("");
     const rows = P.manualSheetRows({ day, valor: valorNum, categoria, comentario, tag }, props, scope === "many" && split === "divide");
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-      const res = await pyaWriteInsumos(rows);
+      const res = await pyaWriteInsumos(rows, (s) => setMsg(s));
       if (res && res.unauthorized) { setBusy(false); setNeedKey(true); setMsg(""); return; }
       if (res && res.ok) {
         addImported(rows.map(r => r.orderId));
@@ -1849,18 +1849,32 @@ async function pyaSheetHasOids(oids) {
 const pyaWait = (ms) => new Promise(r => setTimeout(r, ms));
 // Escritura confirmada: intento corto → si no responde, verifica en la hoja →
 // reintento (el servidor deduplica por orderId, nunca crea filas dobles).
-async function pyaWriteInsumos(rows) {
+async function pyaWriteInsumos(rows, onStatus) {
   const W = window.SpacioWrite, oids = rows.map(r => r.orderId).filter(Boolean);
-  let res = await W.post("appendInsumos", { rows }, { timeout: 25000 });
+  const say = (s) => { try { onStatus && onStatus(s); } catch (e) {} };
+  const canVerify = oids.length === rows.length;
+  let res = await W.post("appendInsumos", { rows }, { timeout: 30000 });
   if (res && (res.ok || res.unauthorized)) return res;
-  for (let i = 0; i < 3 && oids.length === rows.length; i++) {
+  if (res && res.busy) { say("La hoja está ocupada, reintentando…"); await pyaWait(5000); res = await W.post("appendInsumos", { rows }, { timeout: 30000 }); if (res && (res.ok || res.unauthorized)) return res; }
+  say("Sin respuesta del servidor · verificando en la hoja…");
+  for (let i = 0; i < 2 && canVerify; i++) {
     if (await pyaSheetHasOids(oids)) return { ok: true, verified: true };
     await pyaWait(4000);
   }
+  say("Reintentando una vez más…");
   res = await W.post("appendInsumos", { rows }, { timeout: 40000 });
   if (res && (res.ok || res.unauthorized)) return res;
-  if (oids.length === rows.length && await pyaSheetHasOids(oids)) return { ok: true, verified: true };
-  return res;
+  if (canVerify && await pyaSheetHasOids(oids)) return { ok: true, verified: true };
+  return res || { ok: false, error: "sin respuesta" };
+}
+// Diagnóstico de la conexión de escritura: host, tipo de clave y latencia del ping.
+async function pyaDiagConn() {
+  const W = window.SpacioWrite; if (!(W && W.enabled())) return "Sin conexión de escritura configurada.";
+  let host = ""; try { host = new URL(W.url()).host; } catch (e) { host = W.url().slice(0, 40); }
+  const t0 = Date.now(); const r = await W.post("ping", {}, { timeout: 30000 }); const ms = Date.now() - t0;
+  const key = W.isAdminConn() ? "clave de administrador" : "clave pública (solo archivos)";
+  if (r && r.ok) return "Conexión OK · " + host + " · " + key + " · " + ms + " ms" + (r.sheet ? " · " + r.sheet : "");
+  return "Falla · " + host + " · " + key + " · " + ms + " ms · " + ((r && r.error) || "sin respuesta");
 }
 
 function PyaAdminKey({ lang, onSaved }) {
@@ -1892,6 +1906,8 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
   const [tick, setTick] = pyUseState(0);
   const [props, setProps] = pyUseState({}); // override manual de propiedad por id
   const [needKey, setNeedKey] = pyUseState(null); // lista a reintentar tras pedir la clave
+  const [cardMsg, setCardMsg] = pyUseState({}); // mensaje por reporte, junto al botón
+  const [diag, setDiag] = pyUseState("");
 
   const run = async (manual) => {
     if (!R) return;
@@ -1929,10 +1945,14 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
     setBusy(items.length === 1 ? "k-" + items[0].r.id : "all"); setMsg("");
     try {
       const rows = items.map(x => R.sheetRow(Object.assign({}, x.r, { property_name: x.name })));
+      const ids = items.map(x => x.r.id);
+      const sayAll = (s) => setCardMsg(m => { const n = Object.assign({}, m); ids.forEach(id => { n[id] = s; }); return n; });
+      sayAll("");
       if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-        const res = await writeRows(rows);
-        if (res && res.unauthorized) { setNeedKey(list); setMsg(""); return; }
-        if (!(res && res.ok)) { setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ". Intenta de nuevo; no se duplicará.", "Could not save: " + ((res && res.error) || "offline") + ". Try again; it won't duplicate.")); return; }
+        const res = await writeRows(rows, sayAll);
+        if (res && res.unauthorized) { setNeedKey(list); sayAll(tr("Falta la clave de administrador (ver arriba).", "Admin key missing (see above).")); setMsg(""); return; }
+        if (!(res && res.ok)) { const err = tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ". Intenta de nuevo; no se duplicará.", "Could not save: " + ((res && res.error) || "offline") + ". Try again; it won't duplicate."); sayAll(err); setMsg(err); return; }
+        sayAll("");
         if (addImported) addImported(rows.map(x => x.orderId));
       }
       setNeedKey(null);
@@ -1941,10 +1961,12 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
         ? tr("Gasto conservado y agregado a " + items[0].name + ".", "Expense kept and added to " + items[0].name + ".")
         : tr(items.length + " gastos conservados.", items.length + " expenses kept."));
     } catch (e) {
-      setMsg(tr("No se pudo guardar: " + ((e && e.message) || "error") + ".", "Could not save: " + ((e && e.message) || "error") + "."));
+      const err = tr("No se pudo guardar: " + ((e && e.message) || "error") + ".", "Could not save: " + ((e && e.message) || "error") + ".");
+      setMsg(err); setCardMsg(m => { const n = Object.assign({}, m); items.forEach(x => { n[x.r.id] = err; }); return n; });
     } finally { setBusy(""); }
   };
   const keep = (r) => keepRows([r]);
+  const runDiag = async () => { setDiag(tr("Probando…", "Testing…")); setDiag(await pyaDiagConn()); };
   const drop = (r) => {
     if (!window.confirm(tr("¿Eliminar este reporte? No se agregará como gasto.", "Delete this report? It will not be added as an expense."))) return;
     R.decide(r.id, "no"); setTick(t => t + 1);
@@ -1976,6 +1998,10 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
       </div>
       {needKey && <PyaAdminKey lang={lang} onSaved={() => { const l = needKey; setNeedKey(null); keepRows(l); }} />}
       {msg && <p className="pya-note" style={{ color: "var(--ink)" }}>{msg}</p>}
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <button className="sa-file-btn ghost" onClick={runDiag} style={{ fontSize: 11.5 }}>{tr("Probar conexión", "Test connection")}</button>
+        {diag && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", letterSpacing: "0.03em" }}>{diag}</span>}
+      </div>
 
       {!pending.length && !busy && (
         <p className="pya-note">{tr("No hay reportes de mantenimiento pendientes de validar.", "No maintenance reports pending validation.")}</p>
@@ -2007,6 +2033,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
                 </button>
                 <button className="sa-file-btn ghost" onClick={() => drop(r)} style={{ fontSize: 11.5, color: "#9B5B4E", borderColor: "#D9BAB2" }}>{tr("Eliminar", "Delete")}</button>
               </div>
+              {cardMsg[r.id] && <div style={{ fontFamily: "var(--sans)", fontSize: 11.5, lineHeight: 1.5, color: /No se pudo|Could not|Falla|Falta|missing/.test(cardMsg[r.id]) ? "var(--attention-text)" : "var(--fg-muted)", letterSpacing: "0.03em" }}>{cardMsg[r.id]}</div>}
             </div>
           );
         })}
