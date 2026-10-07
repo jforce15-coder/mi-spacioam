@@ -201,6 +201,15 @@ function AdvancedSection({ lang, owner }) {
   const [data, setData] = avUseState(null);   // { headers, rows, existing, ym }
   const [busy, setBusy] = avUseState("");
   const [msg, setMsg] = avUseState("");
+  const [warn, setWarn] = avUseState("");   // inconsistencia tras agregar → ofrece forzar
+  const [secs, setSecs] = avUseState(0);
+  avUseEffect(() => {
+    if (!busy) { setSecs(0); return; }
+    const t0 = Date.now(); const iv = setInterval(() => setSecs(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [busy]);
+  // el cálculo del mes puede tardar más de un minuto: límite amplio, pero con límite
+  const AV_T = { timeout: 170000 };
   avUseEffect(() => { try { localStorage.setItem("sa-av-ym", ym); } catch (e) {} setData(null); setMsg(""); }, [ym]);
   const years = avUseMemo(() => [...new Set(periods.map(k => k.slice(0, 4)))], [periods]);
   const [yr, setYr] = avUseState(() => ym.slice(0, 4));
@@ -213,27 +222,46 @@ function AdvancedSection({ lang, owner }) {
 
   const generate = async () => {
     const w = W(); if (!w) { setMsg(tr("Conecta la escritura en Setup para usar esta opción.", "Connect writing in Setup.")); return; }
-    setBusy("gen"); setMsg("");
-    const res = await w.post("resumenPreview", { ym });
+    setBusy("gen"); setMsg(""); setWarn("");
+    let res;
+    try { res = await w.post("resumenPreview", { ym }, AV_T); } catch (e) { res = { error: (e && e.message) || "error" }; }
     setBusy("");
     if (res && res.ok) { setData(Object.assign({ ym }, res)); if (!res.rows.length) setMsg(tr("No hay reservas aceptadas con check-in en " + label(ym) + ".", "No accepted bookings this month.")); }
-    else setMsg(tr("No se pudo generar: ", "Could not generate: ") + ((res && res.error) || tr("sin conexión", "offline")));
+    else setMsg(tr("No se pudo generar: ", "Could not generate: ") + ((res && res.error) || tr("sin conexión", "offline")) + (res && res.timeout ? tr(" · el cálculo tardó demasiado; vuelve a intentar.", " · took too long; try again.") : ""));
   };
   const closed = avIsClosed(ym);
-  const append = async (unlock) => {
+  const [lastUnlock, setLastUnlock] = avUseState(null);
+  const append = async (unlock, force) => {
     const w = W(); if (!w || !data) return false;
     if (closed && !unlock) { if (principal) setUnlockOpen(true); return false; }
-    setBusy("add"); setMsg("");
-    const res = await w.post("resumenAppend", unlock ? { ym, unlock } : { ym });
-    setBusy("");
-    if (res && res.locked) { if (unlock) return false; setMsg(tr("Este mes está cerrado.", "This month is closed.")); return false; }
+    if (unlock) setLastUnlock(unlock);
+    setBusy(force ? "force" : "add"); setMsg(""); setWarn("");
+    const payload = { ym }; if (unlock) payload.unlock = unlock; if (force) payload.force = true;
+    let res;
+    try {
+      res = await w.post("resumenAppend", payload, AV_T);
+      if (res && res.busy) { await new Promise(r => setTimeout(r, 5000)); res = await w.post("resumenAppend", payload, AV_T); }
+    } catch (e) { res = { error: (e && e.message) || "error" }; }
+    if (res && res.locked) { setBusy(""); if (unlock) return false; setMsg(tr("Este mes está cerrado.", "This month is closed.")); return false; }
     if (unlock) setUnlockOpen(false);
     if (res && res.ok) {
-      setMsg(tr("Resumenconsolidado · " + label(ym) + ": " + res.added + " nuevas, " + res.updated + " actualizadas, " + res.same + " sin cambios" + (res.removed ? ", " + res.removed + " duplicadas eliminadas" : "") + ".", "Added " + res.added + ", updated " + res.updated + "."));
-      const again = await w.post("resumenPreview", { ym }); if (again && again.ok) setData(Object.assign({ ym }, again));
+      const before = pending;
+      setMsg(tr("Resumenconsolidado · " + label(ym) + ": " + res.added + " nuevas, " + res.updated + " actualizadas, " + res.same + " sin cambios" + (res.removed ? ", " + res.removed + " duplicadas eliminadas" : "") + (res.forced ? ", " + res.forced + " sobrescritas" : "") + ".", "Added " + res.added + ", updated " + res.updated + (res.forced ? ", overwrote " + res.forced : "") + "."));
+      let again = null;
+      try { again = await w.post("resumenPreview", { ym }, AV_T); } catch (e) {}
+      setBusy("");
+      if (again && again.ok) {
+        setData(Object.assign({ ym }, again));
+        // el servidor dijo "igual" pero la hoja sigue distinta → se ofrece sobrescribir
+        const H = (again.headers || []).map(h => String(h).trim().toLowerCase());
+        const ex = again.existing || {}; let still = 0;
+        again.rows.forEach(r => { const o = {}; H.forEach((h, i) => { o[h] = r[i]; }); const e = ex[String(o["property_name"] || "").trim().toLowerCase()]; if (!e) { still++; return; } if (AV_COLS.some(c => Math.abs((+o[c.k] || 0) - (+e.values[c.k] || 0)) > 0.005)) still++; });
+        if (still && !force) setWarn(tr(still + " propiedad(es) siguen distintas en Resumenconsolidado después de agregar. Puedes sobrescribirlas con este cálculo.", still + " propert(ies) still differ after adding. You can overwrite them with this calculation."));
+      } else if (before) setWarn(tr("Se agregó, pero no se pudo releer la hoja. Genera el resumen de nuevo para confirmar.", "Added, but could not re-read the sheet. Generate again to confirm."));
       return true;
-    } else { setMsg(tr("No se pudo agregar: ", "Could not add: ") + ((res && res.error) || tr("sin conexión", "offline"))); if (unlock) setUnlockOpen(false); return true; }
+    } else { setBusy(""); setMsg(tr("No se pudo agregar: ", "Could not add: ") + ((res && res.error) || tr("sin conexión", "offline")) + (res && res.timeout ? tr(" · tardó demasiado. Genera el resumen de nuevo: si ya aparece igual, sí se guardó.", " · took too long. Generate again: if it shows as equal, it was saved.") : "")); if (unlock) setUnlockOpen(false); return true; }
   };
+  const forceAppend = () => append(closed ? lastUnlock : undefined, true);
 
   // filas como objetos por encabezado + estado vs acumulado
   const view = avUseMemo(() => {
@@ -268,13 +296,19 @@ function AdvancedSection({ lang, owner }) {
       <div className="av-bar">
         <Segmented size="sm" value={yr} onChange={pickYear} options={years.slice().sort().map(y => ({ value: y, label: y }))} />
         <Select value={ym} onChange={setYm} icon="calendar" minWidth={180} sort={false} searchable={false} options={monthsOfYr.map(k => ({ value: k, label: (es ? AV_MES : AV_MES_EN)[+k.slice(5) - 1] }))} />
-        <button className="av-btn dark" onClick={generate} disabled={!!busy}><Icon name="refresh" size={14} stroke="currentColor" />{busy === "gen" ? tr("Calculando…", "Computing…") : tr("Generar resumen", "Generate")}</button>
+        <button className="av-btn dark" onClick={generate} disabled={!!busy}><Icon name="refresh" size={14} stroke="currentColor" />{busy === "gen" ? tr("Calculando…", "Computing…") + (secs > 2 ? " " + secs + "s" : "") : tr("Generar resumen", "Generate")}</button>
         <button className="av-btn warm" onClick={() => append()} disabled={!view || !view.rows.length || !!busy || !pending || (closed && !principal)} title={closed ? tr("Mes cerrado el " + avCloseLabel(ym, true), "Closed") : tr("Agrega las nuevas y actualiza las que cambiaron en Resumenconsolidado", "Upsert into Resumenconsolidado")}>
-          <Icon name={closed ? "lock" : "plus"} size={14} stroke="currentColor" />{busy === "add" ? tr("Agregando…", "Adding…") : (closed && principal ? tr("Desbloquear y agregar", "Unlock & add") : tr("Al acumulado", "To consolidated")) + (view && pending ? " · " + pending : "")}
+          <Icon name={closed ? "lock" : "plus"} size={14} stroke="currentColor" />{busy === "add" || busy === "force" ? tr("Agregando…", "Adding…") + (secs > 2 ? " " + secs + "s" : "") : (closed && principal ? tr("Desbloquear y agregar", "Unlock & add") : tr("Al acumulado", "To consolidated")) + (view && pending ? " · " + pending : "")}
         </button>
         <span className={"av-close " + (closed ? "closed" : "open")}><i></i>{closed ? tr("Cerrado el " + avCloseLabel(ym, true), "Closed " + avCloseLabel(ym, false)) : tr("Abierto hasta el " + avCloseLabel(ym, true), "Open until " + avCloseLabel(ym, false))}</span>
         {closed && !principal && <p className="av-msg">{tr("Este mes ya está cerrado: se puede consultar, pero solo el administrador principal puede modificarlo en Resumenconsolidado.", "This month is closed; only the principal admin can change it.")}</p>}
         {msg && <p className="av-msg" style={/No se pudo|Could not/.test(msg) ? { color: "var(--attention-text, #B54D36)" } : null}>{msg}</p>}
+        {warn && !busy && (
+          <p className="av-msg" style={{ color: "var(--attention-text, #B54D36)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <span>{warn}</span>
+            {(!closed || principal) && <button className="av-btn warm" onClick={forceAppend} style={{ padding: "6px 14px" }}><Icon name="refresh" size={14} stroke="currentColor" />{tr("Sobrescribir con este cálculo", "Overwrite with this calculation")}</button>}
+          </p>
+        )}
         {view && view.rows.length > 0 && !pending && !msg && <p className="av-msg">{tr("Resumenconsolidado ya tiene " + label(ym) + " igual a este cálculo.", "Already up to date.")}</p>}
       </div>
 
@@ -282,7 +316,7 @@ function AdvancedSection({ lang, owner }) {
         <div className="av-tbl-wrap"><div className="av-empty">{tr("Elige el periodo y presiona “Generar resumen”.", "Pick a period and press Generate.")}</div></div>
       )}
       {busy === "gen" && !view && (
-        <div className="av-tbl-wrap"><div className="av-empty">{tr("Calculando " + label(ym) + "…", "Computing…")}</div></div>
+        <div className="av-tbl-wrap"><div className="av-empty">{tr("Calculando " + label(ym) + "…", "Computing…")}{secs > 5 ? <span style={{ display: "block", marginTop: 8, fontSize: 12 }}>{tr("Lee Database, SETUP, insumos & gastos y TC; suele tardar entre 20 s y 2 min. " + secs + " s", "Reading sheets; usually 20 s – 2 min. " + secs + " s")}</span> : null}</div></div>
       )}
 
       {view && view.rows.length > 0 && (
