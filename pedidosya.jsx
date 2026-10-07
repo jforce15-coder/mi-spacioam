@@ -28,7 +28,7 @@ function pyaParseCSV(text) {
 
 const PYA_LOCAL_KEY = "sa-pya-imported";
 function pyaLocalImported() { try { return new Set(JSON.parse(localStorage.getItem(PYA_LOCAL_KEY)) || []); } catch (e) { return new Set(); } }
-function pyaLocalAdd(ids) { const s = pyaLocalImported(); ids.forEach(id => s.add(String(id))); localStorage.setItem(PYA_LOCAL_KEY, JSON.stringify([...s])); }
+function pyaLocalAdd(ids) { try { const s = pyaLocalImported(); ids.forEach(id => s.add(String(id))); localStorage.setItem(PYA_LOCAL_KEY, JSON.stringify([...s])); } catch (e) {} }
 
 // Borrador de la conciliación SAT: sobrevive a recargas y cambios de pestaña.
 // Guarda las facturas leídas (sin el XML crudo) + el estado de conciliación.
@@ -227,7 +227,7 @@ const PedidosYaImport = ({ lang }) => {
             <PyaRetencionesPanel lang={lang} propOptions={propOptions} />
           </div>
           <div style={{ display: mode === "reportes" ? "block" : "none" }}>
-            <PyaReportesPanel lang={lang} propOptions={propOptions} addImported={addImported} active={mode === "reportes"} />
+            <PyaReportesPanel lang={lang} propOptions={propOptions} addImported={addImported} imported={imported} active={mode === "reportes"} />
           </div>
           <div style={{ display: mode === "manage" ? "block" : "none" }}>
             <PyaManagePanel lang={lang} propOptions={propOptions} active={mode === "manage"} />
@@ -1895,7 +1895,7 @@ function PyaAdminKey({ lang, onSaved }) {
   );
 }
 
-function PyaReportesPanel({ lang, propOptions, addImported, active }) {
+function PyaReportesPanel({ lang, propOptions, addImported, imported, active }) {
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
   const R = window.SpacioReportes;
@@ -1925,7 +1925,11 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
   // carga inicial la primera vez; después, rutina semanal automática
   pyUseEffect(() => { if (active && R && R.needsSync()) run(false); }, [active]);
 
-  const pending = R ? R.pending(reps) : [];
+  // Un reporte cuya fila YA está en la hoja (orderId REP-…) se da por conservado
+  // aunque la pantalla no haya alcanzado a registrarlo: así nada "se reinicia".
+  const inSheet = (r) => !!(imported && imported.has && imported.has(R.orderIdOf(r)));
+  const pending = R ? R.pending(reps).filter(r => !inSheet(r)) : [];
+  pyUseEffect(() => { if (!R) return; R.pending(reps).forEach(r => { if (inSheet(r)) R.decide(r.id, "ok"); }); }, [reps, imported]);
   const propOf = (r) => (props[r.id] !== undefined ? props[r.id] : r.property_name);
   const ready = pending.filter(r => propOf(r) && r.total > 0);
 
@@ -1953,13 +1957,16 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
         if (res && res.unauthorized) { setNeedKey(list); sayAll(tr("Falta la clave de administrador (ver arriba).", "Admin key missing (see above).")); setMsg(""); return; }
         if (!(res && res.ok)) { const err = tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ". Intenta de nuevo; no se duplicará.", "Could not save: " + ((res && res.error) || "offline") + ". Try again; it won't duplicate."); sayAll(err); setMsg(err); return; }
         sayAll("");
-        if (addImported) addImported(rows.map(x => x.orderId));
       }
-      setNeedKey(null);
-      items.forEach(x => R.decide(x.r.id, "ok")); setTick(t => t + 1);
+      // 1) registrar PRIMERO (localStorage) y liberar el botón; 2) lo demás después,
+      // en su propio turno, para que un tropiezo ahí no deje la pantalla "guardando".
+      items.forEach(x => { try { R.decide(x.r.id, "ok"); } catch (e) {} });
+      setNeedKey(null); setBusy(""); setTick(t => t + 1);
       setMsg(items.length === 1
         ? tr("Gasto conservado y agregado a " + items[0].name + ".", "Expense kept and added to " + items[0].name + ".")
         : tr(items.length + " gastos conservados.", items.length + " expenses kept."));
+      const oids = rows.map(x => x.orderId);
+      setTimeout(() => { try { if (addImported) addImported(oids); } catch (e) {} }, 50);
     } catch (e) {
       const err = tr("No se pudo guardar: " + ((e && e.message) || "error") + ".", "Could not save: " + ((e && e.message) || "error") + ".");
       setMsg(err); setCardMsg(m => { const n = Object.assign({}, m); items.forEach(x => { n[x.r.id] = err; }); return n; });

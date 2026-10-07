@@ -183,6 +183,7 @@
   function get(id) { return cache()[id] || null; }
   function decidedCount() { return Object.keys(state().decided || {}).length; }
 
+  function orderIdOf(r) { return "REP-" + String(r && r.id || "").replace(/[^A-Za-z0-9]+/g, "-"); }
   // Fila para "insumos & gastos" al validar (conservar)
   function sheetRow(r) {
     var MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
@@ -195,7 +196,7 @@
       categoria: "Reparaciones o inversión",
       Comentario: (r.descripcion || "Mantenimiento") + " · [REP:" + r.id + "] Ver detalle",
       tag: "",
-      orderId: "REP-" + String(r.id).replace(/[^A-Za-z0-9]+/g, "-"),
+      orderId: orderIdOf(r),
       orderUrl: "", authProductos: "", authTarifa: "",
     };
   }
@@ -212,6 +213,6 @@
     SHEET_ID: SHEET_ID, DESDE: DESDE,
     sync: sync, pending: pending, decide: decide, undecide: undecide,
     needsSync: needsSync, lastSync: lastSync, get: get, decidedCount: decidedCount,
-    sheetRow: sheetRow, refOf: refOf, cleanComment: cleanComment,
+    sheetRow: sheetRow, orderIdOf: orderIdOf, refOf: refOf, cleanComment: cleanComment,
   };
 })();
