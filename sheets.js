@@ -572,7 +572,8 @@
     // a veces deja el fetch colgado tras el redirect) → { ok:false, timeout:true }.
     async post(action, payload, opts) {
       if (!this.url()) return { ok: false, offline: true };
-      const ms = opts && opts.timeout;
+      // nunca sin límite: toda escritura corta a los 60 s si el servidor no contesta
+      const ms = (opts && opts.timeout) || 60000;
       const ctl = ms && typeof AbortController !== "undefined" ? new AbortController() : null;
       const tm = ctl ? setTimeout(() => ctl.abort(), ms) : null;
       try {

@@ -423,17 +423,37 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
   const backendReady = () => window.SpacioWrite && window.SpacioWrite.enabled && window.SpacioWrite.enabled();
 
   const wErr = (res) => { const err = (res && res.error) || tr("sin conexión", "offline"); return err === "unauthorized" ? tr("Token sin permiso para conciliar. Actualiza el Apps Script (permite linkFacturas al token de subida) o escribe el token de administrador en Setup → Conexión de escritura.", "Token not allowed. Update the Apps Script or set the admin token in Setup.") : tr("No se pudo escribir: " + err + ".", "Could not write: " + err + "."); };
+  // Envía con reintento si la hoja está ocupada o no respondió (idempotente:
+  // el servidor solo llena celdas vacías y reconoce autorizaciones ya presentes).
+  const postLinks = async (links) => {
+    const W = window.SpacioWrite;
+    let res = await W.post("linkFacturas", { links }, { timeout: 45000 });
+    if (res && (res.ok || res.unauthorized)) return res;
+    if (res && res.busy) await new Promise(r => setTimeout(r, 5000));
+    return W.post("linkFacturas", { links }, { timeout: 60000 });
+  };
+  const [prog, setProg] = pyUseState("");
+  // En tandas de 8: cada tanda queda guardada y marcada en pantalla antes de la
+  // siguiente, así un corte a medio camino no pierde lo ya conciliado.
   const linkAll = async () => {
     if (!autoMatches.length) return;
     if (!backendReady()) { setMsg(tr("Conecta el backend (Setup → Conexión de escritura) para conciliar.", "Connect the backend (Setup → Write connection) to conciliate.")); return; }
     setBusy("link"); setMsg("");
-    const links = autoMatches.map(m => P.linkPayload(m.expense, m.invoices));
-    const res = await window.SpacioWrite.post("linkFacturas", { links });
-    if (res && res.ok) {
-      setLinked(prev => { const n = new Set(prev); autoMatches.forEach(m => n.add(m.expense._k)); return n; });
-      addImported(autoMatches.reduce((a, m) => a.concat(m.invoices.map(iv => iv.auth)), []));
-      setMsg(tr("Listo · " + autoMatches.length + " gasto(s) conciliados automáticamente. El socio ya ve sus facturas en Gastos e inversiones.", "Done · " + autoMatches.length + " expense(s) auto-conciliated."));
-    } else setMsg(wErr(res));
+    const all = autoMatches.slice(), CH = 8; let done = 0, failed = null;
+    try {
+      for (let i = 0; i < all.length; i += CH) {
+        const part = all.slice(i, i + CH);
+        setProg(tr("Conciliando " + Math.min(i + CH, all.length) + " de " + all.length + "…", "Conciliating " + Math.min(i + CH, all.length) + " of " + all.length + "…"));
+        const res = await postLinks(part.map(m => P.linkPayload(m.expense, m.invoices)));
+        if (!(res && res.ok)) { failed = res; break; }
+        setLinked(prev => { const n = new Set(prev); part.forEach(m => n.add(m.expense._k)); return n; });
+        try { addImported(part.reduce((a, m) => a.concat(m.invoices.map(iv => iv.auth)), [])); } catch (e) {}
+        done += part.length;
+      }
+    } catch (e) { failed = { error: (e && e.message) || "error" }; }
+    setProg("");
+    if (failed) setMsg((done ? tr(done + " conciliados · ", done + " conciliated · ") : "") + wErr(failed) + (done < all.length ? tr(" Vuelve a presionar para continuar con los " + (all.length - done) + " restantes.", " Press again to continue with the remaining " + (all.length - done) + ".") : ""));
+    else setMsg(tr("Listo · " + done + " gasto(s) conciliados automáticamente. El socio ya ve sus facturas en Gastos e inversiones.", "Done · " + done + " expense(s) auto-conciliated."));
     setBusy("");
   };
 
@@ -450,7 +470,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
     if (!expObj || !invs.length) return false;
     if (!backendReady()) { setMsg(tr("Conecta el backend para conciliar.", "Connect the backend to conciliate.")); return false; }
     setBusy("mlink"); setMsg("");
-    const res = await window.SpacioWrite.post("linkFacturas", { links: [P.linkPayload(expObj, invs)] });
+    const res = await postLinks([P.linkPayload(expObj, invs)]);
     let ok = false;
     if (res && res.ok) {
       ok = true;
@@ -546,7 +566,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
             {autoMatches.length > 0 && (
               <button className="pya-btn pya-btn-dark" style={{ flexShrink: 0 }} onClick={linkAll} disabled={busy === "link"}>
                 {busy === "link" ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
-                {tr("Conciliar automáticamente", "Auto-conciliate")} · {autoMatches.length}
+                {busy === "link" && prog ? prog : tr("Conciliar automáticamente", "Auto-conciliate") + " · " + autoMatches.length}
               </button>
             )}
           </div>
