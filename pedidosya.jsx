@@ -807,8 +807,7 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
     setBusy(true); setMsg("");
     const rows = P.manualSheetRows({ day, valor: valorNum, categoria, comentario, tag }, props, scope === "many" && split === "divide");
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-      let res = await window.SpacioWrite.post("appendInsumos", { rows }, { timeout: 45000 });
-      if (res && res.timeout) res = await window.SpacioWrite.post("appendInsumos", { rows }, { timeout: 60000 });
+      const res = await pyaWriteInsumos(rows);
       if (res && res.unauthorized) { setBusy(false); setNeedKey(true); setMsg(""); return; }
       if (res && res.ok) {
         addImported(rows.map(r => r.orderId));
@@ -1836,6 +1835,34 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
 
 // Pide la clave de administrador cuando el servidor responde "unauthorized"
 // (el dispositivo quedó con la conexión pública o Safari borró la clave).
+// ¿ya están estos orderId en "insumos & gastos"? Lee la hoja publicada (gviz),
+// independiente de Apps Script: si la escritura sí entró pero la respuesta se
+// perdió (pasa en Safari/iPad tras el redirect), lo confirmamos aquí.
+async function pyaSheetHasOids(oids) {
+  const sid = window.SPACIO_SHEET_ID; if (!sid || !oids.length) return false;
+  try {
+    const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos") + "&_=" + Date.now();
+    const txt = await (await fetch(url, { cache: "no-store" })).text();
+    return oids.every(o => txt.indexOf(o) >= 0);
+  } catch (e) { return false; }
+}
+const pyaWait = (ms) => new Promise(r => setTimeout(r, ms));
+// Escritura confirmada: intento corto → si no responde, verifica en la hoja →
+// reintento (el servidor deduplica por orderId, nunca crea filas dobles).
+async function pyaWriteInsumos(rows) {
+  const W = window.SpacioWrite, oids = rows.map(r => r.orderId).filter(Boolean);
+  let res = await W.post("appendInsumos", { rows }, { timeout: 25000 });
+  if (res && (res.ok || res.unauthorized)) return res;
+  for (let i = 0; i < 3 && oids.length === rows.length; i++) {
+    if (await pyaSheetHasOids(oids)) return { ok: true, verified: true };
+    await pyaWait(4000);
+  }
+  res = await W.post("appendInsumos", { rows }, { timeout: 40000 });
+  if (res && (res.ok || res.unauthorized)) return res;
+  if (oids.length === rows.length && await pyaSheetHasOids(oids)) return { ok: true, verified: true };
+  return res;
+}
+
 function PyaAdminKey({ lang, onSaved }) {
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
@@ -1888,12 +1915,14 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
 
   // escribe con tiempo límite; si no responde, reintenta una vez (el servidor
   // deduplica por orderId, así que reintentar nunca crea filas dobles)
-  const writeRows = async (rows) => {
-    const W = window.SpacioWrite;
-    let res = await W.post("appendInsumos", { rows }, { timeout: 45000 });
-    if (res && res.timeout) res = await W.post("appendInsumos", { rows }, { timeout: 60000 });
-    return res;
-  };
+  const writeRows = pyaWriteInsumos;
+  // segundos transcurridos en el botón, para que no parezca congelado
+  const [secs, setSecs] = pyUseState(0);
+  pyUseEffect(() => {
+    if (!busy || busy === "sync") { setSecs(0); return; }
+    const t0 = Date.now(); const iv = setInterval(() => setSecs(Math.round((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(iv);
+  }, [busy]);
   const keepRows = async (list) => {
     const items = list.map(r => ({ r, name: propOf(r) })).filter(x => x.name);
     if (!items.length) { setMsg(tr("Asigna una propiedad antes de conservar el gasto.", "Assign a property before keeping the expense.")); return; }
@@ -1937,7 +1966,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
         </button>
         {ready.length > 1 && (
           <button className="sa-file-btn ghost" onClick={keepAll} disabled={!!busy} style={{ fontSize: 12 }}>
-            {busy === "all" ? tr("Guardando…", "Saving…") : tr("Conservar los " + ready.length + " listos", "Keep all " + ready.length + " ready")}
+            {busy === "all" ? tr("Guardando…", "Saving…") + (secs > 2 ? " " + secs + "s" : "") : tr("Conservar los " + ready.length + " listos", "Keep all " + ready.length + " ready")}
           </button>
         )}
         <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.04em" }}>
@@ -1974,7 +2003,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
                 </select>
                 <button className="sa-file-btn ghost" onClick={() => setBox(r)} style={{ fontSize: 11.5 }}>{tr("Ver detalle", "View detail")}</button>
                 <button className="sa-file-btn" onClick={() => keep(r)} disabled={!name || busy === "k-" + r.id} style={{ fontSize: 11.5 }}>
-                  {busy === "k-" + r.id ? tr("Guardando…", "Saving…") : tr("Conservar", "Keep")}
+                  {busy === "k-" + r.id ? tr("Guardando…", "Saving…") + (secs > 2 ? " " + secs + "s" : "") : tr("Conservar", "Keep")}
                 </button>
                 <button className="sa-file-btn ghost" onClick={() => drop(r)} style={{ fontSize: 11.5, color: "#9B5B4E", borderColor: "#D9BAB2" }}>{tr("Eliminar", "Delete")}</button>
               </div>
