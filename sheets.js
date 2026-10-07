@@ -583,14 +583,24 @@
           body: JSON.stringify(Object.assign({ action: action, token: this.token() }, payload || {})),
         });
         const txt = await res.text();
-        try { return JSON.parse(txt); }
+        let data;
+        try { data = JSON.parse(txt); }
         catch (pe) { return { ok: false, error: /<html|<!doctype/i.test(txt) ? "el servidor tardó demasiado o el Apps Script no está actualizado (respuesta HTML)" : "respuesta inválida del servidor" }; }
+        // el servidor rechazó la clave: este dispositivo usa la conexión pública
+        // (solo subir archivos) o una clave vieja → la pantalla pide la clave de admin
+        if (data && data.error === "unauthorized") {
+          data.unauthorized = true;
+          data.error = this.isAdminConn() ? "la clave de administrador guardada en este dispositivo no coincide" : "este dispositivo no tiene la clave de administrador";
+        }
+        return data;
       } catch (e) {
         if (e && e.name === "AbortError") return { ok: false, timeout: true, error: "el servidor no respondió a tiempo" };
         return { ok: false, error: String(e) };
       } finally { if (tm) clearTimeout(tm); }
     },
     ping() { return this.post("ping", {}); },
+    // guarda solo la clave de admin, conservando la URL actual
+    setAdminToken(token) { this.setConfig(this.url(), token); },
   };
   window.SpacioWrite = SpacioWrite;
   // Restaura/re-sella la conexión en cada carga (localStorage ↔ cookie ↔ IndexedDB).

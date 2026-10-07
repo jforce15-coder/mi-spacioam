@@ -745,6 +745,7 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
   const [terms, setTerms] = pyUseState([{ v: "estadias", f: "" }]);
   const [rulesTick, setRulesTick] = pyUseState(0);
   const [preview, setPreview] = pyUseState(null);
+  const [needKey, setNeedKey] = pyUseState(false);
   const isRule = freq === "monthly" || amtMode === "cond";
   const monthOpts = pyaRecurMonths(es);
   const [desde, setDesde] = pyUseState(() => pyaRecurMonths(true)[0].value);
@@ -795,7 +796,8 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
           : tr("Programado desde " + lbl + (res.added ? " · " + res.added + " fila(s) ya aplicadas." : "."), "Scheduled from " + lbl + (res.added ? " · " + res.added + " row(s) already applied." : ".")));
         setValor(""); setComentario(""); setManyProps([]); setOneProp(""); setTerms([{ v: "estadias", f: "" }]); setPreview(null);
         setRulesTick(t => t + 1);
-      } else setMsg(tr("No se pudo programar: " + ((res && res.error) || "sin conexión") + ".", "Could not schedule: " + ((res && res.error) || "offline") + "."));
+      } else if (res && res.unauthorized) { setNeedKey(true); setMsg(""); }
+      else setMsg(tr("No se pudo programar: " + ((res && res.error) || "sin conexión") + ".", "Could not schedule: " + ((res && res.error) || "offline") + "."));
     } finally { setBusy(false); }
   };
 
@@ -807,6 +809,7 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
       let res = await window.SpacioWrite.post("appendInsumos", { rows }, { timeout: 45000 });
       if (res && res.timeout) res = await window.SpacioWrite.post("appendInsumos", { rows }, { timeout: 60000 });
+      if (res && res.unauthorized) { setBusy(false); setNeedKey(true); setMsg(""); return; }
       if (res && res.ok) {
         addImported(rows.map(r => r.orderId));
         setMsg(tr("Listo · " + rows.length + " " + (rows.length === 1 ? "fila escrita" : "filas escritas") + ".", "Done · " + rows.length + " rows written."));
@@ -932,6 +935,7 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
           {isRule ? (freq === "monthly" ? tr("Programar gasto", "Schedule expense") : tr("Aplicar gasto", "Apply expense")) : tr("Guardar gasto", "Save expense")}{props.length > 1 ? " · " + props.length : ""}
         </button>
       </div>
+      {needKey && <div style={{ marginTop: 16 }}><PyaAdminKey lang={lang} onSaved={() => { setNeedKey(false); setRulesTick(t => t + 1); save(); }} /></div>}
       <PyaRecurList lang={lang} tick={rulesTick} />
     </div>
   );
@@ -1830,6 +1834,26 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
   );
 }
 
+// Pide la clave de administrador cuando el servidor responde "unauthorized"
+// (el dispositivo quedó con la conexión pública o Safari borró la clave).
+function PyaAdminKey({ lang, onSaved }) {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const [k, setK] = pyUseState("");
+  const save = () => { const v = k.trim(); if (!v) return; window.SpacioWrite.setAdminToken(v); setK(""); onSaved && onSaved(); };
+  return (
+    <div style={{ border: "1px solid var(--accent)", background: "var(--attention-tint)", borderRadius: 14, padding: "14px 16px", margin: "0 0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+      <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, lineHeight: 1.6, color: "var(--ink)" }}>
+        {tr("Este dispositivo no tiene guardada la clave de administrador, por eso no se pudo escribir en la hoja. Escríbela una vez y la recordamos.", "This device doesn't have the admin key saved, so the sheet couldn't be written. Enter it once and we'll remember it.")}
+      </span>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="pya-input" type="password" autoComplete="current-password" value={k} onChange={e => setK(e.target.value)} onKeyDown={e => { if (e.key === "Enter") save(); }} placeholder={tr("Clave de escritura (token)", "Write key (token)")} style={{ flex: "1 1 220px", minWidth: 0 }} />
+        <button className="pya-btn pya-btn-dark" onClick={save} disabled={!k.trim()}>{tr("Guardar y reintentar", "Save and retry")}</button>
+      </div>
+    </div>
+  );
+}
+
 function PyaReportesPanel({ lang, propOptions, addImported, active }) {
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
@@ -1840,6 +1864,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
   const [box, setBox] = pyUseState(null);
   const [tick, setTick] = pyUseState(0);
   const [props, setProps] = pyUseState({}); // override manual de propiedad por id
+  const [needKey, setNeedKey] = pyUseState(null); // lista a reintentar tras pedir la clave
 
   const run = async (manual) => {
     if (!R) return;
@@ -1877,9 +1902,11 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
       const rows = items.map(x => R.sheetRow(Object.assign({}, x.r, { property_name: x.name })));
       if (window.SpacioWrite && window.SpacioWrite.enabled()) {
         const res = await writeRows(rows);
+        if (res && res.unauthorized) { setNeedKey(list); setMsg(""); return; }
         if (!(res && res.ok)) { setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ". Intenta de nuevo; no se duplicará.", "Could not save: " + ((res && res.error) || "offline") + ". Try again; it won't duplicate.")); return; }
         if (addImported) addImported(rows.map(x => x.orderId));
       }
+      setNeedKey(null);
       items.forEach(x => R.decide(x.r.id, "ok")); setTick(t => t + 1);
       setMsg(items.length === 1
         ? tr("Gasto conservado y agregado a " + items[0].name + ".", "Expense kept and added to " + items[0].name + ".")
@@ -1918,6 +1945,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
           {" · " + pending.length + " " + tr("por validar", "to validate")}
         </span>
       </div>
+      {needKey && <PyaAdminKey lang={lang} onSaved={() => { const l = needKey; setNeedKey(null); keepRows(l); }} />}
       {msg && <p className="pya-note" style={{ color: "var(--ink)" }}>{msg}</p>}
 
       {!pending.length && !busy && (
