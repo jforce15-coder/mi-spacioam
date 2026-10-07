@@ -2184,6 +2184,51 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     return acc ? (acc.name || acc.code) : g.owner;
   };
   const scopeNow = view === "owner" ? "owner" : "property";
+  // correo del mes por socio: estado del servidor (un reporte por socio y mes)
+  const [mail, setMail] = useState(null);      // { socios: {code → {enviados, ultimo, email}}, multi }
+  const [mailBusy, setMailBusy] = useState("");
+  const [mailMsg, setMailMsg] = useState("");
+  const normCode = (c) => String(c || "").trim().toLowerCase().replace(/\s+/g, "_");
+  const loadMail = async () => {
+    if (!ym) return;
+    const r = await sendMailAction("cierreMesEstado", { mes: ym });
+    if (r && r.ok) { const m = {}; (r.socios || []).forEach(x => { m[normCode(x.code)] = x; }); setMail({ socios: m, multi: !!r.multi, mesTexto: r.mesTexto }); }
+    else setMail({ socios: {}, multi: false, error: mailErrText(r, es) });
+  };
+  useEffect(() => { setMail(null); loadMail(); }, [ym]);
+  const mailOf = (g) => mail ? mail.socios[normCode(g.owner)] : null;
+  const sendMailTo = async (g) => {
+    const st = mailOf(g), name = ownerLabelOf(g);
+    const nProps = rows.filter(r => normCode(r.owner) === normCode(g.owner)).length;
+    const again = st && st.enviados > 0;
+    const txt = tr("Se enviará el reporte de " + (mail && mail.mesTexto || ym) + " a " + name + (nProps > 1 ? " (un solo correo con sus " + nProps + " propiedades)" : "") + "." + (again ? " Ya lo recibió: se reenviará porque el administrador lo permitió y el permiso se apagará." : "") + " ¿Continuar?",
+      "This sends the " + ym + " report to " + name + (nProps > 1 ? " (one email covering their " + nProps + " properties)" : "") + "." + (again ? " Already received: it will be re-sent because the admin allowed it, and the permission turns off." : "") + " Continue?");
+    if (!window.confirm(txt)) return;
+    setMailBusy(normCode(g.owner)); setMailMsg("");
+    const r = await sendMailAction("sendCierreMes", { mes: ym, socio: g.owner });
+    if (r && r.ok) setMailMsg(tr("Correo enviado a " + name + ".", "Email sent to " + name + "."));
+    else if (r && r.error === "ya-enviado") setMailMsg(tr(name + " ya recibió el reporte de este mes. Para reenviarlo, activa “Permitir más de un correo” en Setup.", name + " already got this month's report. Enable “Allow more than one email” in Setup to re-send."));
+    else setMailMsg(mailErrText(r, es));
+    await loadMail(); setMailBusy("");
+  };
+  const MailCell = ({ g }) => {
+    const st = mailOf(g); const code = normCode(g.owner);
+    const sent = !!(st && st.enviados > 0);
+    const can = !!mail && !mail.error && !!(st ? st.email : g.email) && (!sent || mail.multi);
+    const busyNow = mailBusy === code;
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <button type="button" className="sa-file-btn ghost" style={{ padding: "7px 10px", fontSize: 11, opacity: can || busyNow ? 1 : 0.55 }} disabled={!can || !!mailBusy} onClick={() => sendMailTo(g)}
+          aria-label={tr("Enviar correo del mes a " + ownerLabelOf(g), "Send monthly email to " + ownerLabelOf(g))}
+          title={!mail ? tr("Consultando…", "Checking…") : sent ? (mail.multi ? tr("Reenviar (excepción activa)", "Re-send (exception on)") : tr("Ya enviado · " + mailFecha(st.ultimo, es), "Already sent · " + mailFecha(st.ultimo, es))) : tr("Enviar correo del mes", "Send monthly email")}>
+          {busyNow ? <span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="mail" size={14} stroke={sent ? "var(--fg-muted)" : "var(--ink)"} />}
+        </button>
+        {mail && (sent
+          ? <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", whiteSpace: "nowrap" }}><Farol ok /> {mailFecha(st.ultimo, es)}{st.enviados > 1 ? " (" + st.enviados + ")" : ""}</span>
+          : <Farol ok={false} />)}
+      </span>
+    );
+  };
   // sube un archivo (comprobante de depósito o constancia de retención) de una fila
   const uploadFor = async (kind, g, file) => {
     if (!ym || !SF) return;
@@ -2259,6 +2304,11 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
           </button>
         ))}
       </div>
+      {(mailMsg || (mail && mail.error) || (mail && mail.multi)) && (
+        <p style={{ margin: "-6px 0 14px", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: mail && mail.error ? "var(--attention-text, #B54D36)" : "var(--fg-muted)" }}>
+          {mailMsg || (mail && mail.error ? tr("Correo del mes: ", "Monthly email: ") + mail.error : tr("Correo del mes · excepción activa: se permite reenviar a quien ya lo recibió; se apaga después del próximo envío.", "Monthly email · exception on: re-sending to someone who already got it is allowed; turns off after the next send."))}
+        </p>
+      )}
       {monedas.map(mon => {
         const rs = rows.filter(r => r.moneda === mon);
         let groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
@@ -2290,6 +2340,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     <th style={{ minWidth: 170 }}>{t("dep_col_email")}</th>
                     <th style={{ minWidth: 150 }}>{t("liq_deposit_proof")}</th>
                     <th style={{ minWidth: 160 }}>{tr("Constancia de retención", "Withholding certificate")}</th>
+                    <th style={{ minWidth: 150 }}>{tr("Correo del mes", "Monthly email")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2314,6 +2365,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                           : ret && ret.url
                             ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={ret.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{tr("Descargar", "Download")}</a>
                             : <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}><Farol ok={!!ret} /><FileUploadButton label={ret ? tr("Reemplazar", "Replace") : tr("Subir", "Upload")} onPick={(f) => uploadFor("retencion", g, f)} busy={busyKey === g.key + "retencion"} /></span>}</td>
+                        <td><MailCell g={g} /></td>
                       </tr>
                     );
                   })}
@@ -2324,7 +2376,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.retencion, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.iva, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.total, mon)}</td>
-                    <td></td><td></td><td></td><td></td>
+                    <td></td><td></td><td></td><td></td><td></td>
                   </tr>
                 </tbody>
               </table>
