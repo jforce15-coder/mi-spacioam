@@ -740,6 +740,14 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
   const [split, setSplit] = pyUseState("each"); // each | divide
   const [busy, setBusy] = pyUseState(false);
   const [msg, setMsg] = pyUseState("");
+  const [freq, setFreq] = pyUseState("once");      // once | monthly
+  const [amtMode, setAmtMode] = pyUseState("fixed"); // fixed | cond
+  const [terms, setTerms] = pyUseState([{ v: "estadias", f: "" }]);
+  const [rulesTick, setRulesTick] = pyUseState(0);
+  const [preview, setPreview] = pyUseState(null);
+  const isRule = freq === "monthly" || amtMode === "cond";
+  const monthOpts = pyaRecurMonths(es);
+  const [desde, setDesde] = pyUseState(() => pyaRecurMonths(true)[0].value);
 
   // Todas las categorías reales de la col. E de la hoja + las dos base.
   const baseCats = [
@@ -758,15 +766,47 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
 
   const props = scope === "one" ? (oneProp ? [oneProp] : []) : manyProps;
   const valorNum = P.numQ(valor);
-  const canSave = valorNum > 0 && props.length > 0;
+  const termsOk = terms.filter(t => P.numQ(t.f) > 0);
+  const canSave = props.length > 0 && (amtMode === "fixed" ? valorNum > 0 : termsOk.length > 0) && (!isRule || !!desde);
   const toggleMany = (name) => setManyProps(ps => ps.includes(name) ? ps.filter(x => x !== name) : ps.concat(name));
+  const buildRule = () => ({
+    propiedades: props, tipo: amtMode === "cond" ? "condicionado" : "fijo",
+    valor: amtMode === "fixed" ? (scope === "many" && split === "divide" ? Math.round((valorNum / props.length) * 100) / 100 : valorNum) : 0,
+    terminos: amtMode === "cond" ? termsOk.map(t => ({ v: t.v, f: P.numQ(t.f) })) : [],
+    categoria, tag, comentario: comentario + (amtMode === "fixed" && scope === "many" && split === "divide" ? " · (compartido ÷" + props.length + ")" : ""),
+    frecuencia: freq === "once" ? "una vez" : "mensual", desde,
+  });
+  const W = window.SpacioWrite;
+  const runPreview = async () => {
+    if (!(W && W.enabled())) return;
+    setPreview({ loading: true });
+    const res = await W.post("recurPreview", { rule: buildRule() }, { timeout: 60000 });
+    setPreview(res && res.ok ? res : { error: (res && res.error) || tr("sin conexión", "offline") });
+  };
+  const saveRule = async () => {
+    if (!(W && W.enabled())) { setMsg(tr("Necesitas la conexión con la hoja para programar gastos.", "You need the sheet connection to schedule expenses.")); return; }
+    setBusy(true); setMsg("");
+    try {
+      const res = await W.post("recurSave", { rule: buildRule() }, { timeout: 90000 });
+      if (res && res.ok) {
+        const lbl = pyaYmLabel(desde, es);
+        setMsg(freq === "once"
+          ? tr("Listo · gasto condicionado para " + lbl + (res.added ? " · " + res.added + " fila(s) escritas." : " · se calculará cuando termine el mes."), "Done · conditional expense for " + lbl + (res.added ? " · " + res.added + " row(s) written." : " · it will be calculated when the month ends."))
+          : tr("Programado desde " + lbl + (res.added ? " · " + res.added + " fila(s) ya aplicadas." : "."), "Scheduled from " + lbl + (res.added ? " · " + res.added + " row(s) already applied." : ".")));
+        setValor(""); setComentario(""); setManyProps([]); setOneProp(""); setTerms([{ v: "estadias", f: "" }]); setPreview(null);
+        setRulesTick(t => t + 1);
+      } else setMsg(tr("No se pudo programar: " + ((res && res.error) || "sin conexión") + ".", "Could not schedule: " + ((res && res.error) || "offline") + "."));
+    } finally { setBusy(false); }
+  };
 
   const save = async () => {
     if (!canSave) return;
+    if (isRule) return saveRule();
     setBusy(true); setMsg("");
     const rows = P.manualSheetRows({ day, valor: valorNum, categoria, comentario, tag }, props, scope === "many" && split === "divide");
     if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-      const res = await window.SpacioWrite.post("appendInsumos", { rows });
+      let res = await window.SpacioWrite.post("appendInsumos", { rows }, { timeout: 45000 });
+      if (res && res.timeout) res = await window.SpacioWrite.post("appendInsumos", { rows }, { timeout: 60000 });
       if (res && res.ok) {
         addImported(rows.map(r => r.orderId));
         setMsg(tr("Listo · " + rows.length + " " + (rows.length === 1 ? "fila escrita" : "filas escritas") + ".", "Done · " + rows.length + " rows written."));
@@ -784,12 +824,67 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
 
   return (
     <div className="pya-form" style={{ marginTop: 20 }}>
+      <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginBottom: 14 }}>
+        <div className="pya-field" style={{ margin: 0 }}><label>{tr("Frecuencia", "Frequency")}</label>
+          <span className="pya-segbtn">
+            <button className={freq === "once" ? "on" : ""} onClick={() => setFreq("once")}>{tr("Una vez", "Once")}</button>
+            <button className={freq === "monthly" ? "on" : ""} onClick={() => setFreq("monthly")}>{tr("Cada mes", "Every month")}</button>
+          </span>
+        </div>
+        <div className="pya-field" style={{ margin: 0 }}><label>{tr("Monto", "Amount")}</label>
+          <span className="pya-segbtn">
+            <button className={amtMode === "fixed" ? "on" : ""} onClick={() => { setAmtMode("fixed"); setPreview(null); }}>{tr("Fijo", "Fixed")}</button>
+            <button className={amtMode === "cond" ? "on" : ""} onClick={() => { setAmtMode("cond"); setSplit("each"); }}>{tr("Condicionado", "Conditional")}</button>
+          </span>
+        </div>
+      </div>
       <div className="pya-form-grid">
-        <div className="pya-field"><label>{tr("Fecha", "Date")}</label><PyaDate value={day} onChange={setDay} lang={lang} /></div>
-        <div className="pya-field"><label>{tr("Monto (GTQ)", "Amount (GTQ)")}</label><input className="pya-input" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder="0.00" /></div>
+        {isRule
+          ? <div className="pya-field"><label>{freq === "once" ? tr("Mes", "Month") : tr("Desde", "From")}</label><PyaMini value={desde} options={monthOpts} onChange={(v) => { setDesde(v); setPreview(null); }} /></div>
+          : <div className="pya-field"><label>{tr("Fecha", "Date")}</label><PyaDate value={day} onChange={setDay} lang={lang} /></div>}
+        {amtMode === "fixed" && <div className="pya-field"><label>{tr("Monto (GTQ)", "Amount (GTQ)")}</label><input className="pya-input" inputMode="decimal" value={valor} onChange={e => setValor(e.target.value)} placeholder="0.00" /></div>}
         <div className="pya-field"><label>{tr("Categoría", "Category")}</label><PyaMini value={categoria} options={catOptions} onChange={setCategoria} /></div>
         <div className="pya-field"><label>Tag</label><PyaMini value={tag} options={tagOptions} onChange={setTag} placeholder={tr("— (sin etiqueta)", "— (no tag)")} /></div>
       </div>
+      {amtMode === "cond" && (
+        <div className="pya-field">
+          <label>{tr("Se calcula con", "Calculated from")}</label>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {terms.map((t, i) => {
+              const def = PYA_RECUR_VARS.find(x => x.k === t.v) || PYA_RECUR_VARS[0];
+              const setT = (patch) => { setTerms(ts => ts.map((x, j) => j === i ? Object.assign({}, x, patch) : x)); setPreview(null); };
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) auto", gap: 8, alignItems: "center" }}>
+                  <PyaMini value={t.v} options={PYA_RECUR_VARS.map(x => ({ value: x.k, label: es ? x.es : x.en }))} onChange={(v) => setT({ v })} />
+                  <div style={{ position: "relative" }}>
+                    <input className="pya-input" inputMode="decimal" value={t.f} onChange={e => setT({ f: e.target.value })} placeholder={def.money ? "0" : "0.00"} style={{ paddingRight: 104 }} />
+                    <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", color: "var(--fg-muted)", pointerEvents: "none" }}>{def.money ? tr("% del monto", "% of amount") : tr("Q por ", "Q per ") + (es ? def.unitEs : def.unitEn)}</span>
+                  </div>
+                  <button className="pya-btn pya-btn-ghost" onClick={() => { setTerms(ts => ts.length > 1 ? ts.filter((_, j) => j !== i) : [{ v: "estadias", f: "" }]); setPreview(null); }} aria-label={tr("Quitar", "Remove")} style={{ padding: "0 12px" }}><Icon name="x" size={14} stroke="var(--fg-muted)" /></button>
+                </div>
+              );
+            })}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {terms.length < PYA_RECUR_VARS.length && <button className="pya-btn pya-btn-ghost" onClick={() => { const free = PYA_RECUR_VARS.find(x => !terms.some(t => t.v === x.k)); setTerms(ts => ts.concat({ v: free ? free.k : "estadias", f: "" })); }}><Icon name="plus" size={14} stroke="var(--fg-muted)" />{tr("Agregar variable", "Add variable")}</button>}
+              {termsOk.length > 0 && props.length > 0 && <button className="pya-btn pya-btn-ghost" onClick={runPreview} disabled={!!(preview && preview.loading)}>{preview && preview.loading ? tr("Calculando…", "Calculating…") : tr("Calcular ", "Calculate ") + pyaYmLabel(desde, es)}</button>}
+            </div>
+            <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)" }}>
+              {tr("Ej. Q 100 por estadía: en un mes con 6 estadías se cargan Q 600. Si eliges varias variables, se suman. El monto se calcula con los números del mes cuando este termina.", "E.g. Q 100 per stay: a month with 6 stays charges Q 600. Several variables are added together. The amount is calculated from the month's numbers once it ends.")}
+            </span>
+            {preview && !preview.loading && (preview.error
+              ? <span className="pya-note" style={{ margin: 0 }}>{tr("No se pudo calcular: ", "Could not calculate: ") + preview.error}</span>
+              : <div style={{ border: "1px solid var(--warm-grey)", borderRadius: 14, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {!preview.finished && <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--attention-text)", letterSpacing: "0.04em" }}>{tr("El mes aún no termina: esto es lo que va hasta hoy.", "The month hasn't ended: this is the amount so far.")}</span>}
+                  {(preview.items || []).map((it, k) => (
+                    <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontFamily: "var(--sans)", fontSize: 12.5 }}>
+                      <span style={{ minWidth: 0 }}><strong style={{ fontWeight: 600 }}>{it.prop}</strong><span style={{ color: "var(--fg-muted)" }}>{" · " + it.detail}</span></span>
+                      <span className="t-num" style={{ fontWeight: 600, whiteSpace: "nowrap" }}>{P.money(it.amount)}</span>
+                    </div>
+                  ))}
+                </div>)}
+          </div>
+        </div>
+      )}
       <div className="pya-field"><label>{tr("Comentario / descripción", "Comment / description")}</label><textarea className="pya-input" value={comentario} onChange={e => setComentario(e.target.value)} placeholder={tr("Ej. Compra de focos, plomería, mantenimiento…", "E.g. Light bulbs, plumbing, maintenance…")} /></div>
 
       <div className="pya-field">
@@ -811,7 +906,7 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
                   </button>
                 ))}
               </div>
-              {manyProps.length > 0 && (
+              {manyProps.length > 0 && amtMode === "fixed" && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
                   <span className="pya-segbtn">
                     <button className={split === "each" ? "on" : ""} onClick={() => setSplit("each")}>{tr("Mismo monto a cada una", "Same amount each")}</button>
@@ -828,13 +923,117 @@ function PyaManualPanel({ lang, addImported, propOptions, sheetCats }) {
 
       <div className="pya-footer">
         <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: msg ? "var(--ink)" : "var(--fg-muted)", maxWidth: 440, lineHeight: 1.5 }}>
-          {msg || tr("Categoría (col. E) = quién lo paga: 'insumos & gastos' y 'Mantenimiento e inversión' se le cobran al socio. El tag (col. G) es descriptivo, PERO 'Gasto Spacio AM', 'Compras ajenas a insumos' y 'Restaurante / comida' ocultan el gasto al socio. Monto en GTQ.", "Category (col. E) = who pays: 'insumos & gastos' and 'Maintenance & investment' are billed to the owner. The tag (col. G) is descriptive, BUT 'Spacio AM expense', 'Non-supply purchase' and 'Restaurant / food' hide the expense from the owner. Amount in GTQ.")}
+          {msg || (isRule
+            ? tr("Solo aplica de " + pyaYmLabel(desde, es) + " en adelante: los meses anteriores no se tocan. Puedes cancelarlo cuando quieras abajo; lo ya aplicado se queda.", "Applies from " + pyaYmLabel(desde, es) + " onward only: earlier months stay untouched. Cancel it any time below; what's already applied stays.")
+            : tr("Categoría (col. E) = quién lo paga: 'insumos & gastos' y 'Mantenimiento e inversión' se le cobran al socio. El tag (col. G) es descriptivo, PERO 'Gasto Spacio AM', 'Compras ajenas a insumos' y 'Restaurante / comida' ocultan el gasto al socio. Monto en GTQ.", "Category (col. E) = who pays: 'insumos & gastos' and 'Maintenance & investment' are billed to the owner. The tag (col. G) is descriptive, BUT 'Spacio AM expense', 'Non-supply purchase' and 'Restaurant / food' hide the expense from the owner. Amount in GTQ."))}
         </span>
         <button className="pya-btn pya-btn-dark" onClick={save} disabled={!canSave || busy}>
           {busy ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: "var(--alabaster)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="check" size={15} stroke="var(--alabaster)" />}
-          {tr("Guardar gasto", "Save expense")}{props.length > 1 ? " · " + props.length : ""}
+          {isRule ? (freq === "monthly" ? tr("Programar gasto", "Schedule expense") : tr("Aplicar gasto", "Apply expense")) : tr("Guardar gasto", "Save expense")}{props.length > 1 ? " · " + props.length : ""}
         </button>
       </div>
+      <PyaRecurList lang={lang} tick={rulesTick} />
+    </div>
+  );
+}
+
+// ---------- gastos programados / condicionados ----------
+const PYA_RECUR_VARS = [
+  { k: "estadias", es: "Número de estadías", en: "Number of stays", unitEs: "estadía", unitEn: "stay", money: false },
+  { k: "ingresoBruto", es: "Ingreso bruto", en: "Gross income", money: true },
+  { k: "ingresoNeto", es: "Ingreso neto", en: "Net income", money: true },
+  { k: "reparaciones", es: "Inversiones & reparaciones", en: "Investments & repairs", money: true },
+  { k: "noches", es: "Noches reservadas", en: "Booked nights", unitEs: "noche", unitEn: "night", money: false },
+  { k: "insumos", es: "Insumos & gastos", en: "Supplies & expenses", money: true },
+];
+const PYA_MES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const PYA_MES_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+function pyaYmLabel(ym, es) { const p = String(ym || "").split("-"); if (p.length < 2) return ym || ""; return (es ? PYA_MES_ES : PYA_MES_EN)[+p[1] - 1] + " " + p[0]; }
+function pyaYmAdd(ym, n) { const p = ym.split("-"); const d = new Date(+p[0], +p[1] - 1 + n, 1); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0"); }
+// primer mes abierto: el anterior sigue abierto hasta el día 10; nunca hacia atrás de eso
+function pyaRecurMonths(es) {
+  const now = new Date(); const cur = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+  const first = now.getDate() <= 10 ? pyaYmAdd(cur, -1) : cur;
+  const out = []; for (let i = 0; i < 13; i++) { const ym = pyaYmAdd(first, i); out.push({ value: ym, label: pyaYmLabel(ym, es) }); }
+  return out;
+}
+
+function PyaRecurList({ lang, tick }) {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const P = window.PedidosYa;
+  const W = window.SpacioWrite;
+  const [data, setData] = pyUseState(null);
+  const [busy, setBusy] = pyUseState("");
+  const [msg, setMsg] = pyUseState("");
+  const [showOld, setShowOld] = pyUseState(false);
+  const load = async () => {
+    if (!(W && W.enabled())) { setData({ rules: [] }); return; }
+    const res = await W.post("recurList", {}, { timeout: 45000 });
+    setData(res && res.ok ? res : { rules: [], error: (res && res.error) || tr("sin conexión", "offline") });
+  };
+  pyUseEffect(() => { load(); }, [tick]);
+  const act = async (action, id, okText) => {
+    setBusy(action + id); setMsg("");
+    try {
+      const res = await W.post(action, { id }, { timeout: 90000 });
+      if (res && res.ok) { setMsg(okText(res)); await load(); }
+      else setMsg(tr("No se pudo: ", "Could not: ") + ((res && res.error) || tr("sin conexión", "offline")) + ".");
+    } finally { setBusy(""); }
+  };
+  const cancel = (r) => {
+    if (!window.confirm(tr("¿Cancelar este gasto programado? Lo que ya se aplicó se queda; no se cargará en los meses siguientes.", "Cancel this scheduled expense? What's already applied stays; it won't be charged in later months."))) return;
+    act("recurCancel", r.id, () => tr("Gasto programado cancelado.", "Scheduled expense cancelled."));
+  };
+  if (!data) return <p className="pya-note" style={{ marginTop: 28 }}>{tr("Cargando gastos programados…", "Loading scheduled expenses…")}</p>;
+  const rules = (data.rules || []).slice().reverse();
+  const active = rules.filter(r => r.estado !== "cancelado" && !(r.hasta && data.now && r.hasta < data.now && r.frecuencia !== "una vez"));
+  const old = rules.filter(r => !active.includes(r));
+  if (!rules.length && !data.error) return null;
+  const formula = (r) => r.tipo === "condicionado"
+    ? (r.terminos || []).map(t => { const d = PYA_RECUR_VARS.find(x => x.k === t.v) || { es: t.v, en: t.v }; return d.money ? t.f + "% × " + (es ? d.es : d.en).toLowerCase() : "Q" + t.f + " × " + (es ? d.es : d.en).toLowerCase(); }).join(" + ")
+    : P.money(r.valor) + (r.frecuencia === "una vez" ? "" : tr(" al mes", " a month"));
+  const period = (r) => r.frecuencia === "una vez" ? tr("Solo ", "Only ") + pyaYmLabel(r.desde, es)
+    : tr("Desde ", "From ") + pyaYmLabel(r.desde, es) + (r.hasta ? tr(" hasta ", " to ") + pyaYmLabel(r.hasta, es) : tr(" · cada mes", " · every month"));
+  const card = (r) => (
+    <div key={r.id} style={{ border: "1px solid var(--warm-grey)", borderRadius: 14, padding: "14px 16px", background: "var(--surface)", display: "flex", flexDirection: "column", gap: 8, opacity: r.estado === "cancelado" ? 0.75 : 1 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 13.5, fontWeight: 600, color: "var(--ink)", minWidth: 0 }}>{r.comentario || tr("Gasto programado", "Scheduled expense")}</span>
+        <span className="t-num" style={{ fontFamily: "var(--sans)", fontSize: 12.5, fontWeight: 600, color: "var(--ink)" }}>{formula(r)}</span>
+      </div>
+      <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)" }}>
+        {(r.propiedades || []).join(" · ")}<br />
+        {period(r)} · {r.categoria}{r.tipo === "condicionado" ? tr(" · condicionado", " · conditional") : ""}
+        {r.estado === "cancelado" ? tr(" · cancelado", " · cancelled") : ""}
+      </span>
+      {(r.aplicados || []).length > 0 && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {r.aplicados.map(ym => <span key={ym} style={{ padding: "3px 10px", borderRadius: 999, background: "var(--bg-alt)", fontFamily: "var(--sans)", fontSize: 10.5, letterSpacing: "0.06em", color: "var(--fg-muted)" }}>{tr("Aplicado · ", "Applied · ") + pyaYmLabel(ym, es)}</span>)}
+        </div>
+      )}
+      {r.estado !== "cancelado" && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <button className="sa-file-btn ghost" style={{ fontSize: 11.5 }} disabled={!!busy} onClick={() => act("recurApply", r.id, (res) => res.added ? tr(res.added + " fila(s) aplicadas.", res.added + " row(s) applied.") : tr("Nada pendiente: los meses que ya terminaron están aplicados.", "Nothing pending: finished months are applied."))}>
+            {busy === "recurApply" + r.id ? tr("Aplicando…", "Applying…") : tr("Aplicar pendientes", "Apply pending")}
+          </button>
+          <button className="sa-file-btn ghost" style={{ fontSize: 11.5, color: "#9B5B4E", borderColor: "#D9BAB2" }} disabled={!!busy} onClick={() => cancel(r)}>
+            {busy === "recurCancel" + r.id ? tr("Cancelando…", "Cancelling…") : tr("Cancelar", "Cancel")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+  return (
+    <div style={{ marginTop: 32, paddingTop: 20, borderTop: "1px solid var(--warm-grey)", display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Gastos programados", "Scheduled expenses")} · {active.length}</span>
+        {old.length > 0 && <button className="pya-btn pya-btn-ghost" onClick={() => setShowOld(s => !s)}>{showOld ? tr("Ocultar cancelados", "Hide cancelled") : tr("Ver cancelados · ", "Show cancelled · ") + old.length}</button>}
+      </div>
+      {data.error && <p className="pya-note" style={{ margin: 0 }}>{tr("No se pudieron leer: ", "Could not load: ") + data.error}</p>}
+      {msg && <p className="pya-note" style={{ margin: 0, color: "var(--ink)" }}>{msg}</p>}
+      {active.map(card)}
+      {!active.length && !data.error && <p className="pya-note" style={{ margin: 0 }}>{tr("No hay gastos programados activos.", "No active scheduled expenses.")}</p>}
+      {showOld && old.map(card)}
     </div>
   );
 }
@@ -1662,26 +1861,39 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
   const propOf = (r) => (props[r.id] !== undefined ? props[r.id] : r.property_name);
   const ready = pending.filter(r => propOf(r) && r.total > 0);
 
-  const keep = async (r) => {
-    const name = propOf(r);
-    if (!name) { setMsg(tr("Asigna una propiedad antes de conservar el gasto.", "Assign a property before keeping the expense.")); return; }
-    setBusy("k-" + r.id); setMsg("");
-    const row = R.sheetRow(Object.assign({}, r, { property_name: name }));
-    if (window.SpacioWrite && window.SpacioWrite.enabled()) {
-      const res = await window.SpacioWrite.post("appendInsumos", { rows: [row] });
-      if (!(res && res.ok)) { setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ".", "Could not save: " + ((res && res.error) || "offline") + ".")); setBusy(""); return; }
-      if (addImported) addImported([row.orderId]);
-    }
-    R.decide(r.id, "ok"); setBusy(""); setTick(t => t + 1);
-    setMsg(tr("Gasto conservado y agregado a " + name + ".", "Expense kept and added to " + name + "."));
+  // escribe con tiempo límite; si no responde, reintenta una vez (el servidor
+  // deduplica por orderId, así que reintentar nunca crea filas dobles)
+  const writeRows = async (rows) => {
+    const W = window.SpacioWrite;
+    let res = await W.post("appendInsumos", { rows }, { timeout: 45000 });
+    if (res && res.timeout) res = await W.post("appendInsumos", { rows }, { timeout: 60000 });
+    return res;
   };
+  const keepRows = async (list) => {
+    const items = list.map(r => ({ r, name: propOf(r) })).filter(x => x.name);
+    if (!items.length) { setMsg(tr("Asigna una propiedad antes de conservar el gasto.", "Assign a property before keeping the expense.")); return; }
+    setBusy(items.length === 1 ? "k-" + items[0].r.id : "all"); setMsg("");
+    try {
+      const rows = items.map(x => R.sheetRow(Object.assign({}, x.r, { property_name: x.name })));
+      if (window.SpacioWrite && window.SpacioWrite.enabled()) {
+        const res = await writeRows(rows);
+        if (!(res && res.ok)) { setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión") + ". Intenta de nuevo; no se duplicará.", "Could not save: " + ((res && res.error) || "offline") + ". Try again; it won't duplicate.")); return; }
+        if (addImported) addImported(rows.map(x => x.orderId));
+      }
+      items.forEach(x => R.decide(x.r.id, "ok")); setTick(t => t + 1);
+      setMsg(items.length === 1
+        ? tr("Gasto conservado y agregado a " + items[0].name + ".", "Expense kept and added to " + items[0].name + ".")
+        : tr(items.length + " gastos conservados.", items.length + " expenses kept."));
+    } catch (e) {
+      setMsg(tr("No se pudo guardar: " + ((e && e.message) || "error") + ".", "Could not save: " + ((e && e.message) || "error") + "."));
+    } finally { setBusy(""); }
+  };
+  const keep = (r) => keepRows([r]);
   const drop = (r) => {
     if (!window.confirm(tr("¿Eliminar este reporte? No se agregará como gasto.", "Delete this report? It will not be added as an expense."))) return;
     R.decide(r.id, "no"); setTick(t => t + 1);
   };
-  const keepAll = async () => {
-    for (const r of ready) { await keep(r); }
-  };
+  const keepAll = () => keepRows(ready);
 
   if (!R) return <p className="pya-note">{tr("Módulo de reportes no disponible.", "Reports module unavailable.")}</p>;
   const last = R.lastSync();
@@ -1698,7 +1910,7 @@ function PyaReportesPanel({ lang, propOptions, addImported, active }) {
         </button>
         {ready.length > 1 && (
           <button className="sa-file-btn ghost" onClick={keepAll} disabled={!!busy} style={{ fontSize: 12 }}>
-            {tr("Conservar los " + ready.length + " listos", "Keep all " + ready.length + " ready")}
+            {busy === "all" ? tr("Guardando…", "Saving…") : tr("Conservar los " + ready.length + " listos", "Keep all " + ready.length + " ready")}
           </button>
         )}
         <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)", letterSpacing: "0.04em" }}>

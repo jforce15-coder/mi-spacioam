@@ -188,7 +188,7 @@
     var MES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
     var mm = r.fecha ? +r.fecha.slice(5, 7) : 0;
     return {
-      Mes: mm ? MES[mm - 1] : "",
+      Mes: mm || "",   // numérico: Codigo.gs lee el mes con parseInt
       "Fecha de pedido": r.fecha,
       property_name: r.property_name,
       valor: r.total,

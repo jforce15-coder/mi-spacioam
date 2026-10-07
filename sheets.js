@@ -568,19 +568,27 @@
       return !!this.url();
     },
     enabled() { return !!this.url(); },
-    async post(action, payload) {
+    // opts.timeout (ms): corta la espera si Apps Script no responde (Safari/iPad
+    // a veces deja el fetch colgado tras el redirect) → { ok:false, timeout:true }.
+    async post(action, payload, opts) {
       if (!this.url()) return { ok: false, offline: true };
+      const ms = opts && opts.timeout;
+      const ctl = ms && typeof AbortController !== "undefined" ? new AbortController() : null;
+      const tm = ctl ? setTimeout(() => ctl.abort(), ms) : null;
       try {
         // text/plain → "simple request", evita preflight CORS contra Apps Script
         const res = await fetch(this.url(), {
-          method: "POST", redirect: "follow",
+          method: "POST", redirect: "follow", signal: ctl ? ctl.signal : undefined,
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(Object.assign({ action: action, token: this.token() }, payload || {})),
         });
         const txt = await res.text();
         try { return JSON.parse(txt); }
         catch (pe) { return { ok: false, error: /<html|<!doctype/i.test(txt) ? "el servidor tardó demasiado o el Apps Script no está actualizado (respuesta HTML)" : "respuesta inválida del servidor" }; }
-      } catch (e) { return { ok: false, error: String(e) }; }
+      } catch (e) {
+        if (e && e.name === "AbortError") return { ok: false, timeout: true, error: "el servidor no respondió a tiempo" };
+        return { ok: false, error: String(e) };
+      } finally { if (tm) clearTimeout(tm); }
     },
     ping() { return this.post("ping", {}); },
   };
