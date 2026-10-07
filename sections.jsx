@@ -1169,13 +1169,14 @@ const SetupSection = ({ lang, t }) => {
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <input className="sa-setup-input" style={{ maxWidth: 130 }} value={mailMes} onChange={e => setMailMes(e.target.value)} placeholder="2026-07" />
           <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => sendMail("sendCierreMes")} disabled={mailBusy !== ""}>
-            <Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar cierre de mes", "Send month close")}
+            <Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar cierre a pendientes", "Send month close to pending")}
           </button>
           <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => sendMail("sendRecordatoriosFactura")} disabled={mailBusy !== ""}>
             <Icon name="alert" size={14} stroke="var(--fg-muted)" />{tr("Recordar facturas pendientes", "Remind pending invoices")}
           </button>
           {mailMsg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{mailMsg}</span>}
         </div>
+        <MailMultiToggle lang={lang} />
       </Card>
 
       {typeof ContratosSetupCard !== "undefined" && <ContratosSetupCard lang={lang} />}
@@ -1953,37 +1954,124 @@ function mailErrText(r, es) {
   return (es ? "Error: " : "Error: ") + (r.error || "?");
 }
 
-// ---- Aviso corto en Resumen: enviar el correo mensual a socios ----
+// ---- Correo mensual a socios (Resumen, solo administrador) ----
+// Un reporte por socio y mes. El servidor lleva el registro; "Enviar a pendientes"
+// omite a quien ya lo recibió; el botón por socio manda solo el suyo.
+function mailFecha(iso, es) {
+  if (!iso) return "";
+  const d = new Date(iso); const M = es ? ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"] : ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return d.getDate() + " " + M[d.getMonth()] + " · " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
 const MailNudgeCard = ({ lang }) => {
   const es = lang !== "en";
   const tr = (a, b) => (es ? a : b);
   const [open, setOpen] = useState(false);
   const [mes, setMes] = useState(lastLoadedYm);
-  const [busy, setBusy] = useState(false);
+  const [st, setSt] = useState(null);      // respuesta de cierreMesEstado
+  const [busy, setBusy] = useState("");    // "all" | code | "load"
   const [msg, setMsg] = useState("");
-  const send = async () => {
-    if (!window.confirm(tr("Se enviará el correo de cierre a todos los socios con resultado en " + mes + ". ¿Continuar?", "This sends the month-close email to every owner with results in " + mes + ". Continue?"))) return;
-    setBusy(true); setMsg(tr("Enviando…", "Sending…"));
-    const r = await sendMailAction("sendCierreMes", { mes });
+  const ownerName = (code) => { const o = (SpacioData.owners || []).find(o => (o.codes || [o.code]).some(c => String(c).toLowerCase() === String(code).toLowerCase())); return o ? o.name : code.replace(/_/g, " "); };
+  const load = async (m) => {
+    setBusy("load"); setMsg("");
+    const r = await sendMailAction("cierreMesEstado", { mes: m || mes });
+    setBusy("");
+    if (r && r.ok) setSt(r); else { setSt(null); setMsg(mailErrText(r, es)); }
+  };
+  useEffect(() => { if (open) load(mes); }, [open, mes]);
+  const pend = st ? st.socios.filter(x => !x.enviados) : [];
+  const done = st ? st.socios.filter(x => x.enviados) : [];
+  const send = async (code) => {
+    const who = code ? ownerName(code) : tr(pend.length + " socio(s) pendientes", pend.length + " pending owner(s)");
+    const multiNote = code && st && st.multi && done.some(x => x.code === code) ? tr(" Ya recibió el de este mes: se enviará de nuevo porque el administrador lo permitió, y el permiso se apagará.", " They already got this month's: it will be re-sent because the admin allowed it, and the permission will turn off.") : "";
+    if (!window.confirm(tr("Se enviará el reporte de " + (st ? st.mesTexto : mes) + " a " + who + "." + multiNote + " ¿Continuar?", "This sends the " + mes + " report to " + who + "." + multiNote + " Continue?"))) return;
+    setBusy(code || "all"); setMsg("");
+    const r = await sendMailAction("sendCierreMes", code ? { mes, socio: code } : { mes });
+    if (r && r.ok) setMsg(tr("Listo · " + r.enviados + " correo(s)", "Done · " + r.enviados + " email(s)") + (r.sinCorreo && r.sinCorreo.length ? tr(" · sin correo: ", " · no email: ") + r.sinCorreo.join(", ") : ""));
+    else if (r && r.error === "ya-enviado") setMsg(tr("Este socio ya recibió el reporte de este mes. Para reenviarlo, activa “Permitir más de un correo” en Setup.", "This owner already got this month's report. To re-send, enable “Allow more than one email” in Setup."));
+    else setMsg(mailErrText(r, es));
+    await load(mes);
+  };
+  const row = (x, isDone) => (
+    <div key={x.code} style={{ display: "flex", alignItems: "center", gap: 12, padding: "9px 0", borderTop: "1px solid var(--ink-08)" }}>
+      <span style={{ width: 8, height: 8, borderRadius: 999, background: isDone ? "var(--color-success, #3d6b52)" : "var(--peach)", flexShrink: 0 }} />
+      <span style={{ flex: 1, minWidth: 0, fontFamily: "var(--sans)", fontSize: 12.5, color: "var(--ink)" }}>
+        {ownerName(x.code)}
+        <span style={{ display: "block", fontSize: 10.5, letterSpacing: "0.04em", color: "var(--fg-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {x.props.join(" · ")}{isDone ? tr(" · enviado ", " · sent ") + mailFecha(x.ultimo, es) + (x.enviados > 1 ? " (" + x.enviados + ")" : "") : (x.email ? "" : tr(" · sin correo", " · no email"))}
+        </span>
+      </span>
+      <button type="button" className="sa-hsp-btn" onClick={() => send(x.code)} disabled={!!busy || !x.email || (isDone && !(st && st.multi))}
+        title={isDone ? (st && st.multi ? tr("Reenviar (excepción activa)", "Re-send (exception on)") : tr("Ya enviado este mes", "Already sent this month")) : tr("Enviar a " + ownerName(x.code), "Send to " + ownerName(x.code))}
+        aria-label={tr("Enviar correo a " + ownerName(x.code), "Send email to " + ownerName(x.code))}>
+        {busy === x.code ? <span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name={isDone ? "check" : "mail"} size={15} stroke="currentColor" />}
+      </button>
+    </div>
+  );
+  return (
+    <div style={{ background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 18, padding: "14px 18px", marginBottom: 18 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+        <span style={{ width: 34, height: 34, borderRadius: 11, background: "var(--alabaster)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <Icon name="mail" size={16} stroke="var(--ink)" />
+        </span>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", color: "var(--ink)", flex: 1, minWidth: 200 }}>
+          {tr("Avisa a los socios que su reporte del mes ya está listo.", "Let owners know their monthly report is ready.")}
+          {st && <span style={{ display: "block", fontSize: 11, color: "var(--fg-muted)", marginTop: 2 }}>{st.mesTexto} · {done.length} {tr("enviados", "sent")} · {pend.length} {tr("pendientes", "pending")}{st.multi ? tr(" · excepción activa: se permite más de un correo", " · exception on: more than one email allowed") : ""}</span>}
+        </span>
+        {!open
+          ? <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => setOpen(true)}><Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar correo mensual", "Send monthly email")}</button>
+          : <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
+              <input className="sa-setup-input" style={{ maxWidth: 120 }} value={mes} onChange={e => setMes(e.target.value)} placeholder="2026-07" />
+              <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => send(null)} disabled={!!busy || !st || !pend.length}>
+                {busy === "all" ? tr("Enviando…", "Sending…") : tr("Enviar a pendientes", "Send to pending") + (st ? " · " + pend.length : "")}
+              </button>
+              <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => { setOpen(false); setMsg(""); }}>{tr("Cerrar", "Close")}</button>
+            </div>}
+      </div>
+      {open && (
+        <div style={{ marginTop: 12 }}>
+          {busy === "load" && !st && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)" }}>{tr("Consultando quién ya recibió…", "Checking who already received…")}</span>}
+          {st && !st.socios.length && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)" }}>{tr("No hay socios con resultado en " + st.mesTexto + ".", "No owners with results in " + st.mesTexto + ".")}</span>}
+          {pend.map(x => row(x, false))}
+          {done.map(x => row(x, true))}
+        </div>
+      )}
+      {msg && <span style={{ display: "block", marginTop: 10, fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)" }}>{msg}</span>}
+    </div>
+  );
+};
+
+// ---- Setup: excepción "más de un correo de cierre por mes" ----
+const MailMultiToggle = ({ lang }) => {
+  const es = lang !== "en";
+  const tr = (a, b) => (es ? a : b);
+  const [on, setOn] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => { (async () => { const r = await sendMailAction("cierreMesEstado", { mes: lastLoadedYm() }); if (r && r.ok) setOn(!!r.multi); })(); }, []);
+  const flip = async () => {
+    if (busy) return;
+    const next = !on;
+    if (next && !window.confirm(tr("Esto permite enviar el reporte del mes a un socio que ya lo recibió. Se apaga solo después del siguiente envío individual. ¿Activar?", "This allows sending the monthly report to an owner who already got it. It turns off by itself after the next individual send. Turn on?"))) return;
+    setBusy(true); setErr("");
+    const r = await sendMailAction("cierreMesMulti", { on: next });
     setBusy(false);
-    setMsg(r && r.ok ? tr("Listo · " + r.enviados + " correo(s)", "Done · " + r.enviados + " email(s)") : mailErrText(r, es));
+    if (r && r.ok) setOn(!!r.multi); else setErr(mailErrText(r, es));
   };
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", background: "var(--beige-soft)", border: "1px solid var(--ink-08)", borderRadius: 18, padding: "14px 18px", marginBottom: 18 }}>
-      <span style={{ width: 34, height: 34, borderRadius: 11, background: "var(--alabaster)", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        <Icon name="mail" size={16} stroke="var(--ink)" />
+    <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--ink-08)", flexWrap: "wrap" }}>
+      <button type="button" role="switch" aria-checked={!!on} onClick={flip} disabled={on === null || busy}
+        style={{ width: 40, height: 24, borderRadius: 999, border: "1px solid " + (on ? "var(--peach)" : "var(--warm-grey)"), background: on ? "var(--peach-12, rgba(233,130,106,.12))" : "var(--alabaster)", position: "relative", cursor: on === null ? "not-allowed" : "pointer", padding: 0, flexShrink: 0, transition: "all .18s var(--ease)" }}>
+        <span style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: 999, background: on ? "var(--ink)" : "var(--warm-grey)", transition: "left .18s var(--ease)" }} />
+      </button>
+      <span style={{ flex: 1, minWidth: 220, fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.6, letterSpacing: "0.03em", color: "var(--ink)" }}>
+        {tr("Permitir más de un correo de cierre por socio en el mes", "Allow more than one month-close email per owner in a month")}
+        <span style={{ display: "block", fontSize: 11, color: "var(--fg-muted)" }}>
+          {on === null ? tr("Consultando…", "Checking…") : on
+            ? tr("Activo: el próximo envío individual podrá repetirse; después se apaga solo.", "On: the next individual send may repeat; then it turns off by itself.")
+            : tr("Apagado: cada socio recibe un solo reporte por mes. Actívalo para reenviar uno que no llegó.", "Off: each owner gets one report per month. Turn on to re-send one that didn't arrive.")}
+          {err ? " · " + err : ""}
+        </span>
       </span>
-      <span style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", color: "var(--ink)", flex: 1, minWidth: 200 }}>
-        {tr("Avisa a los socios que su reporte del mes ya está listo.", "Let owners know their monthly report is ready.")}
-      </span>
-      {!open
-        ? <button className="sa-chip-btn sa-chip-btn-dark" onClick={() => setOpen(true)}><Icon name="mail" size={14} stroke="var(--alabaster)" />{tr("Enviar correo mensual", "Send monthly email")}</button>
-        : <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap" }}>
-            <input className="sa-setup-input" style={{ maxWidth: 120 }} value={mes} onChange={e => setMes(e.target.value)} placeholder="2026-07" />
-            <button className="sa-chip-btn sa-chip-btn-dark" onClick={send} disabled={busy}>{busy ? tr("Enviando…", "Sending…") : tr("Confirmar envío", "Confirm")}</button>
-            <button className="sa-chip-btn sa-chip-btn-ghost" onClick={() => { setOpen(false); setMsg(""); }}>{tr("Cancelar", "Cancel")}</button>
-          </div>}
-      {msg && <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", width: "100%" }}>{msg}</span>}
     </div>
   );
 };
@@ -2258,4 +2346,4 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   );
 };
 
-Object.assign(window, { ContaUsersCard, DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList, MailNudgeCard, InvoiceControlTable, Farol });
+Object.assign(window, { MailMultiToggle, ContaUsersCard, DistributionSection, EvolutionSection, ExpensesSection, ExpenseEditModal, ReporteFinanciero, AccountSection, SetupSection, LiquidationBlock, DepositsSection, PendingInvoicesAlert, DepositBatchUpload, UploadedDepositsList, MailNudgeCard, InvoiceControlTable, Farol });
