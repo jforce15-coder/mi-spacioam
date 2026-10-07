@@ -226,6 +226,7 @@ function AdvancedSection({ lang, owner }) {
     let res;
     try { res = await w.post("resumenPreview", { ym }, AV_T); } catch (e) { res = { error: (e && e.message) || "error" }; }
     setBusy("");
+    if (res && res.ok && !Array.isArray(res.rows)) res = { ok: false, error: tr("el servidor respondió sin datos (" + Object.keys(res).filter(k => k !== "ok").join(", ") + "). Es probable que el Apps Script publicado sea una versión anterior: en Apps Script → Implementar → Administrar implementaciones → Editar → Nueva versión.", "server answered without data; the published Apps Script is probably an older version — redeploy a new version.") };
     if (res && res.ok) { setData(Object.assign({ ym }, res)); if (!res.rows.length) setMsg(tr("No hay reservas aceptadas con check-in en " + label(ym) + ".", "No accepted bookings this month.")); }
     else setMsg(tr("No se pudo generar: ", "Could not generate: ") + ((res && res.error) || tr("sin conexión", "offline")) + (res && res.timeout ? tr(" · el cálculo tardó demasiado; vuelve a intentar.", " · took too long; try again.") : ""));
   };
@@ -250,12 +251,12 @@ function AdvancedSection({ lang, owner }) {
       let again = null;
       try { again = await w.post("resumenPreview", { ym }, AV_T); } catch (e) {}
       setBusy("");
-      if (again && again.ok) {
+      if (again && again.ok && Array.isArray(again.rows)) {
         setData(Object.assign({ ym }, again));
         // el servidor dijo "igual" pero la hoja sigue distinta → se ofrece sobrescribir
         const H = (again.headers || []).map(h => String(h).trim().toLowerCase());
         const ex = again.existing || {}; let still = 0;
-        again.rows.forEach(r => { const o = {}; H.forEach((h, i) => { o[h] = r[i]; }); const e = ex[String(o["property_name"] || "").trim().toLowerCase()]; if (!e) { still++; return; } if (AV_COLS.some(c => Math.abs((+o[c.k] || 0) - (+e.values[c.k] || 0)) > 0.005)) still++; });
+        (again.rows || []).forEach(r => { const o = {}; H.forEach((h, i) => { o[h] = r[i]; }); const e = ex[String(o["property_name"] || "").trim().toLowerCase()]; if (!e) { still++; return; } if (AV_COLS.some(c => Math.abs((+o[c.k] || 0) - (+e.values[c.k] || 0)) > 0.005)) still++; });
         if (still && !force) setWarn(tr(still + " propiedad(es) siguen distintas en Resumenconsolidado después de agregar. Puedes sobrescribirlas con este cálculo.", still + " propert(ies) still differ after adding. You can overwrite them with this calculation."));
       } else if (before) setWarn(tr("Se agregó, pero no se pudo releer la hoja. Genera el resumen de nuevo para confirmar.", "Added, but could not re-read the sheet. Generate again to confirm."));
       return true;
