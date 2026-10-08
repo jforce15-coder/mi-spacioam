@@ -1493,7 +1493,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
   const canUpload = !!ym && (scope === "property" ? !!propName : !!ownerLabel);
   const SF = window.SpacioFiles;
 
-  const invCov = SF && ym ? SF.coverage("factura", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
+  const invCov = SF && ym ? SF.coverage("factura", { scope, owner: ownerLabel, property_name: propName, ym, properties: activeProps || [] }) : null;
   // constancia de retención: solo tiene sentido cuando el mes retuvo algo
   const retCov = SF && ym && usaNeto2 ? SF.coverage("retencion", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
   const depAll = SF && ym ? SF.coverageAll("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : [];
@@ -1811,11 +1811,11 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
                   {d.scope === "owner"
                     ? <select className="sa-dep-select" value={d.owner || ""} onChange={e => setItem(d.id, { owner: e.target.value })}>
                         <option value="">{tr("— asignar socio (todas sus propiedades) —", "— assign owner (all their properties) —")}</option>
-                        {owners.map(n => <option key={n} value={n}>{n}</option>)}
+                        {owners.slice().sort((a, b) => String(a).localeCompare(String(b), "es", { numeric: true, sensitivity: "base" })).map(n => <option key={n} value={n}>{n}</option>)}
                       </select>
                     : <select className="sa-dep-select" value={d.property_name} onChange={e => setItem(d.id, { property_name: e.target.value })}>
                         <option value="">{tr("— asignar propiedad —", "— assign property —")}</option>
-                        {names.map(n => <option key={n} value={n}>{n}</option>)}
+                        {names.slice().sort((a, b) => String(a).localeCompare(String(b), "es", { numeric: true, sensitivity: "base" })).map(n => <option key={n} value={n}>{n}</option>)}
                       </select>}
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <input className="sa-dep-input" value={d.day} onChange={e => setItem(d.id, { day: e.target.value })} placeholder="2026-05-01" style={{ flex: 1 }} />

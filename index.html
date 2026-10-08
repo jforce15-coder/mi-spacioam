@@ -419,7 +419,7 @@
 
   <script src="sheets.js?v=20261007f"></script>
   <script src="sa-auth-client.js?v=20260823"></script>
-  <script src="files.js?v=20260820"></script>
+  <script src="files.js?v=20261008"></script>
   <script src="sa-rows.js?v=20260940"></script>
   <script src="facturas-batch.js?v=20260820"></script>
   <script src="i18n.js?v=20260923"></script>
@@ -439,20 +439,20 @@
   <script src="conta-export.js?v=20260820"></script>
   <script src="conta-pdfs.js?v=20260820"></script>
   <script src="conta-opex.js?v=20260820"></script>
-  <script type="text/babel" src="ui.jsx?v=20260945"></script>
+  <script type="text/babel" src="ui.jsx?v=20261008"></script>
   <script type="text/babel" src="sa-combo.jsx?v=20260923"></script>
-  <script src="noti-data.js?v=20260821"></script>
+  <script src="noti-data.js?v=20261008"></script>
   <script type="text/babel" src="noti-center.jsx?v=20260852"></script>
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
   <script type="text/babel" src="login.jsx?v=20260823"></script>
-  <script type="text/babel" src="pedidosya-ui.jsx?v=20260932"></script>
+  <script type="text/babel" src="pedidosya-ui.jsx?v=20261008"></script>
   <script type="text/babel" src="pedidosya.jsx?v=20261007f"></script>
   <script type="text/babel" src="dashboard.jsx?v=20260943"></script>
-  <script type="text/babel" src="sections.jsx?v=20261007j"></script>
+  <script type="text/babel" src="sections.jsx?v=20261008"></script>
   <script type="text/babel" src="conta.jsx?v=20260923"></script>
   <script type="text/babel" src="conta-facturas.jsx?v=20260940"></script>
   <script type="text/babel" src="contratos.jsx?v=20260923"></script>
-  <script type="text/babel" src="avanzado.jsx?v=20261007h"></script>
+  <script type="text/babel" src="avanzado.jsx?v=20261008"></script>
   <script type="text/babel" src="conta-pl.jsx?v=20260938"></script>
 
   <script type="text/babel">
@@ -547,7 +547,8 @@
         const oLabel = (typeof ownerLabelFor !== "undefined")
           ? ownerLabelFor({ scope, property: isAll ? null : activeProps[0], activeProps, owner, isAdmin })
           : (owner.name || owner.code);
-        const cov = SF.coverage("factura", { scope, owner: oLabel, property_name: isAll ? "" : (activeProps[0] ? activeProps[0].name : ""), ym: ymS });
+        if (SF.exemptOwner && (SF.exemptOwner(oLabel) || SF.exemptOwner(owner.code))) return null;
+        const cov = SF.coverage("factura", { scope, owner: oLabel, property_name: isAll ? "" : (activeProps[0] ? activeProps[0].name : ""), ym: ymS, properties: activeProps || [] });
         const income = pdata.cur.ingresoNeto || 0;
         if (cov || income <= 0.5) return null;
         const u = SF.urgency(em.y, em.m);

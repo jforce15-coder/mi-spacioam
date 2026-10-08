@@ -236,7 +236,12 @@ function PyaMiniList({ value, options, onChange, placeholder, search }) {
     return () => { window.removeEventListener("scroll", onScroll, true); window.removeEventListener("resize", onScroll); };
   }, [open]);
   const cur = options.find(o => o.value === value);
-  const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q.toLowerCase())) : options;
+  // listas largas: orden alfabético (las que empiezan con "—" quedan arriba) y buscador siempre
+  const sorted = options.length > 5
+    ? options.slice().sort((a, b) => { const sa = /^[—-]/.test(String(a.label)), sb = /^[—-]/.test(String(b.label)); if (sa !== sb) return sa ? -1 : 1; return String(a.label).localeCompare(String(b.label), "es", { numeric: true, sensitivity: "base" }); })
+    : options;
+  const showSearch = search || options.length > 5;
+  const filtered = q ? sorted.filter(o => String(o.label).toLowerCase().includes(q.toLowerCase())) : sorted;
   return (
     <div className="pya-mini" ref={ref}>
       <button ref={btnRef} className={"pya-mini-btn" + (cur ? "" : " empty")} onClick={() => setOpen(o => !o)}>
@@ -245,7 +250,7 @@ function PyaMiniList({ value, options, onChange, placeholder, search }) {
       </button>
       {open && pos && (
         <div className="pya-mini-pop" style={{ position: "fixed", left: pos.left, top: pos.top != null ? pos.top : "auto", bottom: pos.bottom != null ? pos.bottom : "auto", width: pos.width, minWidth: pos.width }}>
-          {search && <input className="pya-mini-search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar…" />}
+          {showSearch && <input className="pya-mini-search" autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar…" />}
           {filtered.map(o => (
             <button key={o.value} className={"pya-mini-opt" + (o.value === value ? " on" : "")}
               onClick={() => { onChange(o.value); setOpen(false); setQ(""); }}>

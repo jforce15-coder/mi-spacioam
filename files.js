@@ -61,8 +61,31 @@
     });
   }
 
+  // Socios que no entran en pendientes de pago ni de facturas (es la propia empresa).
+  var EXEMPT_OWNERS = ["socio_002"];
+  function exemptOwner(label) {
+    var n = norm(label); if (!n) return false;
+    if (EXEMPT_OWNERS.indexOf(n) >= 0) return true;
+    var owners = (window.SpacioData && window.SpacioData.owners) || [];
+    return owners.some(function (o) {
+      var codes = (o.codes || [o.code]).map(norm);
+      var isEx = codes.some(function (c) { return EXEMPT_OWNERS.indexOf(c) >= 0; });
+      return isEx && (codes.indexOf(n) >= 0 || norm(o.name) === n);
+    });
+  }
+  // propiedades que SÍ necesitan factura en un mes: las que tuvieron ingreso
+  function propsNeedingInvoice(props, ym) {
+    var p = String(ym || "").split("-"), y = +p[0], m = +p[1] - 1;
+    return (props || []).filter(function (pr) {
+      var mo = (pr.months || []).find(function (x) { return x.y === y && x.m === m && x.present; });
+      return mo && ((mo.deposito != null ? mo.deposito : mo.ingresoNeto) || 0) > 0.5;
+    });
+  }
+
   var SpacioFiles = {
     ENFORCE_FROM_YEAR: ENFORCE_FROM_YEAR,
+    exemptOwner: exemptOwner,
+    propsNeedingInvoice: propsNeedingInvoice,
 
     // todos los registros (publicados + locales), con el local pisando al publicado
     records: function () {
@@ -123,8 +146,20 @@
         if (r.scope === "owner" && ownerN && norm(r.owner) === ownerN) byOwner = r;
         if (r.scope === "property" && propN && norm(r.property_name) === propN) byProp = r;
       });
-      // si piden a nivel socio, solo cuenta el del socio
-      if (opts.scope === "owner") return byOwner || null;
+      // a nivel socio: cubre la factura global O que TODAS sus propiedades con
+      // ingreso del mes tengan la suya (opts.properties). Regla de "completado":
+      //   global sí, individuales no/sí → completa · global no, todas → completa
+      //   global no, faltan individuales → pendiente.
+      if (opts.scope === "owner") {
+        if (byOwner) return byOwner;
+        if (kind === "factura" && opts.properties && opts.properties.length) {
+          var need = propsNeedingInvoice(opts.properties, ym);
+          if (!need.length) return null;
+          var all = need.every(function (p) { var pn = norm(p.name || p); return recs.some(function (r) { return r.tipo === kind && r.ym === ym && r.scope === "property" && norm(r.property_name) === pn; }); });
+          if (all) return { tipo: kind, ym: ym, scope: "property", synthetic: true, count: need.length };
+        }
+        return null;
+      }
       return byProp || byOwner || null; // a nivel propiedad, el del socio también cubre
     },
 
@@ -273,6 +308,7 @@
     missingInvoiceMonths: function (opts) {
       var self = this;
       var owner = opts.owner;
+      if (exemptOwner(owner)) return [];
       var props = opts.properties || [];
       var now = new Date();
       var nowY = now.getFullYear(), nowM = now.getMonth();

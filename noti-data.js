@@ -19,6 +19,7 @@
     var es = ctx.lang !== "en";
     var scope = ctx.isAll ? "owner" : "property";
     var oLabel = ctx.ownerLabel || (ctx.owner && (ctx.owner.name || ctx.owner.code)) || "";
+    if (SF.exemptOwner && (SF.exemptOwner(oLabel) || SF.exemptOwner(ctx.owner && ctx.owner.code))) return out;
     var propName = ctx.isAll ? "" : (ctx.activeProps && ctx.activeProps[0] ? ctx.activeProps[0].name : "");
     // últimos meses presentes, del año en que empieza la exigencia en adelante
     var meses = (ctx.months || []).filter(function (m) { return m.present && m.y >= SF.ENFORCE_FROM_YEAR; }).slice(-6);
@@ -26,7 +27,7 @@
       var ymS = m.y + "-" + String(m.m + 1).padStart(2, "0");
       var income = (m.ingresoNeto != null) ? m.ingresoNeto : (m.ingresoBruto || 0);
       if (income <= 0.5) return; // meses sin ingreso no exigen factura
-      var cov = SF.coverage("factura", { scope: scope, owner: oLabel, property_name: propName, ym: ymS });
+      var cov = SF.coverage("factura", { scope: scope, owner: oLabel, property_name: propName, ym: ymS, properties: ctx.activeProps || [] });
       if (cov) return;
       var u = (SF.urgency ? SF.urgency(m.y, m.m) : { level: 1, days: 0 });
       if (!u || u.level < 1) return;
@@ -142,6 +143,7 @@
       var monto = (mo.deposito != null ? mo.deposito : mo.ingresoNeto) || 0;
       if (monto <= 0.5) return;
       var oLabel = ownerLabelOf(p);
+      if (SF.exemptOwner && (SF.exemptOwner(oLabel) || SF.exemptOwner(p.code))) return;
       var cov = SF.coverageAll("deposito", { scope: "property", owner: oLabel, property_name: p.name, ym: ym });
       if (cov && cov.length) return;
       depFaltan.push(p.name);
@@ -168,6 +170,7 @@
       var mo = monthOf(p); if (!mo) return;
       if (Math.abs(mo.retencion || 0) <= 0.5) return;
       var oLabel = ownerLabelOf(p);
+      if (SF.exemptOwner && (SF.exemptOwner(oLabel) || SF.exemptOwner(p.code))) return;
       var cov = SF.coverage("retencion", { scope: "property", owner: oLabel, property_name: p.name, ym: ym });
       if (cov) return;
       retFaltan.push(p.name);

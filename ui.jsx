@@ -154,7 +154,7 @@ const Select = ({ value, options, onChange, icon, align = "left", minWidth = 180
   const rest = !sort ? options.filter(o => o.value !== "all") : options.filter(o => o.value !== "all").slice()
     .sort((a, b) => String(a.label).localeCompare(String(b.label), "es", { numeric: true, sensitivity: "base" }));
   const ordered = sentinel.concat(rest);
-  const showSearch = searchable != null ? searchable : options.length > 6;
+  const showSearch = searchable != null ? searchable : options.length > 4;
   const shown = q ? ordered.filter(o => (String(o.label) + " " + (o.sub || "")).toLowerCase().includes(q.toLowerCase())) : ordered;
   // etiqueta del disparador
   let triggerLabel;
