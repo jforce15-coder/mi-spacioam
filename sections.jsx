@@ -267,8 +267,24 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const allRows = allRowsRaw
     .filter(r => localPatch[r.orderId] !== "__deleted__")
     .map(r => (r.orderId && localPatch[r.orderId] && typeof localPatch[r.orderId] === "object") ? Object.assign({}, r, localPatch[r.orderId]) : r);
-  // gastos no cobrables (Gasto Spacio AM / tags no cobrables) solo los ve el admin
+  // visibles por defecto; el admin oculta gastos puntuales con el ojo (visible_socio = "no")
   const billRows = allRows.filter(r => isAdmin || !r.adminOnly);
+  const [visBusy, setVisBusy] = useState("");
+  // Cobrable ↔ no cobrable: escribe categoría (E) y tag (G) juntas para que la app
+  // y el resumen (Codigo.gs) siempre coincidan. "Cobrable" = insumos & gastos sin tag.
+  const setBillable = async (r, makeBillable) => {
+    if (!r.orderId) { setExpMsg(lang === "es" ? "Este gasto no tiene identificador; corrígelo en la hoja (columnas categoria y tag)." : "This expense has no id; fix categoria and tag in the sheet."); return; }
+    const patch = makeBillable
+      ? { category: "insumos & gastos", tag: "", adminOnly: false, billable: true, catTagConflict: false }
+      : { category: "Gasto Spacio AM", tag: "Gasto Spacio AM", adminOnly: true, billable: false, catTagConflict: false };
+    setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: Object.assign({}, lp[r.orderId] && typeof lp[r.orderId] === "object" ? lp[r.orderId] : {}, patch) }));
+    if (!SpacioWrite.enabled()) return;
+    setVisBusy(r.orderId);
+    const res = await SpacioWrite.post("updateInsumo", { orderId: r.orderId, categoria: patch.category, tag: patch.tag });
+    setVisBusy("");
+    if (res && res.ok) { setExpMsg(makeBillable ? (lang === "es" ? "Ahora se cobra al socio y entra en el resumen." : "Now billed to owner and included in the summary.") : (lang === "es" ? "Marcado como Gasto Spacio AM: oculto y fuera del resumen." : "Marked as Spacio AM expense: hidden and excluded.")); triggerRecalc(); }
+    else setExpMsg(lang === "es" ? "No se pudo guardar el cambio." : "Could not save.");
+  };
   // El propietario ve UN solo movimiento por pedido: las facturas que comparten
   // la misma URL del pedido (productos + tarifa) se suman en un monto unificado,
   // conservando ambas autorizaciones para "Ver factura". El admin las ve separadas.
@@ -406,6 +422,15 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
                     )}
                     {!multiProp && activeProps.length > 1 && <em style={{ fontStyle: "normal", color: "var(--fg-muted)", fontSize: 11, marginLeft: 8 }}>· {r._prop}</em>}
                     {isAdmin && r.adminOnly && <em style={{ fontStyle: "normal", color: "var(--attention-text)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach-12)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }}>{lang === "es" ? "oculto al socio" : "owner-hidden"}</em>}
+                    {isAdmin && r.catTagConflict && <em style={{ fontStyle: "normal", color: "var(--attention-text)", fontSize: 9.5, letterSpacing: "0.1em", textTransform: "uppercase", marginLeft: 8, border: "1px solid var(--peach)", borderRadius: 6, padding: "2px 6px", verticalAlign: "middle" }} title={lang === "es" ? "La categoría dice cobrable pero el tag dice Gasto Spacio AM. Usa el botón para dejar las dos iguales." : "Category says billable but tag says Spacio AM. Use the button to make both match."}>{lang === "es" ? "categoría ≠ tag" : "category ≠ tag"}</em>}
+                    {isAdmin && (
+                      <button type="button" onClick={() => setBillable(r, !!r.adminOnly)} disabled={visBusy === r.orderId}
+                        title={r.adminOnly ? (lang === "es" ? "No se cobra al socio · tocar para cobrarlo (insumos & gastos)" : "Not billed · tap to bill as supplies") : (lang === "es" ? "Se cobra al socio · tocar para marcarlo Gasto Spacio AM" : "Billed · tap to mark as Spacio AM expense")}
+                        aria-label={lang === "es" ? "Cobrable al socio" : "Billable to owner"}
+                        style={{ display: "inline-flex", alignItems: "center", marginLeft: 8, border: "1px solid " + (r.adminOnly ? "var(--peach)" : "var(--ink-08)"), background: r.adminOnly ? "var(--peach-12, rgba(233,130,106,.12))" : "var(--alabaster)", cursor: "pointer", borderRadius: 7, padding: "3px 6px", color: r.adminOnly ? "var(--attention-text)" : "var(--fg-muted)", verticalAlign: "middle" }}>
+                        <Icon name={r.adminOnly ? "eye-off" : "eye"} size={12} stroke="currentColor" />
+                      </button>
+                    )}
                     {(r.orderUrl || r.authProductos || r.authTarifa) && (
                       <button onClick={() => setInvBox({ orderUrl: r.orderUrl, authProductos: r.authProductos, authTarifa: r.authTarifa, desc: r.desc, vendor: r.desc, amountGTQ: r.amountGTQ, day: r.y != null ? r.y + "-" + String(r.m + 1).padStart(2, "0") + "-" + String(r.day || 1).padStart(2, "0") : "" })}
                         style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 10, border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 8, padding: "3px 8px", fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.06em", color: "var(--fg-muted)", verticalAlign: "middle" }}>

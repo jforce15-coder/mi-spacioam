@@ -49,7 +49,9 @@
 
   // ---------- low-level ----------
   function csvURL(sheet) {
-    return "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheet);
+    // "&_=" evita que Safari/iPad sirva una copia vieja de la pestaña (los cambios
+    // hechos a mano en la hoja tardaban en verse, o no se veían, hasta borrar caché)
+    return "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheet) + "&_=" + Date.now();
   }
   function parseCSV(text) {
     const rows = []; let row = [], cur = "", q = false;
@@ -344,9 +346,15 @@
       const catKey = BILLABLE[catRaw.toLowerCase()];
       const billable = !!catKey;
       const tagRaw = (r["tag"] || "").trim();
-      // adminOnly = no se le cobra al socio (categoría no cobrable, o tag no cobrable).
-      // Estos gastos SÍ los ve el administrador, pero se ocultan al socio.
-      const adminOnly = !billable || !!NON_BILLABLE_TAGS[tagRaw.toLowerCase()];
+      // adminOnly = no se le cobra al socio: la categoría (col. E) no es cobrable,
+      // o el tag (col. G) es no cobrable. La MISMA regla usa Codigo.gs para sumar,
+      // así lo que la app muestra como "oculto" es exactamente lo que el resumen
+      // excluye. Si el admin corrige una de las dos columnas en la hoja, debe
+      // corregir las dos (la app lo avisa en el gasto).
+      const tagNonBillable = !!NON_BILLABLE_TAGS[tagRaw.toLowerCase()];
+      const nonBillable = !billable || tagNonBillable;
+      const adminOnly = nonBillable;
+      const catTagConflict = billable && tagNonBillable;   // E cobrable pero G no → inconsistencia
       const ed = parseExpDate(r["Fecha de pedido"], num(r["Mes"]), resolveYear);
       // insumos & gastos line items are recorded in GTQ → convert to USD with TC (property+month)
       const valorGTQ = num(r["valor"]);
@@ -355,7 +363,7 @@
       const descClean = ((r["Comentario"] || catRaw).trim() || catRaw || "—").replace(/\s*[·\-–—]?\s*\(aplicado a \d+\)\s*$/i, "").trim();
       p.expenses.push({
         y: ed.y, m: ed.m, day: ed.day,
-        catKey: catKey || "otros", category: catRaw || "Otros", billable, tag: tagRaw, adminOnly,
+        catKey: catKey || "otros", category: catRaw || "Otros", billable, tag: tagRaw, adminOnly, nonBillable, catTagConflict,
         desc: descClean || catRaw || "—",
         amount: rate ? valorGTQ / rate : valorGTQ, amountGTQ: valorGTQ, tc: rate,
         orderId: (r["orderId"] || "").trim(), orderUrl: (r["orderUrl"] || "").trim(),
