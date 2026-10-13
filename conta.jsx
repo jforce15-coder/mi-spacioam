@@ -205,7 +205,7 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
                 <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", letterSpacing: "0.03em" }}>{tr("Debe", "Debit")} <strong style={{ color: "var(--ink)" }}>{contaMoney(td, s.currency)}</strong></span>
                 <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--fg-muted)", letterSpacing: "0.03em" }}>{tr("Haber", "Credit")} <strong style={{ color: "var(--ink)" }}>{contaMoney(tc, s.currency)}</strong></span>
                 {pdfRec && pdfRec.url && <a className="sa-file-btn ghost" href={pdfRec.url} target="_blank" rel="noopener noreferrer" style={{ padding: "7px 12px", fontSize: 11 }}><Icon name="download" size={13} stroke="currentColor" />PDF</a>}
-                {isAdmin && <button onClick={() => { if (window.confirm(tr("¿Quitar el estado de ", "Remove the ") + (acc.name || s.accId) + tr(" de este mes? Esto borra sus movimientos clasificados.", " statement for this month? This deletes its classified lines."))) onDeleteStatement(s.accId); }}
+                {isAdmin && <button onClick={async () => { if (await window.saConfirm(tr("¿Quitar el estado de ", "Remove the ") + (acc.name || s.accId) + tr(" de este mes? Esto borra sus movimientos clasificados.", " statement for this month? This deletes its classified lines."))) onDeleteStatement(s.accId); }}
                   title={tr("Quitar este estado", "Remove this statement")} style={{ border: "1px solid var(--ink-08)", background: "var(--alabaster)", cursor: "pointer", borderRadius: 9, padding: "7px 9px", color: "var(--fg-muted)", display: "inline-flex" }}>
                   <Icon name="trash" size={14} stroke="currentColor" />
                 </button>}

@@ -172,7 +172,7 @@ function ContratosSetupCard({ lang }) {
   // --- guardados
   const [showSaved, setShowSaved] = ctUseState(false);
   const reassign = (r, v) => { if (v) window.SaRows.upsert("Contratos", [Object.assign({}, r, { property_name: v })]); };
-  const unlink = (r) => { if (window.confirm(tr("¿Dejar de compartir “" + r.nombre + "”? El archivo se queda en Drive.", "Stop sharing?"))) window.SaRows.remove("Contratos", [r.id]); };
+  const unlink = async (r) => { if (await window.saConfirm(tr("¿Dejar de compartir “" + r.nombre + "”? El archivo se queda en Drive.", "Stop sharing?"))) window.SaRows.remove("Contratos", [r.id]); };
 
   const pendRemote = (remote || []).filter(r => !r.linked).length;
 

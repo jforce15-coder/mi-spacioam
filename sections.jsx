@@ -344,7 +344,7 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
     } else setExpMsg(lang === "es" ? "Cambio local (conecta el backend para guardarlo)." : "Local change (connect backend to persist).");
   };
   const deleteExp = async (r) => {
-    if (!window.confirm(lang === "es" ? "¿Eliminar este gasto?" : "Delete this expense?")) return;
+    if (!await window.saConfirm(lang === "es" ? "¿Eliminar este gasto?" : "Delete this expense?")) return;
     if (!r.orderId) { setExpMsg(lang === "es" ? "Sin identificador; elimínalo en la hoja." : "No id; delete it in the sheet."); return; }
     setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: "__deleted__" }));
     if (SpacioWrite.enabled()) {
@@ -1056,7 +1056,7 @@ const SetupSection = ({ lang, t }) => {
     // el token vive por dispositivo: si se configuró en otro, aquí llega vacío
     if (!SpacioWrite.isAdminConn || !SpacioWrite.isAdminConn()) { setMailMsg(tr("Este dispositivo no tiene el token de administrador. Pégalo arriba en Conexión de escritura.", "This device has no admin token. Paste it above under write connection.")); return; }
     const label = action === "sendCierreMes" ? tr("el correo de cierre de mes", "the month-close email") : tr("los recordatorios de factura", "the invoice reminders");
-    if (!window.confirm(tr("Se enviará " + label + " a los socios que correspondan. ¿Continuar?", "This will send " + label + ". Continue?"))) return;
+    if (!await window.saConfirm(tr("Se enviará " + label + " a los socios que correspondan. ¿Continuar?", "This will send " + label + ". Continue?"))) return;
     setMailBusy(action); setMailMsg(tr("Enviando…", "Sending…"));
     const r = await SpacioWrite.post(action, action === "sendCierreMes" ? { mes: mailMes } : { hasta: mailMes });
     setMailBusy("");
@@ -1893,7 +1893,7 @@ function UploadedDepositsList({ lang, t, ym }) {
   const [expanded, setExpanded] = useState({});
   if (!deps.length) return null;
   const monthLabel = (k) => { const m = String(k || "").match(/(\d{4})-(\d{1,2})/); return m ? longMonth(lang, +m[1], +m[2] - 1) : (k || tr("Sin mes", "No month")); };
-  const del = (r) => { if (window.confirm(tr("¿Borrar este comprobante? Se quitará del dashboard y de Drive.", "Delete this receipt? It will be removed from the dashboard and Drive."))) SF.remove(r); };
+  const del = async (r) => { if (await window.saConfirm(tr("¿Borrar este comprobante? Se quitará del dashboard y de Drive.", "Delete this receipt? It will be removed from the dashboard and Drive."))) SF.remove(r); };
   // Agrupar por mes (ym) y ordenar descendente: conforme avanzan los meses se
   // acumulan muchos comprobantes, así que cada mes se puede minimizar/expandir.
   const groups = {};
@@ -2008,7 +2008,7 @@ const MailNudgeCard = ({ lang }) => {
   const send = async (code) => {
     const who = code ? ownerName(code) : tr(pend.length + " socio(s) pendientes", pend.length + " pending owner(s)");
     const multiNote = code && st && st.multi && done.some(x => x.code === code) ? tr(" Ya recibió el de este mes: se enviará de nuevo porque el administrador lo permitió, y el permiso se apagará.", " They already got this month's: it will be re-sent because the admin allowed it, and the permission will turn off.") : "";
-    if (!window.confirm(tr("Se enviará el reporte de " + (st ? st.mesTexto : mes) + " a " + who + "." + multiNote + " ¿Continuar?", "This sends the " + mes + " report to " + who + "." + multiNote + " Continue?"))) return;
+    if (!await window.saConfirm(tr("Se enviará el reporte de " + (st ? st.mesTexto : mes) + " a " + who + "." + multiNote + " ¿Continuar?", "This sends the " + mes + " report to " + who + "." + multiNote + " Continue?"))) return;
     setBusy(code || "all"); setMsg("");
     const r = await sendMailAction("sendCierreMes", code ? { mes, socio: code } : { mes });
     if (r && r.ok) setMsg(tr("Listo · " + r.enviados + " correo(s)", "Done · " + r.enviados + " email(s)") + (r.sinCorreo && r.sinCorreo.length ? tr(" · sin correo: ", " · no email: ") + r.sinCorreo.join(", ") : ""));
@@ -2076,7 +2076,7 @@ const MailMultiToggle = ({ lang }) => {
   const flip = async () => {
     if (busy) return;
     const next = !on;
-    if (next && !window.confirm(tr("Esto permite enviar el reporte del mes a un socio que ya lo recibió. Se apaga solo después del siguiente envío individual. ¿Activar?", "This allows sending the monthly report to an owner who already got it. It turns off by itself after the next individual send. Turn on?"))) return;
+    if (next && !await window.saConfirm(tr("Esto permite enviar el reporte del mes a un socio que ya lo recibió. Se apaga solo después del siguiente envío individual. ¿Activar?", "This allows sending the monthly report to an owner who already got it. It turns off by itself after the next individual send. Turn on?"))) return;
     setBusy(true); setErr("");
     const r = await sendMailAction("cierreMesMulti", { on: next });
     setBusy(false);
@@ -2126,7 +2126,7 @@ const InvoiceControlTable = ({ allProps, lang }) => {
 
   const remind = async (code) => {
     const who = code ? tr("a ese socio", "that owner") : tr("a todos los socios con facturas pendientes", "every owner with pending invoices");
-    if (!window.confirm(tr("Se enviará el recordatorio " + who + ". ¿Continuar?", "This sends the reminder to " + who + ". Continue?"))) return;
+    if (!await window.saConfirm(tr("Se enviará el recordatorio " + who + ". ¿Continuar?", "This sends the reminder to " + who + ". Continue?"))) return;
     setBusy(code || "__all__"); setMsg("");
     const r = await sendMailAction("sendRecordatoriosFactura", code ? { hasta, socio: code } : { hasta });
     setBusy("");
@@ -2228,7 +2228,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     const again = st && st.enviados > 0;
     const txt = tr("Se enviará el reporte de " + (mail && mail.mesTexto || ym) + " a " + name + (nProps > 1 ? " (un solo correo con sus " + nProps + " propiedades)" : "") + "." + (again ? " Ya lo recibió: se reenviará porque el administrador lo permitió y el permiso se apagará." : "") + " ¿Continuar?",
       "This sends the " + ym + " report to " + name + (nProps > 1 ? " (one email covering their " + nProps + " properties)" : "") + "." + (again ? " Already received: it will be re-sent because the admin allowed it, and the permission turns off." : "") + " Continue?");
-    if (!window.confirm(txt)) return;
+    if (!await window.saConfirm(txt)) return;
     setMailBusy(normCode(g.owner)); setMailMsg("");
     const r = await sendMailAction("sendCierreMes", { mes: ym, socio: g.owner });
     if (r && r.ok) setMailMsg(tr("Correo enviado a " + name + ".", "Email sent to " + name + "."));

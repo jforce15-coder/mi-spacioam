@@ -155,59 +155,29 @@ async function avBioVerify(credId) {
   return true;
 }
 
-function AvUnlockModal({ ym, label, email, onUnlock, onClose, tr }) {
-  const [pass, setPass] = avUseState("");
+function AvUnlockModal({ ym, label, onUnlock, onClose, tr }) {
   const [err, setErr] = avUseState("");
   const [busy, setBusy] = avUseState(false);
-  const [bio, setBio] = avUseState(false);
-  const [remember, setRemember] = avUseState(true);
-  const dev = avDevice();
-  avUseEffect(() => { avBioAvailable().then(setBio); const h = (e) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
-  const withBio = async () => {
+  const es = tr("es", "en") === "es";
+  avUseEffect(() => { const h = (e) => { if (e.key === "Escape" && !busy) onClose(); }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, [busy]);
+  const confirm = async () => {
     setErr(""); setBusy(true);
-    try { await avBioVerify(dev.cred); await onUnlock({ deviceKey: dev.key }); }
-    catch (e) { setErr(e && e.name === "NotAllowedError" ? tr("Se canceló la verificación. Intenta de nuevo o usa tu contraseña.", "Verification cancelled.") : (e && e.message) || tr("No se pudo verificar.", "Could not verify.")); }
-    setBusy(false);
-  };
-  const withPass = async (e) => {
-    e && e.preventDefault();
-    if (!pass) { setErr(tr("Escribe tu contraseña.", "Enter your password.")); return; }
-    setErr(""); setBusy(true);
-    const W = window.SpacioWrite;
-    // registrar este dispositivo para Face ID (la contraseña se valida en el servidor)
-    if (bio && !dev && remember) {
-      const r = await W.post("registerUnlockDevice", { pass, label: navigator.userAgent.slice(0, 80) });
-      if (r && r.ok) { try { const cred = await avBioRegister(email); localStorage.setItem(AV_DEV_KEY, JSON.stringify({ cred, key: r.deviceKey })); } catch (e2) {} }
-      else if (r && r.error) { setErr(r.error); setBusy(false); return; }
-    }
-    const ok = await onUnlock({ pass });
-    if (!ok) setErr(tr("Contraseña incorrecta.", "Wrong password."));
-    setBusy(false);
+    const ok = await onUnlock({ hold: true, t: Date.now() });
+    if (!ok) { setErr(tr("El servidor no aceptó la confirmación. Revisa que el Apps Script esté actualizado.", "The server didn't accept the confirmation.")); setBusy(false); }
   };
   return (
     <div className="av-ov" onMouseDown={e => { if (e.target === e.currentTarget && !busy) onClose(); }}>
-      <form className="av-modal" role="dialog" aria-modal="true" onSubmit={withPass}>
+      <div className="av-modal" role="alertdialog" aria-modal="true">
         <div className="av-lock"><Icon name="lock" size={20} stroke="var(--ink)" /></div>
         <div className="av-kpi-k" style={{ textAlign: "center" }}>{tr("Mes cerrado", "Closed month")}</div>
         <div className="av-m-t">{label}</div>
-        <p className="av-m-s">{tr("Este mes se cerró el " + avCloseLabel(ym, true) + ". Confirma que quieres modificar Resumenconsolidado de un mes cerrado.", "This month closed on " + avCloseLabel(ym, false) + ". Confirm you want to change it.")}</p>
-        {bio && dev && (
-          <button type="button" className="av-btn dark" style={{ width: "100%", justifyContent: "center" }} disabled={busy} onClick={withBio}>
-            <Icon name="user" size={15} stroke="currentColor" />{busy ? tr("Verificando…", "Verifying…") : tr("Confirmar con Face ID", "Confirm with Face ID")}
-          </button>
-        )}
-        {bio && dev && <div className="av-or"><span>{tr("o con tu contraseña", "or with your password")}</span></div>}
-        <label className="av-kpi-k" htmlFor="av-pass" style={{ display: "block", marginBottom: 6 }}>{tr("Contraseña del administrador principal", "Principal admin password")}</label>
-        <input id="av-pass" className="av-in" type="password" autoComplete="current-password" autoFocus={!(bio && dev)} value={pass} onChange={e => setPass(e.target.value)} />
-        {bio && !dev && (
-          <label className="av-rem"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />{tr("Usar Face ID en este dispositivo la próxima vez", "Use Face ID on this device next time")}</label>
-        )}
+        <p className="av-m-s">{tr("Este mes se cerró el " + avCloseLabel(ym, true) + ". Mantén presionado para modificar Resumenconsolidado; si sueltas antes, no se cambia nada.", "This month closed on " + avCloseLabel(ym, false) + ". Press and hold to change it; release early and nothing changes.")}</p>
+        <HoldButton label={busy ? tr("Agregando…", "Adding…") : tr("Mantén para agregar", "Hold to add")} icon="lock" disabled={busy} es={es} autoFocus onConfirm={confirm} />
         {err && <p className="av-m-err">{err}</p>}
-        <div className="av-m-ft">
+        <div className="av-m-ft" style={{ justifyContent: "center" }}>
           <button type="button" className="av-btn ghost" onClick={onClose} disabled={busy}>{tr("Cancelar", "Cancel")}</button>
-          <button type="submit" className={"av-btn " + (bio && dev ? "ghost" : "dark")} disabled={busy}>{busy && !(bio && dev) ? tr("Verificando…", "Verifying…") : tr("Confirmar y agregar", "Confirm & add")}</button>
         </div>
-      </form>
+      </div>
     </div>
   );
 }
@@ -246,12 +216,14 @@ function AvProgress({ prog, es }) {
 
 // Un socio con cambio en el depósito: ¿acumulado, ajuste en un mes o solo registro?
 function AvAdjustModal({ items, months, periods, es, tr, onPick, onClose }) {
-  const [mode, setMode] = avUseState("acumulado");
-  const [target, setTarget] = avUseState(months[months.length - 1]);
+  const closed = months.some(k => avIsClosed(k));
+  const openPeriods = periods.filter(k => !avIsClosed(k)).sort();
+  const [mode, setMode] = avUseState(closed ? "mes" : "acumulado");
+  const [target, setTarget] = avUseState(openPeriods[0] || months[months.length - 1]);
   const lbl = (k) => { const [y, m] = k.split("-"); return (es ? AV_MES : AV_MES_EN)[+m - 1] + " " + y; };
   const sum = items.reduce((s, x) => s + (x.newDep - x.oldDep), 0);
   const opts = [
-    { v: "acumulado", t: tr("Modificar el acumulado", "Update the consolidated sheet"), d: tr("Lo de siempre: la fila del mes se actualiza con el cálculo nuevo.", "The usual: the month's row is updated with the new calculation.") },
+    { v: "acumulado", t: tr("Modificar el acumulado", "Update the consolidated sheet") + (closed ? tr(" · pide clave", " · needs unlock") : ""), d: tr("Lo de siempre (append): la fila del mes se agrega o actualiza con el cálculo nuevo.", "The usual (append): the month's row is added or updated with the new calculation.") + (closed ? tr(" El mes está cerrado: se valida con tu clave o Face ID.", " The month is closed: confirm with your password or Face ID.") : "") },
     { v: "mes", t: tr("Aplicar la diferencia en otro mes", "Apply the difference in another month"), d: tr("El acumulado no se toca. La diferencia entra como gasto manual en el mes que elijas: “otro ingreso” si el depósito sube, “insumos & gastos” si baja.", "Consolidated stays as is. The difference goes in as a manual expense in the month you choose: “otro ingreso” if the deposit went up, “insumos & gastos” if down.") },
     { v: "registro", t: tr("Dejar solo el registro", "Record only"), d: tr("No se cambia nada. Queda constancia del depósito anterior, el nuevo y la diferencia.", "Nothing changes. Previous deposit, new deposit and difference are recorded.") },
   ];
@@ -260,7 +232,7 @@ function AvAdjustModal({ items, months, periods, es, tr, onPick, onClose }) {
       <div className="av-modal" role="dialog" aria-modal="true" style={{ width: "min(520px, 100%)" }}>
         <div className="av-kpi-k" style={{ textAlign: "center" }}>{tr("Cambia el monto a depositar", "Deposit amount changed")}</div>
         <div className="av-m-t">{items.length === 1 ? items[0].prop : items.length + tr(" propiedades", " properties")}</div>
-        <p className="av-m-s">{tr("El ingreso neto cambió y con él el depósito del socio. Diferencia total: ", "Net income changed, and so did the owner deposit. Total difference: ") + (sum >= 0 ? "+" : "−") + avFmt(Math.abs(sum), "usd") + ". " + tr("¿Qué hacemos?", "What should we do?")}</p>
+        <p className="av-m-s">{(closed ? tr("Mes cerrado. ", "Closed month. ") : "") + tr("El ingreso neto cambió y con él el depósito del socio. Diferencia total: ", "Net income changed, and so did the owner deposit. Total difference: ") + (sum >= 0 ? "+" : "−") + avFmt(Math.abs(sum), "usd") + ". " + tr("¿Qué hacemos?", "What should we do?")}</p>
         <div className="av-adj-list">
           {items.slice(0, 6).map((x, i) => <div key={i} className="av-adj-row"><span>{x.prop} · {lbl(x.ym)}</span><span className="t-num"><s>{avFmt(x.oldDep, "usd")}</s> → <b>{avFmt(x.newDep, "usd")}</b></span></div>)}
           {items.length > 6 && <div className="av-adj-row" style={{ color: "var(--fg-muted)" }}>{tr("y " + (items.length - 6) + " más", "and " + (items.length - 6) + " more")}</div>}
@@ -274,7 +246,8 @@ function AvAdjustModal({ items, months, periods, es, tr, onPick, onClose }) {
         {mode === "mes" && (
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <span className="av-kpi-k">{tr("Mes donde aplicar", "Month to apply in")}</span>
-            <Select value={target} onChange={setTarget} icon="calendar" minWidth={180} sort={false} searchable={false} options={periods.slice().sort().map(k => ({ value: k, label: lbl(k) }))} />
+            <Select value={target} onChange={setTarget} icon="calendar" minWidth={180} sort={false} searchable={false} options={openPeriods.map(k => ({ value: k, label: lbl(k) }))} />
+            <span className="av-kpi-s" style={{ flexBasis: "100%", marginTop: 0 }}>{tr("Solo meses abiertos. +", "Open months only. +") + " → " + tr("otro ingreso", "other income") + " · − → " + tr("insumos & gastos", "supplies & expenses")}</span>
           </div>
         )}
         <div className="av-m-ft">
@@ -287,13 +260,15 @@ function AvAdjustModal({ items, months, periods, es, tr, onPick, onClose }) {
 }
 
 // filas de un mes como objetos + estado frente al acumulado
-function avBuildView(data) {
+function avNormP(s) { return String(s || "").trim().toLowerCase(); }
+function avBuildView(data, only) {
   if (!data || !data.rows) return null;
   const H = (data.headers || []).map(h => String(h).trim().toLowerCase());
   const rows = data.rows.map(r => { const o = {}; H.forEach((h, i) => { o[h] = r[i]; }); o._ym = data.ym; return o; });
   const ex = data.existing || {};
   const keyOf = (o) => String(o["property_name"] || "").trim().toLowerCase();
   let nNew = 0, nChg = 0, nSame = 0;
+  if (only) { for (let i = rows.length - 1; i >= 0; i--) if (!only.has(keyOf(rows[i]))) rows.splice(i, 1); }
   rows.forEach(o => {
     o._key = keyOf(o);
     const e = ex[o._key];
@@ -396,6 +371,21 @@ function AdvancedSection({ lang, owner }) {
   }, [range, ym, ymTo, periods]);
   avUseEffect(() => { try { localStorage.setItem("sa-av-ym", ym); localStorage.setItem("sa-av-ym-to", ymTo); localStorage.setItem("sa-av-range", range ? "1" : "0"); } catch (e) {} setData({}); setMsg(""); setWarn(""); }, [ym, ymTo, range]);
 
+  // alcance: propiedades y/o socios (vacío = todas)
+  const SD = window.SpacioData || {};
+  const propOpts = avUseMemo(() => [...new Set((SD.propertyList || []).map(p => p && (p.name || p.property_name)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es")).map(n => ({ value: avNormP(n), label: n })), [SD.propertyList]);
+  const ownerList = (SD.owners || []).filter(o => o && o.props && o.props.length);
+  const socioOpts = ownerList.map(o => ({ value: o.code, label: (o.codes || [o.code]).join(" · ") + (o.name && o.name !== o.code ? " — " + o.name : "") + " (" + o.props.length + ")" })).sort((a, b) => a.label.localeCompare(b.label, "es"));
+  const [selProps, setSelProps] = avUseState([]);
+  const [selSocios, setSelSocios] = avUseState([]);
+  const only = avUseMemo(() => {
+    if (!selProps.length && !selSocios.length) return null;
+    const set = new Set(selProps);
+    ownerList.forEach(o => { if (selSocios.indexOf(o.code) >= 0) o.props.forEach(p => set.add(avNormP(p))); });
+    return set;
+  }, [selProps, selSocios, ownerList.length]);
+  const scopeTxt = only ? only.size + tr(" propiedad" + (only.size === 1 ? "" : "es"), " propert" + (only.size === 1 ? "y" : "ies")) : "";
+
   const [data, setData] = avUseState({});    // ym → respuesta de resumenPreview
   const [busy, setBusy] = avUseState("");    // "gen" | "add" | ""
   const [rowBusy, setRowBusy] = avUseState("");
@@ -433,7 +423,7 @@ function AdvancedSection({ lang, owner }) {
   };
 
   // ── vistas ──
-  const views = avUseMemo(() => { const o = {}; months.forEach(k => { if (data[k]) o[k] = avBuildView(data[k]); }); return o; }, [data, months]);
+  const views = avUseMemo(() => { const o = {}; months.forEach(k => { if (data[k]) o[k] = avBuildView(data[k], only); }); return o; }, [data, months, only]);
   const loaded = months.filter(k => views[k]);
   const multi = loaded.length > 1 ? avBuildMulti(loaded.map(k => views[k])) : null;
   const pendingOf = (v) => v ? v.nNew + v.nChg + v.dups : 0;
@@ -443,14 +433,22 @@ function AdvancedSection({ lang, owner }) {
   // ── agregar: acción = { months:[ym], props:[nombre]|null } ──
   const changedDeposits = (act) => {
     const items = [];
-    act.months.forEach(k => { const v = views[k]; if (!v) return; v.rows.forEach(o => {
+    act.months.forEach(k => { const v = views[k]; if (!v) return; const cl = avIsClosed(k); v.rows.forEach(o => {
       if (act.props && act.props.indexOf(o._key) < 0) return;
-      if (o._prev && AV_DEP in o._prev) items.push({ ym: k, prop: o["property_name"], key: o._key, oldDep: +o._prev[AV_DEP] || 0, newDep: +o[AV_DEP] || 0 });
+      const depK = o[AV_DEP] !== "" && o[AV_DEP] != null && isFinite(+o[AV_DEP]) ? AV_DEP : "ingreso neto";
+      const newDep = +o[depK] || 0;
+      if (o._st === "new") { if (cl && newDep) items.push({ ym: k, prop: o["property_name"], key: o._key, oldDep: 0, newDep }); return; }
+      if (!o._prev) return;
+      let oldDep = null;
+      if (depK in o._prev) oldDep = +o._prev[depK] || 0;
+      else if ("ingreso neto" in o._prev) oldDep = newDep - ((+o["ingreso neto"] || 0) - (+o._prev["ingreso neto"] || 0));
+      if (oldDep != null && Math.abs(newDep - oldDep) > 0.005) items.push({ ym: k, prop: o["property_name"], key: o._key, oldDep: Math.round(oldDep * 100) / 100, newDep });
     }); });
     return items;
   };
   const startAppend = (act) => {
     if (!W()) return;
+    if (!act.props && only) { const ks = new Set(); act.months.forEach(k => { const v = views[k]; if (v) v.rows.forEach(o => ks.add(o._key)); }); act = Object.assign({}, act, { props: [...ks] }); if (!act.props.length) return; }
     if (anyClosed(act.months) && !principal) { setMsg(tr("Hay meses cerrados: solo el administrador principal puede modificarlos.", "Closed months: only the principal admin can change them.")); return; }
     const items = changedDeposits(act);
     if (items.length) { setAdjust({ items, action: act }); return; }
@@ -480,7 +478,7 @@ function AdvancedSection({ lang, owner }) {
     }
     setProg(null); setBusy(""); setRowBusy(""); setUnlockOpen(false); setPendingAct(null);
     if (locked) { setMsg(tr("Mes cerrado: la clave no fue aceptada.", "Closed month: unlock not accepted.")); return false; }
-    const scope = act.props ? (act.props.length === 1 ? tr("1 propiedad", "1 property") : act.props.length + tr(" propiedades", " properties")) : tr("todas", "all");
+    const scope = act.props ? (act.props.length === 1 ? (act.props[0] || tr("1 propiedad", "1 property")) : act.props.length + tr(" propiedades", " properties")) : tr("todas", "all");
     const okTxt = tr("Resumenconsolidado · " + scope + " · " + tot.added + " nuevas, " + tot.updated + " actualizadas, " + tot.same + " sin cambios" + (tot.removed ? ", " + tot.removed + " duplicadas eliminadas" : "") + (tot.forced ? ", " + tot.forced + " sobrescritas" : "") + ".", "Consolidated · " + scope + " · added " + tot.added + ", updated " + tot.updated + ", same " + tot.same + ".");
     setMsg(errs.length ? tr("No se pudo agregar ", "Could not add ") + errs.join(" · ") + (tot.added + tot.updated ? " · " + okTxt : "") : okTxt);
     return true;
@@ -523,9 +521,11 @@ function AdvancedSection({ lang, owner }) {
         <Segmented size="sm" value={yr} onChange={pickYear} options={years.map(y => ({ value: y, label: y }))} />
         <Select value={ym} onChange={setYm} icon="calendar" minWidth={160} sort={false} searchable={false} options={monthsOfYr.map(k => ({ value: k, label: (es ? AV_MES : AV_MES_EN)[+k.slice(5) - 1] }))} />
         {range && <React.Fragment><span className="av-to">{tr("a", "to")}</span><Select value={ymTo} onChange={setYmTo} icon="calendar" minWidth={160} sort={false} searchable={false} options={monthsOfYr.map(k => ({ value: k, label: (es ? AV_MES : AV_MES_EN)[+k.slice(5) - 1] }))} /></React.Fragment>}
-        <button className="av-btn dark" onClick={generate} disabled={!!busy || !!rowBusy}><Icon name="refresh" size={14} stroke="currentColor" />{busy === "gen" ? tr("Calculando…", "Computing…") : tr("Generar resumen", "Generate") + (months.length > 1 ? " · " + months.length + tr(" meses", " months") : "")}</button>
+        <Select multi value={selSocios} onChange={setSelSocios} icon="user" minWidth={170} searchable placeholder={tr("Todos los socios", "All owners")} options={[{ value: "all", label: tr("Todos los socios", "All owners") }].concat(socioOpts)} />
+        <Select multi value={selProps} onChange={setSelProps} icon="home" minWidth={190} searchable placeholder={tr("Todas las propiedades", "All properties")} options={[{ value: "all", label: tr("Todas las propiedades", "All properties") }].concat(propOpts)} />
+        <button className="av-btn dark" onClick={generate} disabled={!!busy || !!rowBusy}><Icon name="refresh" size={14} stroke="currentColor" />{busy === "gen" ? tr("Calculando…", "Computing…") : tr("Generar resumen", "Generate") + (months.length > 1 ? " · " + months.length + tr(" meses", " months") : "") + (scopeTxt ? " · " + scopeTxt : "")}</button>
         <button className="av-btn warm" onClick={() => startAppend({ months: loaded, props: null })} disabled={!loaded.length || !pendingAll || !canAdd} title={closedAny ? tr("Hay meses cerrados", "Closed months") : tr("Agrega las nuevas y actualiza las que cambiaron en Resumenconsolidado", "Upsert into consolidated")}>
-          <Icon name={closedAny ? "lock" : "plus"} size={14} stroke="currentColor" />{busy === "add" ? tr("Agregando…", "Adding…") : (closedAny && principal ? tr("Desbloquear y agregar", "Unlock & add") : tr("Todo al acumulado", "All to consolidated")) + (pendingAll ? " · " + pendingAll : "")}
+          <Icon name={closedAny ? "lock" : "plus"} size={14} stroke="currentColor" />{busy === "add" ? tr("Agregando…", "Adding…") : (closedAny && principal ? tr("Desbloquear y agregar", "Unlock & add") : only ? tr("Selección al acumulado", "Selection to consolidated") : tr("Todo al acumulado", "All to consolidated")) + (pendingAll ? " · " + pendingAll : "")}
         </button>
         {months.length === 1 && <span className={"av-close " + (closedAny ? "closed" : "open")}><i></i>{closedAny ? tr("Cerrado el " + avCloseLabel(ym, true), "Closed " + avCloseLabel(ym, false)) : tr("Abierto hasta el " + avCloseLabel(ym, true), "Open until " + avCloseLabel(ym, false))}</span>}
         {closedAny && !principal && <p className="av-msg">{tr("Hay meses cerrados: se pueden consultar, pero solo el administrador principal puede modificarlos en Resumenconsolidado.", "Closed months: only the principal admin can change them.")}</p>}
@@ -540,6 +540,7 @@ function AdvancedSection({ lang, owner }) {
       </div>
 
       {prog && <AvProgress prog={prog} es={es} />}
+      {loaded.length > 0 && only && kpiView && !kpiView.rows.length && <div className="av-tbl-wrap"><div className="av-empty">{tr("Ninguna de las propiedades elegidas tiene reservas en este periodo.", "None of the selected properties has bookings in this period.")}</div></div>}
       {!loaded.length && !busy && <div className="av-tbl-wrap"><div className="av-empty">{tr("Elige el periodo y presiona “Generar resumen”.", "Pick a period and press Generate.")}</div></div>}
 
       {kpiView && kpiView.rows.length > 0 && (

@@ -729,7 +729,7 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
             {hiddenCount > 0 && <button className="pya-btn pya-btn-ghost" onClick={() => { setHiddenInvs(new Set()); setHiddenExps(new Set()); }}>
               <Icon name="eye" size={14} stroke="var(--fg-muted)" />{tr("Mostrar ocultos", "Show hidden")} · {hiddenCount}
             </button>}
-            <button className="pya-btn pya-btn-ghost" onClick={() => { if (window.confirm(tr("¿Quitar el archivo cargado?", "Clear the loaded file?"))) { setInvoices(null); setStats(null); setLinked(new Set()); setManualUsed(new Set()); setActiveExp(null); setSel(new Set()); setMsg(""); } }} disabled={!invoices}>
+            <button className="pya-btn pya-btn-ghost" onClick={async () => { if (await window.saConfirm(tr("¿Quitar el archivo cargado?", "Clear the loaded file?"))) { setInvoices(null); setStats(null); setLinked(new Set()); setManualUsed(new Set()); setActiveExp(null); setSel(new Set()); setMsg(""); } }} disabled={!invoices}>
               <Icon name="x" size={14} stroke="var(--fg-muted)" />{tr("Limpiar", "Clear")}
             </button>
           </div>
@@ -1004,8 +1004,8 @@ function PyaRecurList({ lang, tick }) {
       else setMsg(tr("No se pudo: ", "Could not: ") + ((res && res.error) || tr("sin conexión", "offline")) + ".");
     } finally { setBusy(""); }
   };
-  const cancel = (r) => {
-    if (!window.confirm(tr("¿Cancelar este gasto programado? Lo que ya se aplicó se queda; no se cargará en los meses siguientes.", "Cancel this scheduled expense? What's already applied stays; it won't be charged in later months."))) return;
+  const cancel = async (r) => {
+    if (!await window.saConfirm(tr("¿Cancelar este gasto programado? Lo que ya se aplicó se queda; no se cargará en los meses siguientes.", "Cancel this scheduled expense? What's already applied stays; it won't be charged in later months."))) return;
     act("recurCancel", r.id, () => tr("Gasto programado cancelado.", "Scheduled expense cancelled."));
   };
   if (!data) return <p className="pya-note" style={{ marginTop: 28 }}>{tr("Cargando gastos programados…", "Loading scheduled expenses…")}</p>;
@@ -1659,7 +1659,7 @@ function PyaManagePanel({ lang, propOptions, active }) {
   const del = async (r) => {
     if (!window.SpacioWrite || !window.SpacioWrite.enabled()) { setMsg(tr("Conecta el backend para eliminar.", "Connect the backend to delete.")); return; }
     if (!r.orderId) { setMsg(tr("Esta fila no tiene orderId; elimínala manualmente en la hoja.", "This row has no orderId; delete it manually in the sheet.")); return; }
-    if (!window.confirm(tr("¿Eliminar este gasto de la hoja? No se puede deshacer.", "Delete this expense from the sheet? This can't be undone."))) return;
+    if (!await window.saConfirm(tr("¿Eliminar este gasto de la hoja? No se puede deshacer.", "Delete this expense from the sheet? This can't be undone."))) return;
     setBusy("del-" + r.orderId);
     const res = await window.SpacioWrite.post("deleteInsumo", { orderId: r.orderId });
     setBusy("");
@@ -1689,7 +1689,7 @@ function PyaManagePanel({ lang, propOptions, active }) {
   const dirty = (rows || []).filter(r => r.orderId && APLICADO_RE.test(r.comentario || ""));
   const cleanAplicado = async () => {
     if (!window.SpacioWrite || !window.SpacioWrite.enabled()) { setMsg(tr("Conecta el backend (Setup → Conexión de escritura) para limpiar los comentarios.", "Connect the backend (Setup → Write connection) to clean the comments.")); return; }
-    if (!window.confirm(tr("¿Quitar “(aplicado a N)” de " + dirty.length + " comentarios guardados? No se puede deshacer.", "Remove “(applied to N)” from " + dirty.length + " saved comments? This can't be undone."))) return;
+    if (!await window.saConfirm(tr("¿Quitar “(aplicado a N)” de " + dirty.length + " comentarios guardados? No se puede deshacer.", "Remove “(applied to N)” from " + dirty.length + " saved comments? This can't be undone."))) return;
     setBusy("clean");
     let n = 0;
     for (const r of dirty) {
@@ -1994,8 +1994,8 @@ function PyaReportesPanel({ lang, propOptions, addImported, imported, active }) 
   };
   const keep = (r) => keepRows([r]);
   const runDiag = async () => { setDiag(tr("Probando…", "Testing…")); setDiag(await pyaDiagConn()); };
-  const drop = (r) => {
-    if (!window.confirm(tr("¿Eliminar este reporte? No se agregará como gasto.", "Delete this report? It will not be added as an expense."))) return;
+  const drop = async (r) => {
+    if (!await window.saConfirm(tr("¿Eliminar este reporte? No se agregará como gasto.", "Delete this report? It will not be added as an expense."))) return;
     R.decide(r.id, "no"); setTick(t => t + 1);
   };
   const keepAll = () => keepRows(ready);

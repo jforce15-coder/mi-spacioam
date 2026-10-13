@@ -40,6 +40,7 @@ const CF_CSS = `
 .cf-chip b { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); font-variant-numeric: tabular-nums; }
 .cf-chip.on { background: var(--ink); border-color: var(--ink); color: var(--alabaster); }
 .cf-chip.on b { color: var(--alabaster); }
+.cf-sync { flex-basis: 100%; font-family: var(--sans); font-size: 11.5px; line-height: 1.5; letter-spacing: 0.03em; }
 .cf-learn { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid var(--peach); border-radius: 16px; background: var(--peach-12); animation: sa-fade .36s var(--ease); }
 .cfr-ov { position: fixed; inset: 0; z-index: 300; background: rgba(62,63,63,0.55); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 20px; animation: sa-fade .18s var(--ease); }
 .cfr { width: min(1040px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; background: var(--surface, #fff); border-radius: 28px; box-shadow: var(--shadow-lg); overflow: hidden; }
@@ -136,7 +137,7 @@ const CF_MES_L = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio"
 function cfDay(d) { const m = String(d || "").match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? (+m[3]) + " " + CF_MES[+m[2] - 1] + " " + m[1] : (d || "—"); }
 function cfYmLabel(ym) { const m = String(ym || "").match(/^(\d{4})-(\d{2})/); return m ? CF_MES_L[+m[2] - 1] + " " + m[1] : ym; }
 function cfMoney(v, cur) { return (cur === "USD" ? "$ " : "Q ") + (Math.round((+v || 0) * 100) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function cfUseRowsTick() { const [, set] = cfUseState(0); cfUseEffect(() => { const h = () => set(x => x + 1); window.addEventListener("sa-rows", h); return () => window.removeEventListener("sa-rows", h); }, []); }
+function cfUseRowsTick() { const [v, set] = cfUseState(0); cfUseEffect(() => { const h = () => set(x => x + 1); window.addEventListener("sa-rows", h); return () => window.removeEventListener("sa-rows", h); }, []); return v; }
 function cfPropOptions() {
   const names = [...new Set(((window.SpacioData && window.SpacioData.propertyList) || []).map(p => p.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, "es"));
   return names.map(n => ({ value: n, label: n }));
@@ -350,10 +351,11 @@ function cfSuggestReceived(pending, bank, grow) {
     if (g) { usedGrow[g.id] = 1; out[inv._rid] = { clas: CF_MOB, prop: g.props[0] || "", fuente: "grow", ref: g.id, why: "Grow · " + (g.proveedor || g.id) + (g.props.length > 1 ? " · " + g.props.length + " propiedades" : "") }; }
   });
   const cands = [];
+  const byAmt = {}; bank.forEach(b => { if (!b.tag) return; const k = b.cur + "|" + Math.round(b.amt * 100); (byAmt[k] = byAmt[k] || []).push(b); });
   pending.forEach(inv => {
     if (out[inv._rid] || inv._arch || !(inv.total > 0) || !inv.day) return;
-    bank.forEach(b => {
-      if (!b.tag || b.cur !== (inv.moneda || "GTQ") || Math.abs(b.amt - inv.total) >= 0.01) return;
+    const k0 = (inv.moneda || "GTQ") + "|" + Math.round(inv.total * 100);
+    (byAmt[k0] || []).forEach(b => {
       const d = cfDays(inv.day, b.day); if (d < 0 || d > CF_BANK_DAYS) return;
       cands.push({ inv, b, d });
     });
@@ -548,7 +550,7 @@ function CfLinkModal({ box, busy, onApply, onClose, tr }) {
 // ============================================================
 function ContaFacturasSection({ lang }) {
   const es = lang !== "en"; const tr = (a, b) => (es ? a : b);
-  cfUseRowsTick();
+  const rowsVer = cfUseRowsTick();
   const [kind, setKind] = cfUseState("recibidas");
   const [ym, setYm] = cfUseState("all");
   const [status, setStatus] = cfUseState("all");
@@ -559,6 +561,13 @@ function ContaFacturasSection({ lang }) {
   const [learn, setLearn] = cfUseState(null);     // última clasificación manual con parecidas
   const [linkBox, setLinkBox] = cfUseState(null);  // vinculación inversa con Gastos e inversiones
   const [pendSync, setPendSync] = cfUseState(() => window.SaRows.pendingCount("Facturas"));
+  const [syncState, setSyncState] = cfUseState(null); // { done, total, error }
+  const retry = async () => {
+    if (!(window.SpacioWrite && window.SpacioWrite.enabled())) { setSyncState({ error: tr("La escritura no está conectada. Ve a Setup → Conexión de escritura.", "Writing not connected (Setup).") }); return; }
+    setSyncState({ done: 0, total: window.SaRows.pendingCount("Facturas") });
+    const r = await window.SaRows.flush("Facturas", { onProgress: (done, total) => setSyncState({ done, total }) });
+    setSyncState(r.ok ? { ok: true, total: r.n } : { error: r.error || tr("sin conexión", "offline"), done: r.n || 0 });
+  };
   cfUseEffect(() => { const h = () => setPendSync(window.SaRows.pendingCount("Facturas")); window.addEventListener("sa-rows", h); return () => window.removeEventListener("sa-rows", h); }, []);
   const [msg, setMsg] = cfUseState("");
   const [busy, setBusy] = cfUseState(false);
@@ -600,9 +609,10 @@ function ContaFacturasSection({ lang }) {
   cfUseEffect(() => { cfEmitDraftSave(emitidas); }, [emitidas]);
   cfUseEffect(() => { const d = window.pyaSatDraft && window.pyaSatDraft(); if (d && d.invoices && d.invoices.length) cfSyncInvoices(d.invoices, "recibida"); }, []);
 
-  const saved = window.SaRows.list("Facturas");
-  const savedBy = {}; saved.forEach(r => { savedBy[r.id] = r; });
-  const draft = window.pyaSatDraft ? window.pyaSatDraft() : null;
+  // todo lo pesado se recalcula SOLO cuando cambian los datos (no en cada clic)
+  const saved = cfUseMemo(() => window.SaRows.list("Facturas"), [rowsVer]);
+  const savedBy = cfUseMemo(() => { const o = {}; saved.forEach(r => { o[r.id] = r; }); return o; }, [saved]);
+  const draft = cfUseMemo(() => (window.pyaSatDraft ? window.pyaSatDraft() : null), [rowsVer]);
 
   // RECIBIDAS: lote SAT de Gastos e inversiones + las guardadas (por si el borrador se limpió)
   const recibidas = cfUseMemo(() => {
@@ -613,12 +623,12 @@ function ContaFacturasSection({ lang }) {
     cfExpenseInvoices().forEach(e => { if (!map[e._rid]) map[e._rid] = e; else if (!map[e._rid].property_name) map[e._rid] = Object.assign({}, map[e._rid], { property_name: e.property_name, categoria: e.categoria }); });
     const sat = Object.keys(map).map(k => Object.assign({ _rid: k }, map[k]));
     return sat.concat(cfArchiveInvoices());
-  }, [draft && draft.invoices && draft.invoices.length, saved.length, ((window.SpacioData && (window.SpacioData.filesAll || window.SpacioData.files)) || []).length]);
+  }, [draft, saved]);
   const idx = cfUseMemo(() => {
     const all = Object.assign({}, sheetAuths);
     cfExpenseInvoices().forEach(e => { if (!all[e.auth]) all[e.auth] = { property_name: e.property_name, categoria: e.categoria }; });
     return cfReceivedIndex(all);
-  }, [sheetAuths, saved.length]);
+  }, [sheetAuths, saved]);
 
   const tagOptions = cfUseMemo(() => {
     const C = window.SpacioConta; if (!C) return [];
@@ -631,19 +641,18 @@ function ContaFacturasSection({ lang }) {
   const propOptions = cfUseMemo(() => cfPropOptions(), []);
 
   // lista unificada según pestaña
-  const emitAll = (() => { const m = {}; saved.filter(r => r.tipo === "emitida" && r.auth).forEach(r => { m[r.id] = Object.assign({ _rid: r.id }, cfRowToInv(r)); }); emitidas.forEach(i => { m["E-" + i.auth] = Object.assign({ _rid: "E-" + i.auth }, i); }); return Object.values(m); })();
+  const emitAll = cfUseMemo(() => { const m = {}; saved.filter(r => r.tipo === "emitida" && r.auth).forEach(r => { m[r.id] = Object.assign({ _rid: r.id }, cfRowToInv(r)); }); emitidas.forEach(i => { m["E-" + i.auth] = Object.assign({ _rid: "E-" + i.auth }, i); }); return Object.values(m); }, [saved, emitidas]);
   const nArch = recibidas.filter(i => i._arch).length, nSat = recibidas.length - nArch;
-  const recPool = origin === "sat" ? recibidas.filter(i => !i._arch) : origin === "arch" ? recibidas.filter(i => i._arch) : recibidas;
-  const items = (kind === "recibidas" ? recPool : emitAll).map(inv => {
+  const recPool = cfUseMemo(() => origin === "sat" ? recibidas.filter(i => !i._arch) : origin === "arch" ? recibidas.filter(i => i._arch) : recibidas, [origin, recibidas]);
+  const bank = cfUseMemo(() => cfBankDebits(), [saved, ((window.SpacioData && window.SpacioData.conta) || []).length]);
+  const examples = cfUseMemo(() => cfExamples(saved), [saved]);
+  const items = cfUseMemo(() => { const items = (kind === "recibidas" ? recPool : emitAll).map(inv => {
     const sv = savedBy[inv._rid];
     let st;
     if (kind === "recibidas") st = inv._arch ? cfArchiveStatus(inv, sv, gastoByOrder) : cfReceivedStatus(inv, idx, draft, sv);
     else st = sv && sv.clasificacion ? { k: "here", src: "Clasificada", label: sv.clasificacion } : { k: "pend", src: "", label: "", sug: cfSuggestEmit(inv) };
     return { inv, sv, st };
   });
-  const bank = cfUseMemo(() => cfBankDebits(), [saved.length, ((window.SpacioData && window.SpacioData.conta) || []).length]);
-  const exSig = saved.length + "|" + saved.reduce((a, r) => a + (r.clasificacion ? r.clasificacion.length + (r.fuente || "").length : 0), 0);
-  const examples = cfUseMemo(() => cfExamples(saved), [exSig]);
   if (kind === "recibidas") {
     const sugs = cfSuggestReceived(items.filter(x => x.st.k === "pend").map(x => x.inv), bank, grow || []);
     // regla de insumos: manda sobre banco, Grow y similitud
@@ -653,6 +662,7 @@ function ContaFacturasSection({ lang }) {
     items.forEach(x => { if (x.st.k === "pend" && sugs[x.inv._rid]) x.st.rs = sugs[x.inv._rid]; x.b = cfBucket(x.st); });
   }
   items.sort((a, b) => String(b.inv.day || "").localeCompare(String(a.inv.day || "")));
+  return items; }, [kind, origin, recibidas, emitAll, savedBy, idx, draft, gastoByOrder, bank, examples, grow, INSUMO_TAG]);
 
   const months = [...new Set(items.map(x => String(x.inv.day || "").slice(0, 7)).filter(Boolean))].sort().reverse();
   const inMonth = items.filter(x => ym === "all" || String(x.inv.day || "").slice(0, 7) === ym);
@@ -804,7 +814,7 @@ function ContaFacturasSection({ lang }) {
       setExpBox({ authProductos: c[0], authTarifa: c[1] || "", desc: x.inv.emisor, vendor: x.inv.emisor, day: x.inv.day, amountGTQ: (exp && exp.total) || 0 });
       return;
     }
-    setBox(full);
+    setBox(full || window.saMinimalInvoice({ auth: x.inv.auth, desc: x.inv.emisor || x.inv.comercial, day: x.inv.day, amountGTQ: x.inv.total }));
   };
 
   return (
@@ -888,7 +898,17 @@ function ContaFacturasSection({ lang }) {
           <button className="cf-btn warm" onClick={applyAllRs} disabled={busy || !withRs.length}><Icon name="sparkles" size={14} stroke="var(--ink)" />{tr("Aplicar", "Apply")}{withRs.length ? " · " + withRs.length : ""}</button>
           <button className="cf-btn ghost" onClick={findLinks} disabled={busy || !insumoInvs.length} title={tr("Busca gastos reportados sin factura con el mismo valor (1 o 2 facturas, del mismo día hasta 3 días después)", "Find expenses without invoice")}><Icon name="link" size={13} stroke="currentColor" />{tr("Vincular con gastos", "Link to expenses")}{insumoInvs.length ? " · " + insumoInvs.length : ""}</button>
           <button className="cf-btn ghost" onClick={() => setGrowOpen(o => !o)}><Icon name="link" size={13} stroke="currentColor" />Grow{grow ? " · " + grow.length : ""}</button>
-          {pendSync > 0 && <button className="cf-btn warm" disabled={busy} onClick={async () => { setBusy(true); const r = await window.SaRows.flush("Facturas"); setBusy(false); setMsg(r.ok ? tr("Pendientes guardados en la hoja.", "Pending saved.") : tr("Aún no se pudo guardar: " + r.error, "Still failing: " + r.error)); }}><Icon name="upload" size={13} stroke="var(--ink)" />{tr("Reintentar", "Retry")} · {pendSync}</button>}
+          {pendSync > 0 && (
+            <button className="cf-btn warm" disabled={!!(syncState && syncState.total && !syncState.ok && !syncState.error)} onClick={retry} title={tr("Estas clasificaciones están guardadas en este navegador pero aún no en la hoja", "Saved locally, not yet in the sheet")}>
+              <Icon name="upload" size={13} stroke="var(--ink)" />
+              {syncState && syncState.total && !syncState.ok && !syncState.error ? tr("Guardando ", "Saving ") + syncState.done + " / " + syncState.total : tr("Guardar pendientes", "Save pending") + " · " + pendSync}
+            </button>
+          )}
+          {syncState && (syncState.error || syncState.ok) && (
+            <span className="cf-sync" style={{ color: syncState.error ? "var(--attention-text, #B54D36)" : "#3d6b52" }}>
+              {syncState.error ? tr("No se guardó", "Not saved") + (syncState.done ? " (" + syncState.done + " sí)" : "") + ": " + syncState.error : tr("Listo, " + syncState.total + " guardadas en la hoja.", "Done, " + syncState.total + " saved.")}
+            </span>
+          )}
           {growOpen && (
             <div className="cf-grow">
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -958,10 +978,10 @@ function ContaFacturasSection({ lang }) {
         </div></div>
       ) : null}
 
-      {box && window.PyaDteBox && <PyaDteBox inv={box} lang={lang} onClose={() => setBox(null)} />}
+      {box && window.PyaDteBox && ReactDOM.createPortal(<PyaDteBox inv={box} lang={lang} onClose={() => setBox(null)} />, document.body)}
       {linkBox && <CfLinkModal box={linkBox} busy={busy} onApply={applyLinks} onClose={() => setLinkBox(null)} tr={tr} />}
       {review && <CfReviewModal review={review} itemsBy={itemsBy} tagOptions={tagOptions} busy={busy} onApply={applyReview} onClose={() => setReview(null)} tr={tr} />}
-      {expBox && window.InvoiceViewBox && <InvoiceViewBox data={expBox} lang={lang} onClose={() => setExpBox(null)} />}
+      {expBox && window.InvoiceViewBox && ReactDOM.createPortal(<InvoiceViewBox data={expBox} lang={lang} onClose={() => setExpBox(null)} />, document.body)}
     </div>
   );
 }
@@ -1117,7 +1137,7 @@ function ContaLongTermSection({ lang }) {
                 <span className="n">{cfMoney(r.monto, r.moneda)}</span>
                 <span className="lt-act">
                   {r.url && <a className="cf-eye" href={r.url} target="_blank" rel="noreferrer" title={tr("Ver comprobante", "View receipt")}><Icon name="eye" size={15} stroke="currentColor" /></a>}
-                  <button className="cf-eye" title={tr("Eliminar", "Delete")} onClick={() => { if (window.confirm(tr("¿Eliminar este depósito?", "Delete this deposit?"))) window.SaRows.remove("Long term", [r.id]); }}><Icon name="trash" size={14} stroke="currentColor" /></button>
+                  <button className="cf-eye" title={tr("Eliminar", "Delete")} onClick={async () => { if (await window.saConfirm(tr("¿Eliminar este depósito?", "Delete this deposit?"))) window.SaRows.remove("Long term", [r.id]); }}><Icon name="trash" size={14} stroke="currentColor" /></button>
                 </span>
               </div>
             ))}
