@@ -7,7 +7,7 @@
 //   Resumenconsolidado — agrega nuevas, actualiza cambios y elimina
 //   duplicados (una sola fila por propiedad y mes).
 // ============================================================
-const { useState: avUseState, useEffect: avUseEffect, useMemo: avUseMemo } = React;
+const { useState: avUseState, useEffect: avUseEffect, useMemo: avUseMemo, useRef: avUseRef } = React;
 
 const AV_CSS = `
 .av-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 20px; }
@@ -41,7 +41,19 @@ const AV_CSS = `
 .av-kpi-v { font-family: var(--sans); font-size: 24px; font-weight: 600; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--ink); margin-top: 6px; }
 .av-kpi-s { font-family: var(--sans); font-size: 11px; font-variant-numeric: tabular-nums; color: var(--fg-muted); margin-top: 2px; }
 .av-tbl-wrap { background: var(--surface, #fff); border: 1px solid var(--ink-08); border-radius: 22px; box-shadow: var(--shadow-sm); overflow: hidden; }
-.av-tbl-scroll { overflow-x: auto; }
+.av-tbl-scroll { overflow: auto; max-height: min(72vh, 760px); overscroll-behavior: contain; }
+.av-tbl thead th { position: sticky; top: 0; z-index: 3; background: var(--bg-alt); box-shadow: inset 0 -1px 0 var(--divider); }
+.av-tbl thead th:first-child { z-index: 4; }
+.av-mtabs { position: sticky; top: var(--sa-topbar-h, 72px); z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 6px; margin: 0 0 16px; background: rgba(250,250,250,0.88); backdrop-filter: blur(20px) saturate(120%); -webkit-backdrop-filter: blur(20px) saturate(120%); border: 1px solid var(--ink-08); border-radius: 999px; }
+.av-mtabs::-webkit-scrollbar { display: none; }
+.av-mtab { flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px; border: none; background: transparent; border-radius: 999px; padding: 9px 16px; min-height: 40px; font-family: var(--sans); font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-muted); cursor: pointer; transition: background .18s var(--ease), color .18s var(--ease); }
+.av-mtab:hover { color: var(--ink); background: var(--bg-alt); }
+.av-mtab.on { background: var(--ink); color: var(--alabaster, #FAFAFA); }
+.av-mtab i { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-subtle); flex-shrink: 0; }
+.av-mtab i.open { background: var(--color-success, #3d6b52); }
+.av-mtab b { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--peach-12, rgba(233,130,106,0.16)); border: 1px solid var(--peach); color: var(--ink); font-size: 10px; letter-spacing: 0; display: inline-flex; align-items: center; justify-content: center; }
+.av-mtab.on b { background: rgba(250,250,250,0.16); border-color: var(--peach); color: var(--alabaster, #FAFAFA); }
+.av-mtab-sep { flex-shrink: 0; width: 1px; align-self: stretch; margin: 6px 2px; background: var(--divider); }
 .av-tbl { border-collapse: collapse; width: 100%; font-family: var(--sans); }
 .av-tbl th { position: sticky; top: 0; text-align: right; font-size: 9.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-muted); padding: 12px 14px; border-bottom: 1px solid var(--divider); background: var(--bg-alt); white-space: nowrap; }
 .av-tbl td { text-align: right; font-size: 12.5px; color: var(--ink); font-variant-numeric: tabular-nums; padding: 11px 14px; border-top: 1px solid var(--ink-08); white-space: nowrap; }
@@ -260,7 +272,7 @@ function AvAdjustModal({ items, months, periods, es, tr, onPick, onClose }) {
 }
 
 // filas de un mes como objetos + estado frente al acumulado
-function avNormP(s) { return String(s || "").trim().toLowerCase(); }
+function avNormP(s) { return String(s || "").toLowerCase().replace(/\s*-\s*/g, "-").replace(/\s+/g, " ").trim(); }
 function avBuildView(data, only) {
   if (!data || !data.rows) return null;
   const H = (data.headers || []).map(h => String(h).trim().toLowerCase());
@@ -268,7 +280,7 @@ function avBuildView(data, only) {
   const ex = data.existing || {};
   const keyOf = (o) => String(o["property_name"] || "").trim().toLowerCase();
   let nNew = 0, nChg = 0, nSame = 0;
-  if (only) { for (let i = rows.length - 1; i >= 0; i--) if (!only.has(keyOf(rows[i]))) rows.splice(i, 1); }
+  if (only) { for (let i = rows.length - 1; i >= 0; i--) if (!only.has(avNormP(rows[i]["property_name"]))) rows.splice(i, 1); }
   rows.forEach(o => {
     o._key = keyOf(o);
     const e = ex[o._key];
@@ -509,7 +521,29 @@ function AdvancedSection({ lang, owner }) {
   const canAdd = !busy && !rowBusy && (!anyClosed(months) || principal);
   const closedAny = anyClosed(months);
   const cur = loaded.length === 1 ? views[loaded[0]] : null;
-  const kpiView = multi || cur;
+  const [tab, setTab] = avUseState("all");
+  const tabNow = multi ? (tab === "all" || loaded.indexOf(tab) >= 0 ? tab : "all") : (loaded[0] || "all");
+  const kpiView = multi ? (tabNow === "all" ? multi : views[tabNow]) : cur;
+  const tabsRef = avUseRef(null);
+  // altura del chrome fijo (barra superior) para que las pestañas queden justo debajo
+  avUseEffect(() => {
+    const m = () => {
+      let h = 0;
+      document.querySelectorAll("header, nav, [class*='topbar'], [class*='sticky']").forEach(el => {
+        if (tabsRef.current && (el === tabsRef.current || el.contains(tabsRef.current))) return;
+        const cs = getComputedStyle(el); if (cs.position !== "sticky" && cs.position !== "fixed") return;
+        const r = el.getBoundingClientRect(); if (r.top <= 1 && r.height < 240 && r.width > 300) h = Math.max(h, r.bottom);
+      });
+      document.documentElement.style.setProperty("--sa-topbar-h", Math.round(h + 8) + "px");
+    };
+    m(); window.addEventListener("resize", m); return () => window.removeEventListener("resize", m);
+  }, [!!multi]);
+  const tabKey = (e) => {
+    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const ids = ["all"].concat(loaded); let i = ids.indexOf(tabNow) + (e.key === "ArrowRight" ? 1 : -1);
+    i = Math.max(0, Math.min(ids.length - 1, i)); setTab(ids[i]); e.preventDefault();
+    setTimeout(() => { const el = tabsRef.current && tabsRef.current.querySelector(".av-mtab.on"); if (el) el.focus(); }, 0);
+  };
 
   return (
     <section className="sa-section" style={{ marginTop: 28 }}>
@@ -553,12 +587,25 @@ function AdvancedSection({ lang, owner }) {
       )}
 
       {multi && (
+        <div className="av-mtabs" role="tablist" ref={tabsRef} onKeyDown={tabKey} aria-label={tr("Meses", "Months")}>
+          <button role="tab" aria-selected={tabNow === "all"} tabIndex={tabNow === "all" ? 0 : -1} className={"av-mtab" + (tabNow === "all" ? " on" : "")} onClick={() => setTab("all")}>
+            {tr("Todos", "All")} · {loaded.length}{pendingAll ? <b>{pendingAll}</b> : null}
+          </button>
+          <span className="av-mtab-sep" aria-hidden="true"></span>
+          {loaded.map(k => { const p = pendingOf(views[k]); const on = tabNow === k; return (
+            <button key={k} role="tab" aria-selected={on} tabIndex={on ? 0 : -1} className={"av-mtab" + (on ? " on" : "")} onClick={() => setTab(k)} title={avIsClosed(k) ? tr("Cerrado", "Closed") : tr("Abierto", "Open")}>
+              <i className={avIsClosed(k) ? "" : "open"}></i>{label(k)}{p ? <b>{p}</b> : null}
+            </button>
+          ); })}
+        </div>
+      )}
+      {multi && tabNow === "all" && (
         <div className="av-block">
           <div className="av-block-h"><span className="av-kpi-k">{tr("Resumen de los meses seleccionados", "Selected months combined")}</span><span className="av-block-s">{label(loaded[0]) + " → " + label(loaded[loaded.length - 1])} · {tr("el botón de cada fila agrega esa propiedad en todos estos meses", "each row's button adds that property for all these months")}</span></div>
           <AvTable view={multi} cols={AV_COLS.filter(c => c.sum || c.f === "n0")} tr={tr} es={es} onRow={rowAdd} rowBusy={rowBusy} canAdd={canAdd} multi />
         </div>
       )}
-      {loaded.map(k => views[k].rows.length > 0 && (
+      {loaded.filter(k => !multi || tabNow === k).map(k => views[k].rows.length > 0 && (
         <div className="av-block" key={k}>
           {multi && (
             <div className="av-block-h">
