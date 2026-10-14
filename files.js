@@ -88,6 +88,9 @@
     propsNeedingInvoice: propsNeedingInvoice,
 
     // todos los registros (publicados + locales), con el local pisando al publicado
+    // máximo de comprobantes de depósito por propiedad (o por socio) y mes
+    MAX_DEPOSITS: 3,
+
     records: function () {
       var pub = (window.SpacioData && window.SpacioData.files) || [];
       var loc = readLocal();
@@ -117,6 +120,8 @@
       var hits = this.records().filter(function (r) {
         if (r.tipo !== kind || r.ym !== ym) return false;
         if (opts.scope === "owner") return r.scope === "owner" && ownerN && norm(r.owner) === ownerN;
+        // exact: solo los del nivel pedido (para contar contra el límite de 3)
+        if (opts.exact) return r.scope === "property" && propN && norm(r.property_name) === propN;
         return (r.scope === "property" && propN && norm(r.property_name) === propN) ||
                (r.scope === "owner" && ownerN && norm(r.owner) === ownerN);
       });

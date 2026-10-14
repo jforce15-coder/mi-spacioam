@@ -118,6 +118,19 @@
   .sa-file-deposit { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
     background: var(--alabaster); border: 1px solid var(--ink-08); border-radius: 16px; padding: 14px 18px; margin-bottom: 16px; }
   .sa-file-deposit .lbl { display: flex; align-items: center; gap: 11px; font-family: var(--sans); font-size: 12.5px; letter-spacing: 0.03em; color: var(--ink); }
+  .sa-dep-slots { display: grid; grid-template-columns: 1fr; gap: 8px; width: 100%; }
+  @media (min-width: 720px) { .sa-dep-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  .sa-dep-slot { display: flex; align-items: center; gap: 10px; min-width: 0; background: var(--beige-soft); border-radius: 12px; padding: 10px 12px; }
+  .sa-dep-slot .n { width: 24px; height: 24px; flex-shrink: 0; border-radius: 50%; background: var(--alabaster); display: inline-flex; align-items: center; justify-content: center; font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--ink); }
+  .sa-dep-slot .meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; font-family: var(--sans); font-size: 12px; letter-spacing: 0.02em; color: var(--ink); }
+  .sa-dep-slot .meta small { font-size: 10.5px; color: var(--fg-muted); letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sa-dep-slot a { flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--warm-grey); background: var(--alabaster); display: inline-flex; align-items: center; justify-content: center; transition: border-color .18s var(--ease); }
+  .sa-dep-slot a:hover { border-color: var(--ink); }
+  .sa-dep-cell { display: inline-flex; align-items: center; gap: 6px; }
+  .sa-dep-chip { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 9px; border-radius: 9px; border: 1px solid var(--warm-grey); background: var(--alabaster); font-family: var(--sans); font-size: 11px; font-weight: 600; color: var(--ink); text-decoration: none; transition: border-color .18s var(--ease); }
+  .sa-dep-chip:hover { border-color: var(--ink); }
+  .sa-dep-chip.off { color: var(--fg-muted); border-style: dashed; }
+  .sa-dep-count { font-family: var(--sans); font-size: 10.5px; letter-spacing: 0.04em; color: var(--fg-muted); font-variant-numeric: tabular-nums; margin-left: 2px; }
   .sa-file-deposit .ic { width: 38px; height: 38px; border-radius: 11px; background: var(--beige-soft); display: inline-flex; align-items: center; justify-content: center; }
 
   /* ---------- overdue invoice alert (escalates) ---------- */
@@ -419,7 +432,7 @@
 
   <script src="sheets.js?v=20261008c"></script>
   <script src="sa-auth-client.js?v=20260823"></script>
-  <script src="files.js?v=20261008"></script>
+  <script src="files.js?v=20261013"></script>
   <script src="sa-rows.js?v=20260940"></script>
   <script src="facturas-batch.js?v=20260820"></script>
   <script src="i18n.js?v=20260923"></script>
@@ -442,14 +455,15 @@
   <script type="text/babel" src="ui.jsx?v=20261008b"></script>
   <script type="text/babel" src="sa-combo.jsx?v=20260923"></script>
   <script type="text/babel" src="hold-confirm.jsx?v=20261013"></script>
-  <script src="noti-data.js?v=20261008"></script>
+  <script src="noti-data.js?v=20261013"></script>
   <script type="text/babel" src="noti-center.jsx?v=20260852"></script>
+  <script type="text/babel" src="noti-prefs.jsx?v=20261013"></script>
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
   <script type="text/babel" src="login.jsx?v=20260823"></script>
   <script type="text/babel" src="pedidosya-ui.jsx?v=20261008"></script>
   <script type="text/babel" src="pedidosya.jsx?v=20261013"></script>
   <script type="text/babel" src="dashboard.jsx?v=20260943"></script>
-  <script type="text/babel" src="sections.jsx?v=20261013"></script>
+  <script type="text/babel" src="sections.jsx?v=20261013d"></script>
   <script type="text/babel" src="conta.jsx?v=20261013"></script>
   <script type="text/babel" src="conta-facturas.jsx?v=20261013"></script>
   <script type="text/babel" src="contratos.jsx?v=20261013"></script>
@@ -485,6 +499,8 @@
       const [notiOpen, setNotiOpen] = useState(false);
       const [notiDismiss, setNotiDismiss] = useState(() => { try { return JSON.parse(localStorage.getItem("sam:notiDismiss") || "{}"); } catch (e) { return {}; } });
       const [notiSnooze, setNotiSnooze] = useState(() => { try { return JSON.parse(localStorage.getItem("sam:notiSnooze") || "{}"); } catch (e) { return {}; } });
+      const [notiPrefs, setNotiPrefs] = useState(() => window.SpacioNotiPrefs ? SpacioNotiPrefs.get() : null);
+      useEffect(() => { const h = () => setNotiPrefs(SpacioNotiPrefs.get()); window.addEventListener("sam-notiprefs", h); return () => window.removeEventListener("sam-notiprefs", h); }, []);
       const notiPersist = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
       const dismissNoti = (n) => setNotiDismiss(p => { const u = Object.assign({}, p, { [n.id]: 1 }); notiPersist("sam:notiDismiss", u); return u; });
       const snoozeNoti = (n) => setNotiSnooze(p => { const u = Object.assign({}, p, { [n.id]: Date.now() + 86400000 }); notiPersist("sam:notiSnooze", u); return u; });
@@ -567,8 +583,8 @@
       const notiAll = useMemo(() => (window.SpacioNotis ? window.SpacioNotis.build({
         months, owner, isAll, activeProps, isAdmin, isContador, lang,
         SF: window.SpacioFiles, ownerLabel: notiOwnerLabel, goToMonth, goToMonthStr, goToLiq: scrollToLiq,
-        allProps: allOwnerProps, goToTab,
-      }) : []), [months, isAll, effSelProp, lang, tab, scopeKey]);
+        allProps: allOwnerProps, goToTab, prefs: notiPrefs,
+      }) : []), [months, isAll, effSelProp, lang, tab, scopeKey, notiPrefs]);
       const notis = notiAll.filter(n => !notiDismiss[n.id] && !(notiSnooze[n.id] && notiSnooze[n.id] > Date.now()));
 
       const monthOpts = (months || []).filter(m => m.present).slice().reverse().map(m => ({

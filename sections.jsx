@@ -1204,6 +1204,8 @@ const SetupSection = ({ lang, t }) => {
         <MailMultiToggle lang={lang} />
       </Card>
 
+      {typeof NotiPrefsCard !== "undefined" && <NotiPrefsCard lang={lang} />}
+
       {typeof ContratosSetupCard !== "undefined" && <ContratosSetupCard lang={lang} />}
 
       <div className="sa-setup-toolbar">
@@ -1330,13 +1332,22 @@ function ownerLabelFor({ scope, property, activeProps, owner, isAdmin }) {
   return set.size === 1 ? [...set][0] : "";
 }
 
-function FileUploadButton({ label, onPick, busy, dark }) {
+// fecha corta de un comprobante: "2026-08-14" / "14/08/2026" → "14 ago 2026"
+function depFecha(s, lang) {
+  const M = lang === "en" ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] : ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  s = String(s || "");
+  let g = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/); if (g) return +g[3] + " " + M[+g[2] - 1] + " " + g[1];
+  g = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/); if (g) return +g[1] + " " + M[+g[2] - 1] + " " + g[3];
+  return s;
+}
+
+function FileUploadButton({ label, onPick, busy, dark, style }) {
   const ref = useRef(null);
   return (
     <React.Fragment>
       <input ref={ref} type="file" accept="image/*,application/pdf" style={{ display: "none" }}
         onChange={e => { const f = e.target.files[0]; if (f) onPick(f); e.target.value = ""; }} />
-      <button type="button" className={"sa-file-btn " + (dark ? "dark" : "ghost")} disabled={busy} onClick={() => ref.current && ref.current.click()}>
+      <button type="button" className={"sa-file-btn " + (dark ? "dark" : "ghost")} style={style} disabled={busy} onClick={() => ref.current && ref.current.click()}>
         {busy ? <span className="sa-spin" style={{ width: 13, height: 13, border: "2px solid rgba(250,250,250,0.4)", borderTopColor: dark ? "var(--alabaster)" : "var(--ink)", borderRadius: "50%", display: "inline-block" }} /> : <Icon name="upload" size={15} stroke={dark ? "var(--alabaster)" : "var(--ink)"} />}
         {label}
       </button>
@@ -1521,7 +1532,8 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
   const invCov = SF && ym ? SF.coverage("factura", { scope, owner: ownerLabel, property_name: propName, ym, properties: activeProps || [] }) : null;
   // constancia de retención: solo tiene sentido cuando el mes retuvo algo
   const retCov = SF && ym && usaNeto2 ? SF.coverage("retencion", { scope, owner: ownerLabel, property_name: propName, ym }) : null;
-  const depAll = SF && ym ? SF.coverageAll("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : [];
+  const depMax = (SF && SF.MAX_DEPOSITS) || 3;
+  const depAll = (SF && ym ? SF.coverageAll("deposito", { scope, owner: ownerLabel, property_name: propName, ym }) : []).slice(0, depMax);
   const income = c.ingresoNeto || 0;
   const enforce = endMonth && endMonth.y >= (SF ? SF.ENFORCE_FROM_YEAR : 2026);
   const overdue = (!invCov && income > 0.5 && enforce && SF) ? SF.urgency(endMonth.y, endMonth.m) : null;
@@ -1564,19 +1576,34 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
 
       {/* comprobante(s) de depósito — descarga, justo encima de "Monto a facturar".
           Puede haber varios depósitos en el mismo mes; se listan todos. */}
-      <div className="sa-file-deposit">
+      <div className="sa-file-deposit" style={depAll.length > 1 ? { flexDirection: "column", alignItems: "stretch" } : null}>
         <span className="lbl">
           <span className="ic"><Icon name="download" size={18} stroke={depAll.length ? "var(--ink)" : "var(--warm-grey)"} /></span>
           <span>
-            <strong style={{ fontWeight: 600 }}>{t("liq_deposit_proof")}</strong>
+            <strong style={{ fontWeight: 600 }}>{depAll.length > 1 ? (lang === "es" ? "Comprobantes de depósito" : "Deposit receipts") : t("liq_deposit_proof")}</strong>
             <span style={{ display: "block", color: "var(--fg-muted)", fontSize: 11, marginTop: 2 }}>{endMonth ? longMonth(lang, endMonth.y, endMonth.m) : ""}{depAll.length > 1 ? " · " + depAll.length + (lang === "es" ? " depósitos" : " deposits") : ""}</span>
           </span>
         </span>
-        {depAll.length
+        {depAll.length > 1
+          ? <div className="sa-dep-slots">
+              {depAll.map((d, i) => (
+                <div key={d.fid || i} className="sa-dep-slot">
+                  <span className="n">{i + 1}</span>
+                  <span className="meta">
+                    <span>{(lang === "es" ? "Depósito " : "Deposit ") + (i + 1)}</span>
+                    <small>{d.fecha ? depFecha(d.fecha, lang) : (d.archivo || "")}</small>
+                  </span>
+                  {d.url
+                    ? <a href={d.url} target="_blank" rel="noreferrer" download aria-label={t("liq_deposit_download") + " " + (i + 1)} title={t("liq_deposit_download")}><Icon name="download" size={15} stroke="var(--ink)" /></a>
+                    : <small style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)" }}>{lang === "es" ? "Sin archivo" : "No file"}</small>}
+                </div>
+              ))}
+            </div>
+          : depAll.length
           ? <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}>
-              {depAll.map((d, i) => d.url
-                ? <a key={d.fid || i} className="sa-file-btn ghost" href={d.url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{depAll.length > 1 ? (t("liq_deposit_download") + " " + (i + 1)) : t("liq_deposit_download")}</a>
-                : null)}
+              {depAll[0].url
+                ? <a className="sa-file-btn ghost" href={depAll[0].url} target="_blank" rel="noreferrer" download><Icon name="download" size={15} stroke="var(--ink)" />{t("liq_deposit_download")}</a>
+                : null}
             </div>
           : <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", maxWidth: 260, textAlign: "right" }}>{t("liq_deposit_none")}</span>}
       </div>
@@ -1758,10 +1785,16 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
   const saveAll = async () => {
     if (!ready.length) return;
     setBusy("save"); setMsg("");
-    let ok = 0, monUpd = 0, failed = 0;
+    let ok = 0, monUpd = 0, failed = 0, limited = 0;
+    const maxDep = SF.MAX_DEPOSITS || 3, used = {};
     for (const d of ready) {
-      setItem(d.id, { status: "uploading" });
       const isOwner = d.scope === "owner";
+      // límite: máximo 3 comprobantes por propiedad (o por socio) en el mes
+      const tKey = isOwner ? "o:" + d.owner : "p:" + d.property_name;
+      const have = SF.coverageAll("deposito", isOwner ? { scope: "owner", owner: d.owner, ym } : { scope: "property", property_name: d.property_name, ym, exact: true }).length;
+      if (have + (used[tKey] || 0) >= maxDep) { limited++; setItem(d.id, { status: "limit" }); continue; }
+      used[tKey] = (used[tKey] || 0) + 1;
+      setItem(d.id, { status: "uploading" });
       // IMPORTANTE: el comprobante se guarda en el MES SELECCIONADO en el filtro
       // superior (ym), no en la fecha en que se sube.
       // La fila de la hoja debe caer SIEMPRE en el mes seleccionado (ym). Si el OCR
@@ -1796,8 +1829,8 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
     setItems(its => its.filter(d => d.status !== "done"));
     setBusy("");
     setMsg(tr(
-      ok + " comprobante(s) guardados en " + monthName + (monUpd ? " · " + monUpd + " moneda(s) actualizada(s)" : "") + (failed ? " · " + failed + " con error (revisa la conexión)" : "") + ".",
-      ok + " receipt(s) saved to " + monthName + (monUpd ? " · " + monUpd + " currency(ies) updated" : "") + (failed ? " · " + failed + " failed (check connection)" : "") + "."));
+      ok + " comprobante(s) guardados en " + monthName + (monUpd ? " · " + monUpd + " moneda(s) actualizada(s)" : "") + (failed ? " · " + failed + " con error (revisa la conexión)" : "") + (limited ? " · " + limited + " no se subieron: esa propiedad o socio ya tiene " + maxDep + " comprobantes este mes" : "") + ".",
+      ok + " receipt(s) saved to " + monthName + (monUpd ? " · " + monUpd + " currency(ies) updated" : "") + (failed ? " · " + failed + " failed (check connection)" : "") + (limited ? " · " + limited + " skipped: that property or owner already has " + maxDep + " receipts this month" : "") + "."));
   };
   // propiedades de un socio (por nombre legible del socio)
   const propsOfOwner = (ownerName) => {
@@ -1857,6 +1890,8 @@ function DepositBatchUpload({ allProps, ym, lang, t }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     {d.status === "uploading"
                       ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--fg-muted)", display: "inline-flex", alignItems: "center", gap: 5 }}><span className="sa-spin" style={{ width: 11, height: 11, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%", display: "inline-block" }} />{tr("subiendo…", "uploading…")}</span>
+                      : d.status === "limit"
+                      ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--attention-text)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="info" size={11} stroke="var(--peach)" />{tr("ya tiene 3 comprobantes", "already has 3 receipts")}</span>
                       : d.status === "error"
                       ? <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: "var(--attention-text)", display: "inline-flex", alignItems: "center", gap: 5 }}><Icon name="alert" size={11} stroke="var(--peach)" />{tr("error — reintenta", "error — retry")}</span>
                       : (() => { const assigned = d.scope === "owner" ? d.owner : d.property_name; return <span style={{ fontFamily: "var(--sans)", fontSize: 10, letterSpacing: "0.04em", color: assigned ? "#5B8A6B" : "var(--peach)", display: "inline-flex", alignItems: "center", gap: 5 }}>
@@ -2258,8 +2293,15 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   const uploadFor = async (kind, g, file) => {
     if (!ym || !SF) return;
     setBusyKey(g.key + kind);
-    await SF.upload({ kind, scope: scopeNow, owner: ownerLabelOf(g), property_name: scopeNow === "property" ? g.label : "", ym, file });
+    if (kind === "deposito" && depsFor(g).length >= depMax) { setBusyKey(""); return; }
+    await SF.upload({ kind, scope: scopeNow, owner: ownerLabelOf(g), property_name: scopeNow === "property" ? g.label : "", ym, file, multiple: kind === "deposito" });
     setBusyKey("");
+  };
+  // comprobantes de depósito de la fila: hasta 3, solo del nivel visto (propiedad o socio)
+  const depMax = (SF && SF.MAX_DEPOSITS) || 3;
+  const depsFor = (g) => {
+    if (!SF || !ym) return [];
+    return SF.coverageAll("deposito", { scope: scopeNow, owner: ownerLabelOf(g), property_name: scopeNow === "property" ? g.label : "", ym, exact: true }).slice(0, depMax);
   };
   const covFor = (kind, g) => {
     if (!SF || !ym) return null;
@@ -2340,8 +2382,8 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
         groups = groups.filter(g => {
           if (flt === "all") return true;
           if (flt === "ret") return g.needsRet && !covFor("retencion", g);
-          const dep = covFor("deposito", g);
-          return flt === "done" ? !!dep : !dep;
+          const dep = depsFor(g).length > 0;
+          return flt === "done" ? dep : !dep;
         });
         if (!groups.length) return null;
         const tot = groups.reduce((a, g) => ({ retencion: a.retencion + g.retencion, iva: a.iva + g.iva, total: a.total + g.total }), { retencion: 0, iva: 0, total: 0 });
@@ -2363,18 +2405,18 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     <th style={{ minWidth: 110, textAlign: "right" }}>{t("dep_col_total")}</th>
                     <th style={{ minWidth: 130 }}>{t("dep_col_account")}</th>
                     <th style={{ minWidth: 170 }}>{t("dep_col_email")}</th>
-                    <th style={{ minWidth: 150 }}>{t("liq_deposit_proof")}</th>
+                    <th style={{ minWidth: 190 }}>{tr("Comprobantes de depósito", "Deposit receipts")}</th>
                     <th style={{ minWidth: 160 }}>{tr("Constancia de retención", "Withholding certificate")}</th>
                     <th style={{ minWidth: 150 }}>{tr("Correo del mes", "Monthly email")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groups.map(g => {
-                    const dep = covFor("deposito", g);
+                    const deps = depsFor(g);
                     const ret = covFor("retencion", g);
                     return (
                       <tr key={g.key}>
-                        <td><Farol ok={!!dep} /></td>
+                        <td><Farol ok={deps.length > 0} /></td>
                         <td style={{ fontWeight: 500 }}>{g.label}</td>
                         {view === "prop" && <td style={{ color: "var(--fg-muted)" }}>{g.owner}</td>}
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{g.retencion > 0.005 ? fmtMon(g.retencion, mon) : "—"}</td>
@@ -2382,9 +2424,15 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtMon(g.total, mon)}</td>
                         <td style={{ color: g.cuenta ? "var(--ink)" : "var(--fg-muted)" }}>{g.cuenta || t("dep_no_account")}</td>
                         <td style={{ color: "var(--fg-muted)" }}>{g.email}</td>
-                        <td>{dep && dep.url
-                          ? <a className="sa-file-btn ghost" style={{ padding: "7px 12px", fontSize: 11 }} href={dep.url} target="_blank" rel="noreferrer" download><Icon name="download" size={13} stroke="var(--ink)" />{tr("Descargar", "Download")}</a>
-                          : <FileUploadButton label={dep ? tr("Reemplazar", "Replace") : tr("Subir", "Upload")} onPick={(f) => uploadFor("deposito", g, f)} busy={busyKey === g.key + "deposito"} />}</td>
+                        <td>
+                          <span className="sa-dep-cell">
+                            {deps.map((d, i) => d.url
+                              ? <a key={d.fid || i} className="sa-dep-chip" href={d.url} target="_blank" rel="noreferrer" download title={tr("Descargar comprobante ", "Download receipt ") + (i + 1) + (d.fecha ? " · " + depFecha(d.fecha, lang) : "")}><Icon name="download" size={12} stroke="var(--ink)" />{i + 1}</a>
+                              : <span key={d.fid || i} className="sa-dep-chip off" title={tr("Registrado sin archivo", "Logged without file")}>{i + 1}</span>)}
+                            {deps.length < depMax && <FileUploadButton label={deps.length ? tr("Agregar", "Add") : tr("Subir", "Upload")} onPick={(f) => uploadFor("deposito", g, f)} busy={busyKey === g.key + "deposito"} style={{ padding: "7px 12px", fontSize: 11 }} />}
+                            <span className="sa-dep-count">{deps.length}/{depMax}</span>
+                          </span>
+                        </td>
                         <td>{!g.needsRet
                           ? <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontFamily: "var(--sans)", fontSize: 11, color: "var(--fg-muted)" }}><Farol na /> {tr("No aplica", "N/A")}</span>
                           : ret && ret.url

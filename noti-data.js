@@ -7,6 +7,24 @@
 (function () {
   "use strict";
   function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+  // ── Preferencias de notificaciones (Setup) ──
+  // { deposito: {on, props:[ids]}, retencion: {on, props}, contabilidad: {on} }
+  // props vacío = todas las propiedades.
+  var PREF_KEY = "sam:notiPrefs";
+  var PREF_DEF = { deposito: { on: true, props: [] }, retencion: { on: true, props: [] }, contabilidad: { on: true } };
+  function readPrefs() {
+    var p = {}; try { p = JSON.parse(localStorage.getItem(PREF_KEY)) || {}; } catch (e) { p = {}; }
+    var out = {}; Object.keys(PREF_DEF).forEach(function (k) { out[k] = Object.assign({}, PREF_DEF[k], p[k] || {}); });
+    return out;
+  }
+  window.SpacioNotiPrefs = {
+    get: readPrefs,
+    set: function (next) {
+      try { localStorage.setItem(PREF_KEY, JSON.stringify(next)); } catch (e) {}
+      try { window.dispatchEvent(new CustomEvent("sam-notiprefs")); } catch (e) {}
+    },
+  };
   function monthName(lang, y, m) {
     try { return cap(SpacioI18n.monthLong(lang, m)) + " " + y; }
     catch (e) { return (m + 1) + "/" + y; }
@@ -126,6 +144,11 @@
     var nombre = (function () { try { return cap(SpacioI18n.monthLong(ctx.lang, tM)) + " " + tY; } catch (e) { return ym; } })();
     var dia = now.getDate();
     var props = ctx.allProps || [];
+    var prefs = ctx.prefs || readPrefs();
+    function allowed(kind, p) {
+      var c = prefs[kind]; if (!c || !c.on) return false;
+      return !c.props || !c.props.length || c.props.indexOf(p.id) >= 0;
+    }
 
     // helper: nombre del socio de una propiedad
     function ownerLabelOf(p) {
@@ -139,6 +162,7 @@
     var depDue = dia >= depLim;
     var depFaltan = [];
     props.forEach(function (p) {
+      if (!allowed("deposito", p)) return;
       var mo = monthOf(p); if (!mo) return;
       var monto = (mo.deposito != null ? mo.deposito : mo.ingresoNeto) || 0;
       if (monto <= 0.5) return;
@@ -166,7 +190,7 @@
     var retDue = dia >= 10;
     var retFaltan = [];
     props.forEach(function (p) {
-      if (!p.flagRetencion) return;
+      if (!p.flagRetencion || !allowed("retencion", p)) return;
       var mo = monthOf(p); if (!mo) return;
       if (Math.abs(mo.retencion || 0) <= 0.5) return;
       var oLabel = ownerLabelOf(p);
@@ -191,7 +215,7 @@
 
     // 3) ARCHIVOS DE CONTABILIDAD — día 10
     var conDue = dia >= 10;
-    if (!contaCubierto(ym)) {
+    if (prefs.contabilidad && prefs.contabilidad.on && !contaCubierto(ym)) {
       out.push({
         id: "adm-con|" + ym,
         tipo: conDue ? "alerta" : "accion",
