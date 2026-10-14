@@ -2464,6 +2464,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
       )}
       <div style={{ marginTop: 40 }}>
         <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />
+        {typeof RetencionBatchUpload !== "undefined" && <RetencionBatchUpload lang={lang} ym={ym} />}
         <UploadedDepositsList lang={lang} t={t} ym={ym} />
       </div>
       <InvoiceControlTable allProps={allProps} lang={lang} />
