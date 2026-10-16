@@ -1,3 +1,9 @@
+/* Spacio AM · puente de notificaciones al hub: publica el total del bell en la cookie sa_noti_<app> (.spacioam.com). */
+(function () {
+  if (window.SANoti) return;
+  var marca = /(^|\.)spacioam\.com$/.test(location.hostname);
+  window.SANoti = { publicar: function (app, n) { try { n = Math.max(0, Math.round(Number(n) || 0)); var prev = (document.cookie.match(new RegExp("(^|; )sa_noti_" + app + "=([^;]*)")) || [])[2]; if (prev && prev.split(".")[0] === String(n)) return; document.cookie = "sa_noti_" + app + "=" + n + "." + Date.now() + (marca ? "; domain=.spacioam.com" : "") + "; path=/; Secure; SameSite=Lax; max-age=" + (14 * 86400); } catch (e) {} } };
+})();
 /* Centro de notificaciones estilo iOS · Spacio AM · Dashboard de Propietarios
    Portado de Grow-spacioam (noti-center.jsx). Capa de PRESENTACIÓN.
    Usa el set de iconos propio del dashboard (window.Icon) y exporta a window.
@@ -38,6 +44,7 @@
   /* NotiBell — disparador: triángulo azul info + círculo peach del conteo. */
   function NotiBell(props) {
     var total = props.total, onOpen = props.onOpen;
+    React.useEffect(function () { try { var app = window.SA_APP || String(location.hostname.split(".")[0] || "").toLowerCase(); if (window.SANoti && /^(hola|epi|mi|docs|grow)$/.test(app)) window.SANoti.publicar(app, total || 0); } catch (_) {} }, [total]);
     if (!(total > 0)) return null;
     return (
       <button onClick={function (e) { e.stopPropagation(); onOpen && onOpen(); }} title={total + " pendiente" + (total === 1 ? "" : "s")} aria-label={"Notificaciones (" + total + ")"}
