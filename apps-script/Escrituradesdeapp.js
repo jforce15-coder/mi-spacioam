@@ -8,19 +8,11 @@
 // 1) ID de TU hoja (en la URL, entre /d/ y /edit).
 var SA_SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
 
-// 2) Cambia este token por una contraseña larga y secreta.
-//    El MISMO valor va en el Dashboard (Setup -> Conexion de escritura).
-var SA_TOKEN = "SpacioAM2026!";
-
-// 2b) TOKEN DE SUBIDA (publico). Va dentro del dashboard, para que CUALQUIER
-//     dispositivo (el telefono de un socio) pueda guardar su factura en Drive.
-//     Solo autoriza las acciones de SA_UPLOAD_ACTIONS: no puede leer, editar ni
-//     borrar nada de la hoja. Usa un valor distinto al de SA_TOKEN.
-var SA_UPLOAD_TOKEN = "spam-subida-8f42c7bd91e6a5-2026";
-
-// 2c) CONTRASEÑA DEL ADMINISTRADOR PRINCIPAL — confirma cambios en meses cerrados
-//     (Opciones avanzadas → "Al acumulado" después del día 10 del mes siguiente).
-var SA_ADMIN_PASS = "Valencia2026!";
+// 2) AUTORIZACIÓN (fase 3, oct 2026): ya no hay llaves ni contraseñas en el código.
+//    · Administrador = sesión firmada del login unificado con rol admin_principal en Mi.
+//    · Subir archivos / facturas / contabilidad = sesión firmada de cualquier usuario con acceso a Mi.
+//    · Robots o integraciones: llave opcional en la propiedad del script MI_ADMIN_TOKEN (no en el código).
+//    Las llaves antiguas (SpacioAM2026!, token de subida y la contraseña de meses cerrados) dejan de valer.
 var SA_UPLOAD_ACTIONS = { uploadFile: true, ping: true, ocrFactura: true, linkFacturas: true, writeConta: true };
 
 var SA_VERSION = "2026-10-08c";
@@ -64,8 +56,10 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents || "{}");
     var __diag = accesosDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
     var __ses = sesionDe_(body); registrarAcceso_(body.action, !!__ses);   // fase 1b: aún no bloquea
-    var esAdmin  = body.token === SA_TOKEN;
-    var esSubida = SA_UPLOAD_TOKEN && body.token === SA_UPLOAD_TOKEN && SA_UPLOAD_ACTIONS[body.action];
+    var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
+    var llaveRobot = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN");
+    var esAdmin  = rolMi === "admin_principal" || !!(llaveRobot && body.token === llaveRobot);
+    var esSubida = !!rolMi && !!SA_UPLOAD_ACTIONS[body.action];
     if (!esAdmin && !esSubida) return sa_json({ ok: false, error: "unauthorized" });
 
     // OCR de facturas: no toca la hoja y tarda unos segundos — fuera del lock.
@@ -1099,14 +1093,14 @@ function sa_mesCerrado_(ym) { var p = String(ym).split("-"); return Date.now() >
 function sa_unlockOk_(u) {
   if (!u) return false;
   // confirmación por "mantener presionado" (300 ms) desde la app: la petición ya viene
-  // autenticada con el token de administrador (SA_TOKEN), así que basta con la intención explícita.
+  // autenticada como administrador (sesión firmada), así que basta con la intención explícita.
   if (u.hold === true) return "mantener presionado";
-  if (u.pass && String(u.pass) === SA_ADMIN_PASS) return "contraseña";
+  if (u.pass) return "confirmación del administrador";   // la contraseña fija se quitó: la petición ya es de un admin con sesión
   if (u.deviceKey) { var d = {}; try { d = JSON.parse(PropertiesService.getScriptProperties().getProperty("SA_UNLOCK_DEVICES") || "{}"); } catch (e) {} if (d[u.deviceKey]) return "face id"; }
   return false;
 }
 function sa_registerUnlockDevice(body) {
-  if (String(body.pass || "") !== SA_ADMIN_PASS) return { ok: false, error: "Contraseña incorrecta." };
+  // Solo llega aquí un administrador con sesión firmada (ver doPost); ya no se pide la contraseña fija.
   var P = PropertiesService.getScriptProperties();
   var d = {}; try { d = JSON.parse(P.getProperty("SA_UNLOCK_DEVICES") || "{}"); } catch (e) {}
   var key = Utilities.getUuid() + "-" + Utilities.getUuid();
