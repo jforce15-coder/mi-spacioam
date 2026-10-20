@@ -444,10 +444,17 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
       for (let i = 0; i < all.length; i += CH) {
         const part = all.slice(i, i + CH);
         setProg(tr("Conciliando " + Math.min(i + CH, all.length) + " de " + all.length + "…", "Conciliating " + Math.min(i + CH, all.length) + " of " + all.length + "…"));
-        const res = await postLinks(part.map(m => P.linkPayload(m.expense, m.invoices)));
+        const dbg = (m) => { try { window.saDbg && window.saDbg(m); } catch (e) {} };
+        dbg("conciliar: tanda " + (i / CH + 1) + " · armando");
+        const payload = part.map(m => P.linkPayload(m.expense, m.invoices));
+        dbg("conciliar: enviando " + payload.length);
+        const res = await postLinks(payload);
+        dbg("conciliar: respuesta " + JSON.stringify(res || {}).slice(0, 80));
         if (!(res && res.ok)) { failed = res; break; }
         setLinked(prev => { const n = new Set(prev); part.forEach(m => n.add(m.expense._k)); return n; });
+        dbg("conciliar: marcados");
         try { addImported(part.reduce((a, m) => a.concat(m.invoices.map(iv => iv.auth)), [])); } catch (e) {}
+        dbg("conciliar: guardado local");
         done += part.length;
       }
     } catch (e) { failed = { error: (e && e.message) || "error" }; }
