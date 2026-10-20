@@ -17,14 +17,14 @@ const Login = ({ lang, setLang, onLogin }) => {
     // Entrada instantánea con el perfil de la sesión; la firma se comprueba en segundo plano.
     const r = window.SASesion.perfilRapido && window.SASesion.perfilRapido();
     if (r && r.apps && r.apps.mi) {
-      onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(r) : r);
+      onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(r) : r);
       window.SASesion.confirmar("mi", () => location.reload());
       return;
     }
     let vivo = true;
     window.SASesion.verificar().then((p) => {
       if (!vivo) return;
-      if (p && p.apps && p.apps.mi) onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(p) : p);
+      if (p && p.apps && p.apps.mi) onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(p) : p);
       else setSso(false);
     });
     return () => { vivo = false; };
@@ -39,15 +39,13 @@ const Login = ({ lang, setLang, onLogin }) => {
     // Modo compatibilidad: primero el login unificado (hoja «Control de
     // usuarios»); si el endpoint no responde o no existe el usuario, cae
     // al login viejo de la app. Así nada se rompe.
-    const fallback = () => {
-      const owner = SpacioData.auth(code, pass);
-      if (owner) onLogin(owner);
-      else { setErr(true); setBusy(false); }
-    };
+    /* Solo el login unificado (Control de usuarios). El login viejo leía las contraseñas de la hoja,
+       que ahora es privada; se quitó. */
+    const fallback = () => { setErr(true); setBusy(false); };
     if (!window.SAAuth) { setTimeout(fallback, 300); return; }
     window.SAAuth.login(code, pass).then((r) => {
       if (r && r.ok && r.profile && r.profile.apps && r.profile.apps.mi) {
-        onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
+        onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
       } else if (r && r.error === "needs_password" && r.profile) {
         setNeedPass(r.profile);       // primer ingreso: crear contraseña
         setBusy(false);
@@ -62,7 +60,7 @@ const Login = ({ lang, setLang, onLogin }) => {
     if (!pass || pass.length < 6) { setErr(true); return; }
     setBusy(true);
     window.SAAuth.setInitialPassword(code, pass).then((r) => {
-      if (r && r.ok) onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
+      if (r && r.ok) onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
       else { setErr(true); setBusy(false); }
     }).catch(() => { setErr(true); setBusy(false); });
   };
