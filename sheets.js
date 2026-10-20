@@ -567,6 +567,7 @@
         const line = document.createElement("div"); line.textContent = ((Date.now() - t0) / 1000).toFixed(1) + "s  " + m; el.appendChild(line); el.scrollTop = el.scrollHeight;
       } catch (e) {}
     };
+    setInterval(() => { window.saDbg && window.saDbg("· vivo"); }, 10000);   // si deja de aparecer, la página se congeló
     let last = Date.now();   // detector de congelamiento: si el reloj salta, la página estuvo bloqueada
     setInterval(() => { const now = Date.now(); if (now - last > 1500) window.saDbg && window.saDbg("⚠ página bloqueada " + ((now - last) / 1000).toFixed(1) + " s"); last = now; }, 500);
   })();
@@ -606,7 +607,7 @@
       const ms = (opts && opts.timeout) || 60000;
       const ctl = ms && typeof AbortController !== "undefined" ? new AbortController() : null;
       const tm = ctl ? setTimeout(() => ctl.abort(), ms) : null;
-      const dt0 = Date.now(); window.saDbg && window.saDbg("→ " + action);
+      const dt0 = Date.now(); window.saDbg && window.saDbg("→ " + action + " · " + ((this.url().match(/\/s\/([^/]+)/) || [])[1] || "?").slice(-6) + (this.isAdminConn() ? " · admin" : ""));
       try {
         // text/plain → "simple request", evita preflight CORS contra Apps Script
         const res = await fetch(this.url(), {
