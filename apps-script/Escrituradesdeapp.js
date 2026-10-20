@@ -62,6 +62,8 @@ var SA_DRIVE_RETENCION = "Constancias de retencion";
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents || "{}");
+    var __diag = accesosDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
+    var __ses = sesionDe_(body); registrarAcceso_(body.action, !!__ses);   // fase 1b: aún no bloquea
     var esAdmin  = body.token === SA_TOKEN;
     var esSubida = SA_UPLOAD_TOKEN && body.token === SA_UPLOAD_TOKEN && SA_UPLOAD_ACTIONS[body.action];
     if (!esAdmin && !esSubida) return sa_json({ ok: false, error: "unauthorized" });
