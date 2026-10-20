@@ -14,6 +14,13 @@ const Login = ({ lang, setLang, onLogin }) => {
   const [sso, setSso] = React.useState(() => !!(window.SASesion && window.SASesion.leer()));
   React.useEffect(() => {
     if (!sso) return;
+    // Entrada instantánea con el perfil de la sesión; la firma se comprueba en segundo plano.
+    const r = window.SASesion.perfilRapido && window.SASesion.perfilRapido();
+    if (r && r.apps && r.apps.mi) {
+      onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(r) : r);
+      window.SASesion.confirmar("mi", () => location.reload());
+      return;
+    }
     let vivo = true;
     window.SASesion.verificar().then((p) => {
       if (!vivo) return;
