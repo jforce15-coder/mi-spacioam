@@ -3,7 +3,7 @@
    Mientras la URL sea el placeholder, el login usa el respaldo viejo de la app. */
 (function (global) {
   var CFG = {
-    url:   'PEGA_AQUI_SA_AUTH_URL',   // <-- reemplazar por la URL /exec del endpoint
+    url:   'https://script.google.com/macros/s/AKfycbxfdwLzsA8bwgOxUTOtf3Hw1ptIm8Cy34tspmFndu3WtRrkVSSnGyBP7obRrm73mcUd/exec',   // login unificado (Control de usuarios)
     token: 'SpacioAM2026!'
   };
   function call(action, payload) {
