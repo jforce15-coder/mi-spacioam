@@ -553,6 +553,24 @@
   function saLocalGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
   function saLocalSet(k, v) { try { localStorage.setItem(k, v || ""); } catch (e) {} }
 
+  /* Indicador de diagnóstico (temporal): abre mi.spacioam.com/?debug=1 para verlo; ?debug=0 lo apaga.
+     Muestra cada petición al Apps Script y lo que pasa al conciliar. */
+  (function () {
+    try { const q = location.search; if (/[?&]debug=1/.test(q)) localStorage.setItem("sa-debug", "1"); if (/[?&]debug=0/.test(q)) localStorage.removeItem("sa-debug"); } catch (e) {}
+    const on = () => { try { return localStorage.getItem("sa-debug") === "1"; } catch (e) { return false; } };
+    const t0 = Date.now();
+    window.saDbg = function (m) {
+      if (!on()) return;
+      try {
+        let el = document.getElementById("sa-dbg");
+        if (!el) { el = document.createElement("div"); el.id = "sa-dbg"; el.style.cssText = "position:fixed;right:10px;bottom:10px;z-index:99998;width:min(420px,92vw);max-height:40vh;overflow:auto;background:rgba(62,63,63,.94);color:#FAFAFA;font:11px/1.45 ui-monospace,Menlo,monospace;padding:10px 12px;border-radius:12px;white-space:pre-wrap"; document.body.appendChild(el); }
+        const line = document.createElement("div"); line.textContent = ((Date.now() - t0) / 1000).toFixed(1) + "s  " + m; el.appendChild(line); el.scrollTop = el.scrollHeight;
+      } catch (e) {}
+    };
+    let last = Date.now();   // detector de congelamiento: si el reloj salta, la página estuvo bloqueada
+    setInterval(() => { const now = Date.now(); if (now - last > 1500) window.saDbg && window.saDbg("⚠ página bloqueada " + ((now - last) / 1000).toFixed(1) + " s"); last = now; }, 500);
+  })();
+
   const SpacioWrite = {
     urlKey: SA_WK, tokenKey: SA_TK,
     // lee de localStorage; si está vacío, cae a la cookie y luego a la conexión
@@ -588,6 +606,7 @@
       const ms = (opts && opts.timeout) || 60000;
       const ctl = ms && typeof AbortController !== "undefined" ? new AbortController() : null;
       const tm = ctl ? setTimeout(() => ctl.abort(), ms) : null;
+      const dt0 = Date.now(); window.saDbg && window.saDbg("→ " + action);
       try {
         // text/plain → "simple request", evita preflight CORS contra Apps Script
         const res = await fetch(this.url(), {
@@ -595,7 +614,9 @@
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(Object.assign({ action: action, token: this.token() }, payload || {})),
         });
+        window.saDbg && window.saDbg("  cabeceras " + action + " · " + res.status + " · " + (Date.now() - dt0) + " ms");
         const txt = await res.text();
+        window.saDbg && window.saDbg("← " + action + " · " + (Date.now() - dt0) + " ms · " + txt.slice(0, 60));
         let data;
         try { data = JSON.parse(txt); }
         catch (pe) { return { ok: false, error: /<html|<!doctype/i.test(txt) ? "el servidor tardó demasiado o el Apps Script no está actualizado (respuesta HTML)" : "respuesta inválida del servidor" }; }
@@ -607,6 +628,7 @@
         }
         return data;
       } catch (e) {
+        window.saDbg && window.saDbg("✕ " + action + " · " + (Date.now() - dt0) + " ms · " + (e && (e.name + " " + e.message)));
         if (e && e.name === "AbortError") return { ok: false, timeout: true, error: "el servidor no respondió a tiempo" };
         return { ok: false, error: String(e) };
       } finally { if (tm) clearTimeout(tm); }
