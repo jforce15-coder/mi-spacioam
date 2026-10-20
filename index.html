@@ -460,7 +460,7 @@
   <script type="text/babel" src="noti-center.jsx?v=20260852"></script>
   <script type="text/babel" src="noti-prefs.jsx?v=20261013"></script>
   <script type="text/babel" src="charts.jsx?v=20260821"></script>
-  <script type="text/babel" src="login.jsx?v=20261020sso2"></script>
+  <script type="text/babel" src="login.jsx?v=20261020priv"></script>
   <script type="text/babel" src="pedidosya-ui.jsx?v=20261008"></script>
   <script type="text/babel" src="pedidosya.jsx?v=20261013"></script>
   <script type="text/babel" src="dashboard.jsx?v=20260943"></script>
@@ -816,37 +816,27 @@
         setOwnerState(o);
       };
 
+      /* Las hojas de Mi son privadas: solo se leen con la sesión firmada (lector seguro del login).
+         Sin sesión → primero el login; al entrar, se recarga y los datos se leen ya con la sesión.
+         El inicio de sesión recordado lo hace el propio login con la sesión firmada (SASesion).
+         Editado en GitHub, no en Claude Design. */
+      const cargado = React.useRef(false);
       const loadData = React.useCallback(() => {
+        try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+        if (!(window.SASesion && window.SASesion.leer())) { setState("ready"); return; }
         setState("loading");
-        SpacioLoad().then(() => {
-          setState("ready");
-          try {
-            // 1) dev/testing convenience: ?u=Socio_025 auto-logs in
-            const u = new URLSearchParams(location.search).get("u");
-            if (u) {
-              let o = SpacioData.auth(u, "spacioam") || SpacioData.auth(u, "Valencia2026!");
-              if (!o) { const acc = SpacioData.owners.find(x => (x.codes && x.codes.includes(u)) || x.code === u); if (acc) o = Object.assign({}, acc, SpacioData.effCreds(acc)); }
-              if (!o && (u === "admin" || /spacioam@gmail/i.test(u))) o = Object.assign({}, SpacioData.admin);
-              if (!o && (u === "contador" || u === "contabilidad")) o = Object.assign({}, SpacioData.contador);
-              if (o) { setOwner(o); return; }
-            }
-            // 2) restore a saved session (until logout / expiry)
-            const raw = localStorage.getItem(SESSION_KEY);
-            if (raw) {
-              const s = JSON.parse(raw);
-              if (s && s.ts && (Date.now() - s.ts) < SESSION_TTL) {
-                const o = resolveOwner(s.code, s.isAdmin, s.isContador);
-                if (o) { setOwnerState(o); saveSession(o); }
-              } else { localStorage.removeItem(SESSION_KEY); }
-            }
-          } catch (e) { }
-        }).catch((e) => { console.error("Sheet load failed", e); setState("error"); });
+        SpacioLoad().then(() => { cargado.current = true; setState("ready"); })
+          .catch((e) => { console.error("Sheet load failed", e); setState("error"); });
       }, []);
+      const entrar = (o) => {
+        if (!cargado.current) { setState("loading"); location.reload(); return; }   // recién inició sesión: leer los datos con la sesión
+        setOwner(o);
+      };
       useEffect(() => { loadData(); }, [loadData]);
 
       if (state !== "ready") return <Splash state={state} onRetry={loadData} lang={lang} />;
-      if (!owner) return <Login lang={lang} setLang={setLang} onLogin={setOwner} />;
-      return <Dashboard key={owner.code} owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency} onLogout={() => setOwner(null)} onUpdateOwner={setOwnerState} />;
+      if (!owner) return <Login lang={lang} setLang={setLang} onLogin={entrar} />;
+      return <Dashboard key={owner.code} owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency} onLogout={() => { try { window.SASesion && window.SASesion.borrar(); } catch (e) {} setOwner(null); location.reload(); }} onUpdateOwner={setOwnerState} />;
     }
 
     // Si algo rompe la página en silencio (iPad), lo mostramos abajo en vez de dejarla en blanco.
