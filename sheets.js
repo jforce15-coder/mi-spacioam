@@ -11,7 +11,7 @@
   const GTQ_RATE = 7.46;            // USD → GTQ (alineado al Reporte Financiero oficial)
   const DEMO_PASS = "spacioam";     // contraseña demo única (auth real vive en EPI)
   const ADMIN_EMAIL = "jovalle@spacioam.com";
-  const ADMIN_PASS = "Valencia2026!";
+  const ADMIN_PASS = null;          // fase 3: sin contraseñas en el código (solo login unificado)
   // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad).
   // Estos son los valores POR DEFECTO; el administrador puede editarlos desde
   // Setup → "Usuarios de contabilidad" (se guardan en el navegador).
@@ -523,7 +523,7 @@
   // al recargar. El token de subida solo autoriza "uploadFile" en el Apps
   // Script (SA_UPLOAD_TOKEN), por eso puede ir dentro del código publicado.
   const SA_PUBLIC_URL = "https://script.google.com/macros/s/AKfycbzqUTv_0NuNBVRXhlfHGaS5RdWKjBAmfA-dIsdDnMLbl2aE2PriEXNWw3qCi8yPF28qaQ/exec"; // ej. "https://script.google.com/macros/s/AKfyc…/exec"
-  const SA_PUBLIC_TOKEN = "spam-subida-8f42c7bd91e6a5-2026"; // el mismo valor de SA_UPLOAD_TOKEN en el Apps Script
+  const SA_PUBLIC_TOKEN = ""; // fase 3: ya no hay token público; el Apps Script autoriza con la sesión firmada
   // ---------------------------------------------------------------
   function saCookieGet(k) {
     try { const m = document.cookie.match("(?:^|; )" + k.replace(/[-]/g, "\\$&") + "=([^;]*)"); return m ? decodeURIComponent(m[1]) : ""; } catch (e) { return ""; }
@@ -560,7 +560,11 @@
     url() { return (saLocalGet(SA_WK) || saCookieGet(SA_WK) || SA_PUBLIC_URL || "").trim(); },
     token() { return (saLocalGet(SA_TK) || saCookieGet(SA_TK) || SA_PUBLIC_TOKEN || "").trim(); },
     // ¿este dispositivo tiene la conexión completa del admin (no la pública)?
-    isAdminConn() { return !!(saLocalGet(SA_TK) || saCookieGet(SA_TK)); },
+    // Fase 3: el admin se reconoce por su sesión firmada (rol admin_principal en Mi), no por una llave guardada.
+    isAdminConn() {
+      try { const p = window.SASesion && window.SASesion.perfilRapido(); if (p && p.apps && p.apps.mi === "admin_principal") return true; } catch (e) {}
+      return !!(saLocalGet(SA_TK) || saCookieGet(SA_TK));
+    },
     // escribe en los TRES almacenes
     setConfig(url, token) {
       url = (url || "").trim(); token = (token || "").trim();
