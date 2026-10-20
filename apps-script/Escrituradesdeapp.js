@@ -51,11 +51,32 @@ var SA_DRIVE_RETENCION = "Constancias de retencion";
 // ------------------------------------------------------------
 // Punto de entrada (POST desde el dashboard)
 // ------------------------------------------------------------
+/* Traza de diagnóstico (temporal): acción, rol de la sesión, duración y respuesta de las últimas 40
+   peticiones, en caché (6 h). La lee el robot con __accesos. No guarda datos de la hoja. */
+var __marcas = [];
+function marca_(n) { __marcas.push(n + "@" + (Date.now() - (__marcas.t0 || Date.now()))); }
 function doPost(e) {
+  __marcas = []; __marcas.t0 = Date.now();
+  var out, err = "";
+  try { out = doPostReal_(e); return out; }
+  catch (x) { err = String(x); throw x; }
+  finally {
+    try {
+      var b = {}; try { b = JSON.parse(e.postData.contents || "{}"); } catch (y) {}
+      if (b.action !== "__accesos") {
+        var c = CacheService.getScriptCache(), l = []; try { l = JSON.parse(c.get("traza") || "[]"); } catch (y) {}
+        var txt = ""; try { txt = out ? out.getContent().slice(0, 140) : ""; } catch (y) {}
+        l.unshift({ t: new Date().toISOString(), a: String(b.action || ""), ses: !!b.session, ms: Date.now() - __marcas.t0, m: __marcas.join(" "), r: txt, err: err.slice(0, 200) });
+        c.put("traza", JSON.stringify(l.slice(0, 40)), 21600);
+      }
+    } catch (z) {}
+  }
+}
+function doPostReal_(e) {
   try {
     var body = JSON.parse(e.postData.contents || "{}");
     var __diag = accesosDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
-    var __ses = sesionDe_(body); registrarAcceso_(body.action, !!__ses);   // fase 1b: aún no bloquea
+    marca_("ini"); var __ses = sesionDe_(body); marca_("ses:" + String((__ses && __ses.apps && __ses.apps.mi) || "-")); registrarAcceso_(body.action, !!__ses);   // fase 1b: aún no bloquea
     var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
     var llaveRobot = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN");
     var esAdmin  = rolMi === "admin_principal" || !!(llaveRobot && body.token === llaveRobot);
@@ -74,10 +95,12 @@ function doPost(e) {
     var action = String(body.action || "");
     var readonly = !!SA_READONLY[action];
     var longAction = /^(resumen|recalc|send|recur|hospitable)/.test(action);
+    marca_("auth");
     if (!readonly) {
       try { lock.waitLock(longAction ? 25000 : 8000); }
       catch (eLock) { return sa_json({ ok: false, busy: true, error: "la hoja está ocupada por otra operación; espera unos segundos e intenta de nuevo", ms: Date.now() - t0 }); }
     }
+    marca_("lock");
     var out;
     try {
       switch (body.action) {
