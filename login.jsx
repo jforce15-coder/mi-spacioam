@@ -9,6 +9,22 @@ const Login = ({ lang, setLang, onLogin }) => {
   const [err, setErr] = useState(false);
   const [needPass, setNeedPass] = useState(null);
   const [busy, setBusy] = useState(false);
+  /* Sesión única desde el Hub: si hay sesión firmada (hub.spacioam.com/js/sa-sesion.js), se comprueba
+     con el login y se entra directo. Mientras tanto se muestra un loader; si no vale, el login normal. */
+  const [sso, setSso] = React.useState(() => !!(window.SASesion && window.SASesion.leer()));
+  React.useEffect(() => {
+    if (!sso) return;
+    let vivo = true;
+    window.SASesion.verificar().then((p) => {
+      if (!vivo) return;
+      if (p && p.apps && p.apps.mi) onLogin(SpacioData.fromProfile ? SpacioData.fromProfile(p) : p);
+      else setSso(false);
+    });
+    return () => { vivo = false; };
+  }, []);
+  if (sso) return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "var(--alabaster)", fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.28em", textTransform: "uppercase", color: "var(--fg-muted)" }}>Spacio AM</div>
+  );
 
   const submit = (e) => {
     e.preventDefault();
