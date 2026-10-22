@@ -373,8 +373,10 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
 
   // Persistir el borrador: el ZIP leído y la conciliación NO se pierden al cambiar
   // de pestaña ni al recargar (se necesita moverse entre pestañas al conciliar).
+  // Se guarda 1 s después del último cambio (no después de cada tanda): armar y escribir el borrador
+  // completo con cada tanda de 8 trababa la pantalla mientras se conciliaba.
   pyUseEffect(() => {
-    try {
+    const t = setTimeout(() => { try {
       if (!invoices) { localStorage.removeItem(PYA_SAT_DRAFT_KEY); return; }
       const pack = (withItems) => JSON.stringify({
         v: PYA_SAT_DRAFT_VER,
@@ -383,7 +385,8 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
       });
       try { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(true)); }
       catch (e) { localStorage.setItem(PYA_SAT_DRAFT_KEY, pack(false)); } // sin espacio: guarda sin líneas
-    } catch (e) {}
+    } catch (e) {} }, 1000);
+    return () => clearTimeout(t);
   }, [invoices, stats, linked, manualUsed, hiddenInvs, hiddenExps]);
   // el lote que ya estaba en este navegador también se sube a la hoja (Contabilidad → Facturas)
   pyUseEffect(() => { try { if (invoices && invoices.length && window.cfSyncReceived) window.cfSyncReceived(invoices); } catch (e) {} }, []);
@@ -444,17 +447,10 @@ function PyaSatPanel({ lang, imported, addImported, propOptions, sheetExpenses }
       for (let i = 0; i < all.length; i += CH) {
         const part = all.slice(i, i + CH);
         setProg(tr("Conciliando " + Math.min(i + CH, all.length) + " de " + all.length + "…", "Conciliating " + Math.min(i + CH, all.length) + " of " + all.length + "…"));
-        const dbg = (m) => { try { window.saDbg && window.saDbg(m); } catch (e) {} };
-        dbg("conciliar: tanda " + (i / CH + 1) + " · armando");
-        const payload = part.map(m => P.linkPayload(m.expense, m.invoices));
-        dbg("conciliar: enviando " + payload.length);
-        const res = await postLinks(payload);
-        dbg("conciliar: respuesta " + JSON.stringify(res || {}).slice(0, 80));
+        const res = await postLinks(part.map(m => P.linkPayload(m.expense, m.invoices)));
         if (!(res && res.ok)) { failed = res; break; }
         setLinked(prev => { const n = new Set(prev); part.forEach(m => n.add(m.expense._k)); return n; });
-        dbg("conciliar: marcados");
         try { addImported(part.reduce((a, m) => a.concat(m.invoices.map(iv => iv.auth)), [])); } catch (e) {}
-        dbg("conciliar: guardado local");
         done += part.length;
       }
     } catch (e) { failed = { error: (e && e.message) || "error" }; }
