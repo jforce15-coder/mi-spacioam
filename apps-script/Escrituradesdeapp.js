@@ -51,27 +51,9 @@ var SA_DRIVE_RETENCION = "Constancias de retencion";
 // ------------------------------------------------------------
 // Punto de entrada (POST desde el dashboard)
 // ------------------------------------------------------------
-/* Traza de diagnóstico (temporal): acción, rol de la sesión, duración y respuesta de las últimas 40
-   peticiones, en caché (6 h). La lee el robot con __accesos. No guarda datos de la hoja. */
-var __marcas = [];
-function marca_(n) { __marcas.push(n + "@" + (Date.now() - (__marcas.t0 || Date.now()))); }
-function doPost(e) {
-  __marcas = []; __marcas.t0 = Date.now();
-  var out, err = "";
-  try { out = doPostReal_(e); return out; }
-  catch (x) { err = String(x); throw x; }
-  finally {
-    try {
-      var b = {}; try { b = JSON.parse(e.postData.contents || "{}"); } catch (y) {}
-      if (b.action !== "__accesos") {
-        var c = CacheService.getScriptCache(), l = []; try { l = JSON.parse(c.get("traza") || "[]"); } catch (y) {}
-        var txt = ""; try { txt = out ? out.getContent().slice(0, 140) : ""; } catch (y) {}
-        l.unshift({ t: new Date().toISOString(), a: String(b.action || ""), ses: !!b.session, ms: Date.now() - __marcas.t0, m: __marcas.join(" "), r: txt, err: err.slice(0, 200) });
-        c.put("traza", JSON.stringify(l.slice(0, 40)), 21600);
-      }
-    } catch (z) {}
-  }
-}
+/* La traza de diagnóstico se retiró (oct 2026); marca_ queda sin efecto. */
+function marca_(n) {}
+function doPost(e) { return doPostReal_(e); }
 function doPostReal_(e) {
   try {
     var body = JSON.parse(e.postData.contents || "{}");
