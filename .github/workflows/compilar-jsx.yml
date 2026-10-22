@@ -1,0 +1,40 @@
+# Compila los .jsx de Mi → build/ cada vez que cambian, para que Mi abra sin compilar en el teléfono.
+name: Compilar JSX
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**.jsx"
+      - "index.html"
+      - "tools/compilar.js"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: compilar-jsx
+  cancel-in-progress: false
+
+jobs:
+  compilar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Compilar
+        run: |
+          npm install --no-save --no-package-lock @babel/standalone@7.29.0
+          node tools/compilar.js
+      - name: Guardar
+        run: |
+          git add -A build
+          if git diff --cached --quiet; then echo "Sin cambios."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Compilar JSX → build/"
+          git pull --rebase
+          git push

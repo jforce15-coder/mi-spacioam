@@ -1,0 +1,94 @@
+{
+ "files": [
+  {
+   "src": "ui.jsx",
+   "out": "ui.js",
+   "h": "b33bf57b65"
+  },
+  {
+   "src": "sa-combo.jsx",
+   "out": "sa-combo.js",
+   "h": "4a782ed1db"
+  },
+  {
+   "src": "hold-confirm.jsx",
+   "out": "hold-confirm.js",
+   "h": "10b46640e5"
+  },
+  {
+   "src": "noti-center.jsx",
+   "out": "noti-center.js",
+   "h": "847e2b4ca7"
+  },
+  {
+   "src": "noti-prefs.jsx",
+   "out": "noti-prefs.js",
+   "h": "593f03b440"
+  },
+  {
+   "src": "charts.jsx",
+   "out": "charts.js",
+   "h": "ddf4f3c1a2"
+  },
+  {
+   "src": "login.jsx",
+   "out": "login.js",
+   "h": "2bbfff4627"
+  },
+  {
+   "src": "pedidosya-ui.jsx",
+   "out": "pedidosya-ui.js",
+   "h": "cb99f85dd3"
+  },
+  {
+   "src": "pedidosya.jsx",
+   "out": "pedidosya.js",
+   "h": "7e1bcff9b3"
+  },
+  {
+   "src": "dashboard.jsx",
+   "out": "dashboard.js",
+   "h": "71706359c7"
+  },
+  {
+   "src": "sections.jsx",
+   "out": "sections.js",
+   "h": "66d3b11640"
+  },
+  {
+   "src": "retencion-batch.jsx",
+   "out": "retencion-batch.js",
+   "h": "5c190f9563"
+  },
+  {
+   "src": "conta.jsx",
+   "out": "conta.js",
+   "h": "096e2db921"
+  },
+  {
+   "src": "conta-facturas.jsx",
+   "out": "conta-facturas.js",
+   "h": "fa2edbc7a4"
+  },
+  {
+   "src": "contratos.jsx",
+   "out": "contratos.js",
+   "h": "0fae61d3bd"
+  },
+  {
+   "src": "avanzado.jsx",
+   "out": "avanzado.js",
+   "h": "4d7555166b"
+  },
+  {
+   "src": "conta-pl.jsx",
+   "out": "conta-pl.js",
+   "h": "b20a83d194"
+  },
+  {
+   "src": "main.jsx",
+   "out": "main.js",
+   "h": "ccbbd2564d"
+  }
+ ]
+}
