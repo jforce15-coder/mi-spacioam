@@ -308,6 +308,7 @@
               <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", maxWidth: 420, margin: "0 0 22px" }}>
                 {es ? "Verifica que el documento esté publicado o compartido como “cualquiera con el enlace”, y vuelve a intentar." : "Make sure the document is published or shared as “anyone with the link”, then try again."}
               </p>
+              {window.__miErr ? <p style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", opacity: 0.7, margin: "-12px 0 18px", maxWidth: 420 }}>{(es ? "Detalle: " : "Detail: ") + window.__miErr}</p> : null}
               <button onClick={onRetry} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 12, padding: "13px 26px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase" }}>
                 {es ? "Reintentar" : "Retry"}
               </button>
@@ -352,7 +353,13 @@
         if (!(window.SASesion && window.SASesion.leer())) { setState("ready"); return; }
         setState("loading");
         SpacioLoad().then(() => { cargado.current = true; setState("ready"); })
-          .catch((e) => { console.error("Sheet load failed", e); setState("error"); });
+          .catch((e) => {
+            console.error("Sheet load failed", e);
+            /* Sesión vencida o inválida (sa-sesion ya la borró): se muestra el inicio de sesión en vez del error. */
+            if (!(window.SASesion && window.SASesion.leer())) { setState("ready"); return; }
+            window.__miErr = String((e && (e.message || e)) || "").slice(0, 160);
+            setState("error");
+          });
       }, []);
       const entrar = (o) => {
         if (!cargado.current) { setState("loading"); location.reload(); return; }   // recién inició sesión: leer los datos con la sesión
