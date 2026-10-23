@@ -911,7 +911,6 @@ function SetupSocioModal({ socio, onClose, onSaveSocio, onEditProp, onAddProp, t
               {field(tr("Usuario", "Username"), "usuario", "text", "usuario_id")}
               {field(tr("Correo", "Email"), "email", "email", "socio@correo.com")}
               {field(tr("Correos secundarios (separados por coma)", "Secondary emails (comma separated)"), "secondary", "text", "alterno@correo.com, otro@correo.com")}
-              {field(tr("Contraseña (opcional)", "Password (optional)"), "pass", "text", "••••••••")}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 14 }}>
               <button className="sa-chip-btn sa-chip-btn-dark" onClick={doSave}>
@@ -992,6 +991,8 @@ const SetupSection = ({ lang, t }) => {
   const HEAD = (SpacioData.setupHead && SpacioData.setupHead.length)
     ? SpacioData.setupHead
     : ["property_id", "property_name", "Usuario ID", "User email", "Password", "SPACIOAMFEE", "iva", "RETENCION", "CLEANING_SOCIO", "OTRO INGRESO", "Listing link", "secondary user email", "Moneda", "Numero de cuenta"];
+  /* Las contraseñas viejas de SETUP ya no se usan (todos entran con el login unificado): no se muestran ni se exportan. */
+  const VER = HEAD.filter(h => !/^password$/i.test(String(h).trim()));
   // una entrada por fila de SETUP (raw con TODAS las columnas A–O)
   const baseRows = useMemo(() => {
     const rows = [];
@@ -1116,7 +1117,7 @@ const SetupSection = ({ lang, t }) => {
     if (SpacioWrite.enabled() && draft.usuario) SpacioWrite.post("saveProfile", { codes: [draft.usuario], email: draft.email, secondary: draft.secondary, name: fullName, primerNombre: draft.pn, segundoNombre: draft.sn, primerApellido: draft.pa, segundoApellido: draft.sa, password: draft.pass || "" });
   };
   const exportRows = () => {
-    const lines = [HEAD.join("\t")].concat(rows.map(r => HEAD.map(h => r[h] != null ? r[h] : "").join("\t")));
+    const lines = [VER.join("\t")].concat(rows.map(r => VER.map(h => r[h] != null ? r[h] : "").join("\t")));
     const blob = new Blob([lines.join("\n")], { type: "text/tab-separated-values" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "setup-spacioam.tsv"; a.click();
   };
@@ -1269,7 +1270,7 @@ const SetupSection = ({ lang, t }) => {
               <button onClick={() => setEditing(null)} style={{ border: "none", background: "var(--beige-soft)", borderRadius: 10, width: 34, height: 34, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}><Icon name="x" size={16} stroke="var(--ink)" /></button>
             </div>
             <div style={{ overflowY: "auto", padding: "18px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              {HEAD.filter(h => SOCIO_HEAD.indexOf(h) < 0).map(h => (
+              {VER.filter(h => SOCIO_HEAD.indexOf(h) < 0).map(h => (
                 <label key={h} style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: (h === "property_name" || h === "Listing link") ? "1 / -1" : "auto" }}>
                   <span style={{ fontFamily: "var(--sans)", fontSize: 9.5, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{niceLabel(h)}{h === "property_id" ? " · ID" : ""}</span>
                   <input className="sa-setup-input" value={rows[editing][h] != null ? rows[editing][h] : ""} disabled={h === "property_id" && !rows[editing]._new}
@@ -1295,10 +1296,10 @@ const SetupSection = ({ lang, t }) => {
             </div>
             <div className="sa-setup-scroll" style={{ overflow: "auto", padding: "8px 12px 16px" }}>
               <table className="sa-setup-table">
-                <thead><tr>{HEAD.map(h => <th key={h} style={{ minWidth: 120, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
+                <thead><tr>{VER.map(h => <th key={h} style={{ minWidth: 120, whiteSpace: "nowrap" }}>{h}</th>)}</tr></thead>
                 <tbody>
                   {rows.map(r => (
-                    <tr key={r.property_id}>{HEAD.map(h => <td key={h} style={{ whiteSpace: "nowrap", fontSize: 12 }}>{r[h] != null ? String(r[h]) : ""}</td>)}</tr>
+                    <tr key={r.property_id}>{VER.map(h => <td key={h} style={{ whiteSpace: "nowrap", fontSize: 12 }}>{r[h] != null ? String(r[h]) : ""}</td>)}</tr>
                   ))}
                 </tbody>
               </table>
