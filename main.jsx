@@ -3,6 +3,24 @@
 
     function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
 
+    /* Menú compartido de Spacio AM (el botón «roca», hub.spacioam.com/js/sa-nav.js), el mismo del Hub, Epi y GSP.
+       Solo se carga para el equipo (administradores de Mi): los socios no lo descargan y siguen con la barra de abajo.
+       Después del menú se cargan alma-client.js (window.ALMA, la ficha de voz del Apps Script de ALMA; sa-sesion.js le
+       pone la sesión firmada) y alma-voz.js (SAAlmaVoz), para que al deslizar el botón al centro hable Alma.
+       Si algo de esto no carga, Mi se queda con su navegación de siempre. */
+    let menuCompartidoP = null;
+    function cargarMenuCompartido() {
+      if (window.SANav) return Promise.resolve(true);
+      if (!menuCompartidoP) {
+        const H = "https://hub.spacioam.com/js/";
+        const ld = (src) => new Promise((ok, ko) => { const s = document.createElement("script"); s.src = src; s.async = false; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
+        menuCompartidoP = ld(H + "sa-nav.js")
+          .then(() => ld(H + "alma-client.js").then(() => ld(H + "alma-voz.js")).catch(() => {}))
+          .then(() => !!window.SANav, () => { menuCompartidoP = null; return false; });
+      }
+      return menuCompartidoP;
+    }
+
     function Dashboard({ owner, lang, setLang, currency, setCurrency, onLogout, onUpdateOwner }) {
       const isAdmin = !!owner.isAdmin;
       const isContador = !!owner.isContador;
@@ -144,6 +162,29 @@
       const navOverflow = tabs.slice(3);
       const overflowActive = navOverflow.some(tb => tb.id === tab);
 
+      /* Menú compartido (solo administradores). «Resumen» va al botón central y el resto de pestañas a la barra.
+         Cuenta, Configuración y Avanzado siguen en la barra de arriba. Mientras está activo, se oculta la barra de abajo. */
+      const [menuOn, setMenuOn] = useState(() => !!(isAdmin && window.SANav));
+      useEffect(() => {
+        if (!isAdmin) return;
+        let vivo = true;
+        cargarMenuCompartido().then(ok => { if (vivo) setMenuOn(ok); });
+        return () => { vivo = false; };
+      }, [isAdmin]);
+      const switchTabRef = React.useRef(switchTab); switchTabRef.current = switchTab;
+      const MENU_ICON = { expenses: "coins", report: "doc", deposits: "users", conta: "chart" };
+      useEffect(() => {
+        if (!menuOn || !window.SANav) return;
+        const home = tabs[0];
+        window.SANav.update({
+          app: "mi", home: { k: home.id, l: home.label }, current: tab, hidden: false, apps: null,
+          items: tabs.slice(1).map(tb => ({ k: tb.id, l: tb.label, icon: MENU_ICON[tb.id] || "grid" })),
+          alma: window.SAAlmaVoz || null,
+          onNavigate: (k) => switchTabRef.current(k),
+        });
+      });
+      useEffect(() => () => { if (window.SANav) window.SANav.hide(true); }, []);
+
       return (
         <div>
           <TopBar owner={owner} lang={lang} setLang={setLang} currency={currency} setCurrency={setCurrency}
@@ -252,6 +293,7 @@
             </footer>
           </div>
 
+          {!menuOn && (
           <nav className="sa-bottomnav">
             <div className="sa-bottomnav-inner">
               {navPrimary.map(tb => (
@@ -281,7 +323,8 @@
               )}
             </div>
           </nav>
-          {navMore && <div className="sa-navmore-backdrop" onClick={() => setNavMore(false)} />}
+          )}
+          {navMore && !menuOn && <div className="sa-navmore-backdrop" onClick={() => setNavMore(false)} />}
         </div>
       );
     }
