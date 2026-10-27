@@ -38,7 +38,7 @@ function sesionDe_(body) {
 function registrarAcceso_(accion, conSesion) {
   try {
     accion = String(accion || '(sin acción)').slice(0, 60);
-    var tipo = conSesion ? 's' : 'n', cache = CacheService.getScriptCache(), ck = 'acc_' + tipo + '_' + accion;
+    var tipo = conSesion === 'r' ? 'r' : conSesion ? 's' : 'n', cache = CacheService.getScriptCache(), ck = 'acc_' + tipo + '_' + accion;
     if (cache.get(ck)) return;                       // como mucho una escritura por acción y tipo cada hora
     cache.put(ck, '1', 3600);
     var lock = LockService.getUserLock(), conLock = !lock.hasLock() && lock.tryLock(5000);
@@ -58,4 +58,27 @@ function accesosDiag_(body) {
     .map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
   var out = h === SES_ROBOT_HASH_ ? { ok: true, accesos: JSON.parse(PropertiesService.getScriptProperties().getProperty('ACCESOS') || '{}'), traza: JSON.parse(CacheService.getScriptCache().get('traza') || '[]') } : { ok: false, error: 'token' };
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ═══ FASE 1c · EXIGIR SESIÓN (apagado por defecto) ═══════════════════════════════════════
+   · esRobot_(body) → true si la llamada trae la llave del robot (body.robot): el Hub y ALMA llaman así, de
+     servidor a servidor, porque no tienen sesión de una persona.
+   · exigirSesion_(accion, conSesion, body, publicas) → null si la llamada puede seguir; si no, la respuesta
+     { ok:false, error:"session" } (sa-sesion.js la entiende: vuelve al login).
+     Solo bloquea cuando la propiedad del script SESION_EXIGIR = 1. Siempre pasan: quien trae sesión, el robot
+     y las acciones públicas de la app (huéspedes, firmas, webhooks). Lo bloqueado queda en ACCESOS como
+     «⛔ acción», para ver al instante si algo legítimo se quedó afuera y apagarlo (SESION_EXIGIR = 0).
+   ═════════════════════════════════════════════════════════════════════════════════════════ */
+function esRobot_(body) {
+  var t = String((body && body.robot) || ''); if (!t) return false;
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, t, Utilities.Charset.UTF_8)
+    .map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('') === SES_ROBOT_HASH_;
+}
+function exigirSesion_(accion, conSesion, body, publicas) {
+  if (conSesion) return null;
+  accion = String(accion || '');
+  if ((publicas || []).indexOf(accion) >= 0 || esRobot_(body)) return null;
+  if (PropertiesService.getScriptProperties().getProperty('SESION_EXIGIR') !== '1') return null;
+  registrarAcceso_('⛔ ' + accion, false);
+  return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'session' })).setMimeType(ContentService.MimeType.JSON);
 }
