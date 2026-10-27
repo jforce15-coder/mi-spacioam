@@ -58,7 +58,8 @@ function doPostReal_(e) {
   try {
     var body = JSON.parse(e.postData.contents || "{}");
     var __diag = accesosDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
-    marca_("ini"); var __ses = sesionDe_(body); marca_("ses:" + String((__ses && __ses.apps && __ses.apps.mi) || "-")); registrarAcceso_(body.action, !!__ses);   // fase 1b: aún no bloquea
+    marca_("ini"); var __ses = sesionDe_(body); marca_("ses:" + String((__ses && __ses.apps && __ses.apps.mi) || "-")); registrarAcceso_(body.action, __ses ? true : esRobot_(body) ? 'r' : false);
+    var __llaveMi = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN"), __bloq = exigirSesion_(body.action, !!__ses || !!(__llaveMi && body.token === __llaveMi), body, ['ping']); if (__bloq) return __bloq;   // fase 1c: solo bloquea con SESION_EXIGIR = 1
     var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
     var llaveRobot = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN");
     var esAdmin  = rolMi === "admin_principal" || !!(llaveRobot && body.token === llaveRobot);
