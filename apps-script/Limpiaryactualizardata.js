@@ -42,7 +42,6 @@ function limpiarYActualizarDatabase() {
       .sort({ column: 3, ascending: true });
 }
 
-function doGet() {
-  limpiarYActualizarDatabase();
-  return ContentService.createTextOutput("✅ Script ejecutado correctamente desde GET");
-}
+// Antes había aquí un doGet() que ejecutaba esta limpieza: lo usaba n8n. Pisaba al doGet de
+// Escrituradesdeapp.js, y como el web app es público, cualquiera que abriera la URL borraba filas
+// de DATABASE. La limpieza diaria sigue corriendo desde Actualizacion.js (hsp_limpiarYExtenderFormulas_).
