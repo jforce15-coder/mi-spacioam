@@ -627,7 +627,7 @@ const parseEmails = (v) => String(v || "").split(/[,;\n]+/).map(s => s.trim()).f
 const normEmails = (v) => [...new Set(parseEmails(v).map(s => s.toLowerCase()))].join(", ");
 const emailsValid = (v) => parseEmails(v).every(s => /.+@.+\..+/.test(s));
 
-// ---- Account / profile (change email, secondary emails, password — saved locally) ----
+// ---- Account / profile (correo, correos secundarios y contraseña — esta última la cambia el login unificado) ----
 const AccountField = ({ label, hint, value, onChange, type, placeholder }) => (
   <label style={{ display: "flex", flexDirection: "column", gap: 8 }}>
     <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.24em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
@@ -717,6 +717,7 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
   const [email, setEmail] = useState(owner.email || "");
   const [secondary, setSecondary] = useState(owner.secondaryEmail || "");
   const [pass, setPass] = useState("");
+  const [passCur, setPassCur] = useState("");
   const [saved, setSaved] = useState(false);
   const [err, setErr] = useState("");
   const [avatar, setAvatar] = useState(owner.avatar || "");
@@ -756,16 +757,28 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
     const fullName = [pNombre, sNombre, pApellido, sApellido].map(s => (s || "").trim()).filter(Boolean).join(" ");
     const patch = { email: email.trim(), secondaryEmail: normEmails(secondary), name: fullName,
       primerNombre: pNombre.trim(), segundoNombre: sNombre.trim(), primerApellido: pApellido.trim(), segundoApellido: sApellido.trim() };
-    if (pass) patch.pass = pass;
+    /* La contraseña es la del login unificado: la cambia el servidor del login (comprueba la actual).
+       Ya no se guarda en este navegador ni en la hoja SETUP. */
+    if (pass) {
+      if (!passCur) { setErr(t("acc_pass_cur_need")); return; }
+      if (pass.length < 8) { setErr(t("acc_pass_short")); return; }
+      if (!window.SAAuth) { setErr(t("acc_pass_fail")); return; }
+      let correo = owner.email || "";
+      try { const pr = window.SASesion && window.SASesion.perfilRapido(); if (pr && pr.email) correo = pr.email; } catch (e) {}
+      const nueva = pass, actual = passCur;
+      window.SAAuth.setPassword(correo, actual, nueva).then((r) => {
+        if (r && r.ok) { setPass(""); setPassCur(""); setSaved(true); setTimeout(() => setSaved(false), 2600); }
+        else setErr(r && r.error === "bad_current" ? t("acc_pass_bad") : (r && r.error === "weak" ? t("acc_pass_short") : t("acc_pass_fail")));
+      }).catch(() => setErr(t("acc_pass_fail")));
+    }
     SpacioProfile.set(owner.code, patch);
-    setSaved(true); setTimeout(() => setSaved(false), 2600);
-    onUpdate && onUpdate(Object.assign({}, owner, { email: patch.email, secondaryEmail: patch.secondaryEmail, name: fullName, primerNombre: patch.primerNombre, segundoNombre: patch.segundoNombre, primerApellido: patch.primerApellido, segundoApellido: patch.segundoApellido }, pass ? { pass } : {}));
+    if (!pass) { setSaved(true); setTimeout(() => setSaved(false), 2600); }   // con contraseña, «guardado» sale cuando el login la acepta
+    onUpdate && onUpdate(Object.assign({}, owner, { email: patch.email, secondaryEmail: patch.secondaryEmail, name: fullName, primerNombre: patch.primerNombre, segundoNombre: patch.segundoNombre, primerApellido: patch.primerApellido, segundoApellido: patch.segundoApellido }));
     if (SpacioWrite.enabled()) {
-      SpacioWrite.post("saveProfile", { codes: owner.codes || [owner.code], email: patch.email, secondary: patch.secondaryEmail, name: fullName, primerNombre: patch.primerNombre, segundoNombre: patch.segundoNombre, primerApellido: patch.primerApellido, segundoApellido: patch.segundoApellido, password: pass || "" })
+      SpacioWrite.post("saveProfile", { codes: owner.codes || [owner.code], email: patch.email, secondary: patch.secondaryEmail, name: fullName, primerNombre: patch.primerNombre, segundoNombre: patch.segundoNombre, primerApellido: patch.primerApellido, segundoApellido: patch.segundoApellido })
         .then(r => { if (!r.ok && !r.offline) console.warn("saveProfile", r); });
     }
     if (window.SAAuth && owner.email && patch.email && patch.email.toLowerCase() !== (owner.email || "").toLowerCase()) window.SAAuth.setEmail(owner.email, patch.email);
-    setPass("");
   };
   const reset = () => {
     SpacioProfile.reset(owner.code);
@@ -774,8 +787,8 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
     setSNombre(orig.segundoNombre != null ? orig.segundoNombre : b.sn);
     setPApellido(orig.primerApellido != null ? orig.primerApellido : b.pa);
     setSApellido(orig.segundoApellido != null ? orig.segundoApellido : b.sa);
-    setEmail(orig.email || ""); setSecondary(orig.secondaryEmail || ""); setPass(""); setErr(""); setSaved(false);
-    onUpdate && onUpdate(Object.assign({}, owner, { name: orig.name, email: orig.email, secondaryEmail: orig.secondaryEmail, pass: orig.pass }));
+    setEmail(orig.email || ""); setSecondary(orig.secondaryEmail || ""); setPass(""); setPassCur(""); setErr(""); setSaved(false);
+    onUpdate && onUpdate(Object.assign({}, owner, { name: orig.name, email: orig.email, secondaryEmail: orig.secondaryEmail }));
   };
 
   return (
@@ -822,6 +835,7 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
               )}
             </div>
             <AccountField label={t("acc_pass")} hint={t("acc_pass_hint")} value={pass} onChange={setPass} type="password" placeholder="••••••••" />
+            {pass && <AccountField label={t("acc_pass_cur")} value={passCur} onChange={setPassCur} type="password" placeholder="••••••••" />}
             {err && <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 12, color: "var(--attention-text)" }}><Icon name="info" size={15} /> {err}</div>}
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginTop: 4 }}>
               <button onClick={save} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 13, padding: "14px 24px",
@@ -858,14 +872,14 @@ const AccountSection = ({ owner, lang, t, onUpdate }) => {
 
 // ---- Admin: SETUP editor (edit rows, add property — saved locally; export to paste back) ----
 // Campos que pertenecen al SOCIO (se repiten en todas sus propiedades) vs a la PROPIEDAD.
-const SOCIO_HEAD = ["Usuario ID", "User email", "secondary user email", "Nombre", "Primer nombre", "Segundo nombre", "Primer apellido", "Segundo apellido", "Password"];
+const SOCIO_HEAD = ["Usuario ID", "User email", "secondary user email", "Nombre", "Primer nombre", "Segundo nombre", "Primer apellido", "Segundo apellido"];
 const socioKeyOf = (r) => ((r["Usuario ID"] || r["User email"] || "").trim());
 
 // Modal de edición de un SOCIO: datos de identidad + sus propiedades.
 function SetupSocioModal({ socio, onClose, onSaveSocio, onEditProp, onAddProp, tr }) {
   const [d, setD] = useState({
     key: socio.key, usuario: socio.usuario || "", email: socio.email || "",
-    secondary: socio.secondary || "", pass: "",
+    secondary: socio.secondary || "",
     pn: socio.pn || "", sn: socio.sn || "", pa: socio.pa || "", sa: socio.sa || "",
   });
   const f = (k) => (e) => { const v = e.target.value; setD(x => Object.assign({}, x, { [k]: v })); };
@@ -990,7 +1004,7 @@ const SetupSection = ({ lang, t }) => {
   const tr = (a, b) => (es ? a : b);
   const HEAD = (SpacioData.setupHead && SpacioData.setupHead.length)
     ? SpacioData.setupHead
-    : ["property_id", "property_name", "Usuario ID", "User email", "Password", "SPACIOAMFEE", "iva", "RETENCION", "CLEANING_SOCIO", "OTRO INGRESO", "Listing link", "secondary user email", "Moneda", "Numero de cuenta"];
+    : ["property_id", "property_name", "Usuario ID", "User email", "SPACIOAMFEE", "iva", "RETENCION", "CLEANING_SOCIO", "OTRO INGRESO", "Listing link", "secondary user email", "Moneda", "Numero de cuenta"];
   /* Las contraseñas viejas de SETUP ya no se usan (todos entran con el login unificado): no se muestran ni se exportan. */
   const VER = HEAD.filter(h => !/^password$/i.test(String(h).trim()));
   // una entrada por fila de SETUP (raw con TODAS las columnas A–O)
@@ -1074,7 +1088,7 @@ const SetupSection = ({ lang, t }) => {
     SpacioSetup.saveEditRaw(r.property_id, r);
     setSavedId(r.property_id); setTimeout(() => setSavedId(null), 1600);
     if (SpacioWrite.enabled()) {
-      if (r._new) SpacioWrite.post("addProperty", { row: { property_id: r.property_id, property_name: r["property_name"], usuario: r["Usuario ID"], email: r["User email"], password: r["Password"], fee: r["SPACIOAMFEE"], iva: r["iva"], retencion: r["RETENCION"], cleaningSocio: r["CLEANING_SOCIO"], otroIngreso: r["OTRO INGRESO"], listing: r["Listing link"], secondary: r["secondary user email"] } });
+      if (r._new) SpacioWrite.post("addProperty", { row: { property_id: r.property_id, property_name: r["property_name"], usuario: r["Usuario ID"], email: r["User email"], fee: r["SPACIOAMFEE"], iva: r["iva"], retencion: r["RETENCION"], cleaningSocio: r["CLEANING_SOCIO"], otroIngreso: r["OTRO INGRESO"], listing: r["Listing link"], secondary: r["secondary user email"] } });
       else SpacioWrite.post("saveSetupRaw", { property_id: r.property_id, values: r }).then(res => { if (res && !res.ok) console.warn("saveSetupRaw", res); });
     }
     setEditing(null);
@@ -1089,7 +1103,7 @@ const SetupSection = ({ lang, t }) => {
     const id = "new-" + Date.now();
     const r = { _new: true }; HEAD.forEach(h => r[h] = ""); r.property_id = id;
     r["Usuario ID"] = socio.usuario; r["User email"] = socio.email;
-    r["secondary user email"] = socio.secondary; r["Nombre"] = socio.name; r["Password"] = socio.pass;
+    r["secondary user email"] = socio.secondary; r["Nombre"] = socio.name;
     r["Primer nombre"] = socio.pn; r["Segundo nombre"] = socio.sn; r["Primer apellido"] = socio.pa; r["Segundo apellido"] = socio.sa;
     setRows(rs => [r].concat(rs)); SpacioSetup.addRowRaw(r);
     setSocioSel(null); setEditing(0);
@@ -1106,7 +1120,6 @@ const SetupSection = ({ lang, t }) => {
         "Primer nombre": draft.pn, "Segundo nombre": draft.sn,
         "Primer apellido": draft.pa, "Segundo apellido": draft.sa,
       });
-      if (draft.pass) nr["Password"] = draft.pass;
       touched.push(nr);
       return nr;
     }));
@@ -1114,7 +1127,7 @@ const SetupSection = ({ lang, t }) => {
       SpacioSetup.saveEditRaw(nr.property_id, nr);
       if (SpacioWrite.enabled()) SpacioWrite.post("saveSetupRaw", { property_id: nr.property_id, values: nr });
     });
-    if (SpacioWrite.enabled() && draft.usuario) SpacioWrite.post("saveProfile", { codes: [draft.usuario], email: draft.email, secondary: draft.secondary, name: fullName, primerNombre: draft.pn, segundoNombre: draft.sn, primerApellido: draft.pa, segundoApellido: draft.sa, password: draft.pass || "" });
+    if (SpacioWrite.enabled() && draft.usuario) SpacioWrite.post("saveProfile", { codes: [draft.usuario], email: draft.email, secondary: draft.secondary, name: fullName, primerNombre: draft.pn, segundoNombre: draft.sn, primerApellido: draft.pa, segundoApellido: draft.sa });
   };
   const exportRows = () => {
     const lines = [VER.join("\t")].concat(rows.map(r => VER.map(h => r[h] != null ? r[h] : "").join("\t")));
@@ -1131,7 +1144,7 @@ const SetupSection = ({ lang, t }) => {
       const owner = (SpacioData.owners || []).find(o => (o.codes || [o.code]).indexOf((r["Usuario ID"] || "").trim()) >= 0);
       const s = m[k] || (m[k] = {
         key: k, usuario: r["Usuario ID"] || "", email: r["User email"] || "",
-        secondary: r["secondary user email"] || "", pass: r["Password"] || "",
+        secondary: r["secondary user email"] || "",
         name: r["Nombre"] || (owner && owner.name) || "",
         pn: r["Primer nombre"] || (owner && owner.primerNombre) || "",
         sn: r["Segundo nombre"] || (owner && owner.segundoNombre) || "",
@@ -1144,7 +1157,7 @@ const SetupSection = ({ lang, t }) => {
     return Object.values(m);
   })();
   const filteredSocios = socios.filter(s => !q || [s.name, s.usuario, s.email].some(v => (v || "").toLowerCase().includes(q.toLowerCase())) || s.items.some(({ r }) => (r["property_name"] || "").toLowerCase().includes(q.toLowerCase())));
-  const activeSocio = socioSel != null ? (socios.find(s => s.key === socioSel) || { key: socioSel, usuario: "", email: "", secondary: "", name: "", pass: "", items: [] }) : null;
+  const activeSocio = socioSel != null ? (socios.find(s => s.key === socioSel) || { key: socioSel, usuario: "", email: "", secondary: "", name: "", items: [] }) : null;
 
   // etiqueta amigable para un encabezado
   const niceLabel = (h) => h;
