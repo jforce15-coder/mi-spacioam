@@ -14,13 +14,15 @@ var SA_SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
 //    · Robots o integraciones: llave opcional en la propiedad del script MI_ADMIN_TOKEN (no en el código).
 //    Las llaves antiguas (SpacioAM2026!, token de subida y la contraseña de meses cerrados) dejan de valer.
 var SA_UPLOAD_ACTIONS = { uploadFile: true, ping: true, ocrFactura: true, linkFacturas: true, writeConta: true };
+// Lecturas que puede pedir cualquier usuario con acceso a Mi (socio, contador o administrador).
+var SA_USER_READ = { leerSetup: true };
 
 var SA_VERSION = "2026-10-08c";
 // Acciones de solo lectura: no esperan el candado (una consulta nunca debe fallar
 // porque otra escritura esté en curso) y no invalidan la caché del resumen.
-var SA_READONLY = { ping: 1, resumenPreview: 1, recurList: 1, recurPreview: 1, cierreMesEstado: 1, hospitableStatus: 1, fetchImage: 1 };
+var SA_READONLY = { ping: 1, leerSetup: 1, resumenPreview: 1, recurList: 1, recurPreview: 1, cierreMesEstado: 1, hospitableStatus: 1, fetchImage: 1 };
 // Acciones que no tocan Database / SETUP / insumos & gastos / TC → no invalidan la caché.
-var SA_NO_RES_IMPACT = { uploadFile: 1, deleteFile: 1, writeRows: 1, deleteRows: 1, writeConta: 1, writeContaOpex: 1, deleteContaOpex: 1, registerUnlockDevice: 1, sendCierreMes: 1, cierreMesMulti: 1, sendRecordatoriosFactura: 1, resumenAppend: 1, recurSave: 1, recurCancel: 1, saveProfile: 1 };   // la app lo compara con el que espera (SpacioWrite.expectVersion)
+var SA_NO_RES_IMPACT = { leerSetup: 1, uploadFile: 1, deleteFile: 1, writeRows: 1, deleteRows: 1, writeConta: 1, writeContaOpex: 1, deleteContaOpex: 1, registerUnlockDevice: 1, sendCierreMes: 1, cierreMesMulti: 1, sendRecordatoriosFactura: 1, resumenAppend: 1, recurSave: 1, recurCancel: 1, saveProfile: 1 };   // la app lo compara con el que espera (SpacioWrite.expectVersion)
 var SA_TAB_SETUP   = "SETUP";
 var SA_TAB_RESUMEN = "Resumenconsolidado";
 var SA_TAB_INSUMOS = "insumos & gastos";
@@ -63,7 +65,7 @@ function doPostReal_(e) {
     var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
     var llaveRobot = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN");
     var esAdmin  = rolMi === "admin_principal" || !!(llaveRobot && body.token === llaveRobot);
-    var esSubida = !!rolMi && !!SA_UPLOAD_ACTIONS[body.action];
+    var esSubida = !!rolMi && (!!SA_UPLOAD_ACTIONS[body.action] || !!SA_USER_READ[body.action]);
     if (!esAdmin && !esSubida) return sa_json({ ok: false, error: "unauthorized" });
 
     // OCR de facturas: no toca la hoja y tarda unos segundos — fuera del lock.
@@ -87,6 +89,7 @@ function doPostReal_(e) {
     var out;
     try {
       switch (body.action) {
+        case "leerSetup":     out = sa_leerSetup(ss);          break;
         case "saveProfile":   out = sa_saveProfile(ss, body);  break;
         case "saveSetupRow":  out = sa_saveSetupRow(ss, body); break;
         case "saveSetupRaw":  out = sa_saveSetupRaw(ss, body); break;
@@ -309,6 +312,7 @@ function sa_saveSetupRaw(ss, body) {
         if (!values.hasOwnProperty(key)) continue;
         if (key === "property_id") continue;
         if (map[key] == null) continue;
+        if (sa_esColClave_(key)) continue;   // las contraseñas no se escriben en SETUP (viven en el login unificado)
         sh.getRange(r + 1, map[key] + 1).setValue(values[key]);
         n++;
       }
@@ -329,7 +333,6 @@ function sa_addProperty(ss, body) {
   put("property_name",row.property_name);
   put("Usuario ID",   row.usuario);
   put("User email",   row.email);
-  put("Password",     row.password);
   put("SPACIOAMFEE",  row.fee);
   put("iva",          row.iva);
   put("RETENCION",    row.retencion);
@@ -362,7 +365,7 @@ function sa_saveProfile(ss, body) {
     var uid = String(data[r][map["Usuario ID"]]).trim();
     if (codes.indexOf(uid) >= 0) {
       if (body.email != null && body.email !== "")       sh.getRange(r + 1, map["User email"] + 1).setValue(body.email);
-      if (body.password != null && body.password !== "") sh.getRange(r + 1, map["Password"] + 1).setValue(body.password);
+      // La contraseña ya no se guarda en SETUP: se cambia en el login unificado (SAAuth.setPassword).
       // varios correos secundarios en una sola celda, separados por coma
       if (body.secondary != null)                        sh.getRange(r + 1, map["secondary user email"] + 1).setValue(sa_normEmails_(body.secondary));
       n++;
@@ -1488,4 +1491,59 @@ function aplicarRecurrentesAutomatico() {
   try { lock.waitLock(60000); } catch (e) { return; }
   try { var now = sa_ymNow_(); sa_recurApply_(ss, sa_ymAdd_(now, -1), {}); sa_recurApply_(ss, now, {}); }
   finally { lock.releaseLock(); }
+}
+
+// ------------------------------------------------------------
+// SETUP sin contraseñas (oct 2026)
+// La pestaña SETUP tenía una columna «Password» con la contraseña de cada socio, y la app la descargaba entera
+// al abrir. Ya nadie la usa (todos entran con el login unificado), así que:
+//  · leerSetup devuelve SETUP sin las columnas de contraseña (la app lee SETUP por aquí).
+//  · Las escrituras (saveSetupRaw, addProperty, saveProfile) nunca escriben ni borran esa columna.
+//  · La primera lectura vacía la columna en la hoja (sa_quitarClavesDeSetup_), para que tampoco salga por el
+//    lector de hojas ni por la descarga directa. Antes guarda un respaldo en las Propiedades del script:
+//    SETUP_CLAVE_<Usuario ID> = sha256 de la contraseña (solo el hash, nunca la contraseña).
+// ------------------------------------------------------------
+function sa_esColClave_(h) { return /^(password|pass|contrase(n|ñ)a|clave|pwd)$/i.test(String(h || "").trim()); }
+function sa_sha256Hex_(t) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(t), Utilities.Charset.UTF_8)
+    .map(function (b) { return ("0" + (b & 0xff).toString(16)).slice(-2); }).join("");
+}
+function sa_quitarClavesDeSetup_(ss) {
+  var sh = ss.getSheetByName(SA_TAB_SETUP); if (!sh || sh.getLastRow() < 2) return 0;
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0], cols = [];
+  head.forEach(function (h, i) { if (sa_esColClave_(h)) cols.push(i); });
+  if (!cols.length) return 0;
+  var data = sh.getDataRange().getValues(), uidCol = head.map(function (h) { return String(h).trim(); }).indexOf("Usuario ID");
+  var hay = data.slice(1).some(function (r) { return cols.some(function (c) { return String(r[c] == null ? "" : r[c]) !== ""; }); });
+  if (!hay) return 0;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return 0;
+  try {
+    data = sh.getDataRange().getValues();
+    var props = PropertiesService.getScriptProperties(), n = 0;
+    for (var r = 1; r < data.length; r++) {
+      cols.forEach(function (c) {
+        var v = String(data[r][c] == null ? "" : data[r][c]);
+        if (!v) return;
+        var quien = String((uidCol >= 0 ? data[r][uidCol] : "") || ("fila" + (r + 1))).trim().replace(/[^A-Za-z0-9_@.\-]/g, "_").slice(0, 200);
+        if (!props.getProperty("SETUP_CLAVE_" + quien)) props.setProperty("SETUP_CLAVE_" + quien, sa_sha256Hex_(v));
+        sh.getRange(r + 1, c + 1).setValue("");
+        n++;
+      });
+    }
+    return n;
+  } finally { lock.releaseLock(); }
+}
+function sa_leerSetup(ss) {
+  try { sa_quitarClavesDeSetup_(ss); } catch (e) { console.warn("sa_quitarClavesDeSetup_: " + e); }
+  var sh = ss.getSheetByName(SA_TAB_SETUP);
+  if (!sh) return { ok: false, error: "No existe SETUP" };
+  var v = sh.getDataRange().getDisplayValues();
+  if (!v.length) return { ok: true, csv: "" };
+  var quitar = v[0].map(function (h) { return sa_esColClave_(h); });
+  var csv = v.map(function (row) {
+    return row.filter(function (_, i) { return !quitar[i]; })
+      .map(function (x) { return '"' + String(x).replace(/"/g, '""') + '"'; }).join(",");
+  }).join("\n");
+  return { ok: true, csv: csv };
 }

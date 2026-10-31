@@ -9,9 +9,7 @@
 
   const SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
   const GTQ_RATE = 7.46;            // USD → GTQ (alineado al Reporte Financiero oficial)
-  const DEMO_PASS = "spacioam";     // contraseña demo única (auth real vive en EPI)
   const ADMIN_EMAIL = "jovalle@spacioam.com";
-  const ADMIN_PASS = null;          // fase 3: sin contraseñas en el código (solo login unificado)
   // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad).
   // Estos son los valores POR DEFECTO; el administrador puede editarlos desde
   // Setup → "Usuarios de contabilidad" (se guardan en el navegador).
@@ -175,7 +173,7 @@
     const idxByName = {};      // normName -> property (for expenses)
     const idxByLoose = {};     // edificio+apto / zona+apto -> property (fuzzy)
     const ownerNames = {};     // code -> ordered list of normNames
-    const codeInfo = {};       // code -> { email, pass, secondary }
+    const codeInfo = {};       // code -> { email, secondary } (SETUP ya no trae contraseñas)
 
     // "a@x.com, b@y.com; c@z.com" -> ["a@x.com","b@y.com","c@z.com"]
     const emailList = (v) => String(v || "").split(/[,;\n]+/).map(s => s.trim()).filter(s => s.includes("@"));
@@ -187,9 +185,8 @@
       if (!pid || !name || !code) return;
       const nm = norm(name);
       // owner-level credentials (first non-empty per code wins)
-      const ci = codeInfo[code] = codeInfo[code] || { email: "", pass: "", secondary: "" };
+      const ci = codeInfo[code] = codeInfo[code] || { email: "", secondary: "" };
       if (!ci.email && r["User email"]) ci.email = r["User email"].trim();
-      if (!ci.pass && r["Password"]) ci.pass = r["Password"].trim();
       // puede traer varios correos separados por coma: se acumulan todos
       if (r["secondary user email"]) ci.secondary = mergeEmails(ci.secondary, r["secondary user email"]);
       let p = propByName[nm];
@@ -383,7 +380,7 @@
       const key = (email || code).toLowerCase();
       const acc = byEmail[key] || (byEmail[key] = {
         primaryCode: code, codes: [], props: [],
-        email: email, pass: (info.pass || DEMO_PASS), secondaryEmail: (info.secondary || ""),
+        email: email, secondaryEmail: (info.secondary || ""),
       });
       acc.codes.push(code);
       acc.props = acc.props.concat(props);
@@ -397,7 +394,7 @@
     const owners = Object.values(byEmail).map(a => ({
       code: a.primaryCode, codes: a.codes,
       name: prettyName(a.email, a.primaryCode),
-      email: a.email, pass: a.pass, secondaryEmail: a.secondaryEmail,
+      email: a.email, secondaryEmail: a.secondaryEmail,
       props: [...new Set(a.props)],
     }));
 
@@ -405,13 +402,13 @@
     const allProps = Object.keys(propByName).filter(hasData);
     const admin = {
       code: "__admin__", codes: ["__admin__"], name: "Spacio AM", isAdmin: true, isPrincipal: true,
-      email: ADMIN_EMAIL, pass: ADMIN_PASS, secondaryEmail: "", props: allProps,
+      email: ADMIN_EMAIL, secondaryEmail: "", props: allProps,
     };
     // cuenta del contador (solo lectura de Contabilidad; 4 correos alternativos)
     const cfgC = contaConfig();
     const contador = {
       code: "__contador__", codes: ["__contador__"], name: "Contador", isContador: true,
-      email: cfgC.emails[0] || "", emails: cfgC.emails.slice(), pass: cfgC.pass, secondaryEmail: "", props: [],
+      email: cfgC.emails[0] || "", emails: cfgC.emails.slice(), secondaryEmail: "", props: [],
     };
 
     // effective credentials apply any locally-saved profile edits (demo persistence)
@@ -420,7 +417,6 @@
       return {
         email: pr.email != null ? pr.email : o.email,
         secondaryEmail: pr.secondaryEmail != null ? pr.secondaryEmail : o.secondaryEmail,
-        pass: pr.pass != null ? pr.pass : o.pass,
         avatar: pr.avatar != null ? pr.avatar : (o.avatar || ""),
       };
     }
@@ -450,22 +446,7 @@
         const found = byUid || byCode || byEmail;
         return found ? Object.assign({}, found, { user_id: uid || found.user_id || "", avatar: p.foto || found.avatar || "" }) : Object.assign({ code: "__u__", user_id: uid, name: p.nombre || p.email, email: p.email, props: [], avatar: p.foto || "" });
       },
-      auth(login, pass) {
-        const L = String(login || "").trim().toLowerCase();
-        if (L === ADMIN_EMAIL.toLowerCase() && pass === ADMIN_PASS) return Object.assign({}, admin);
-        // se relee en cada intento para respetar los cambios del administrador
-        const cc = contaConfig();
-        if (cc.emails.some(e => e.toLowerCase() === L) && pass === cc.pass) return Object.assign({}, contador, { email: L, emails: cc.emails.slice(), pass: cc.pass });
-        for (const o of owners) {
-          const e = eff(o);
-          const email = (e.email || "").toLowerCase();
-          const sec = emailList(e.secondaryEmail).map(s => s.toLowerCase());
-          if ((L && (L === email || sec.indexOf(L) >= 0)) && pass === e.pass) {
-            return Object.assign({}, o, e);
-          }
-        }
-        return null;
-      },
+      /* auth(login, pass) se quitó: comparaba contraseñas en el navegador. Todos entran con el login unificado. */
       ownerProps(owner) {
         if (owner && owner.isContador) return [];
         if (owner && owner.isAdmin) return (owner.props || allProps).map(id => byId[id]).filter(Boolean);
@@ -491,10 +472,19 @@
   const SpacioProfile = {
     key(code) { return "sa-profile-" + code; },
     get(code) { try { return JSON.parse(localStorage.getItem(this.key(code))) || {}; } catch (e) { return {}; } },
-    set(code, patch) { const next = Object.assign({}, this.get(code), patch); localStorage.setItem(this.key(code), JSON.stringify(next)); return next; },
+    set(code, patch) { const next = Object.assign({}, this.get(code), patch); delete next.pass; localStorage.setItem(this.key(code), JSON.stringify(next)); return next; },
     reset(code) { localStorage.removeItem(this.key(code)); },
   };
   window.SpacioProfile = SpacioProfile;
+  // Limpieza: perfiles guardados antes con una contraseña en este navegador.
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf("sa-profile-") !== 0) continue;
+      const v = JSON.parse(localStorage.getItem(k) || "null");
+      if (v && typeof v === "object" && "pass" in v) { delete v.pass; localStorage.setItem(k, JSON.stringify(v)); }
+    }
+  } catch (e) {}
 
   // ---------- local SETUP overrides (admin edits; real write-back needs backend) ----------
   const SpacioSetup = {
@@ -658,6 +648,13 @@
     return es3[t3] != null ? es3[t3] : null;
   }
 
+  // Columnas de contraseña (SETUP tenía «Password»): nunca se usan en el navegador.
+  const esColClave = (h) => /^(password|pass|contrase(n|ñ)a|clave|pwd)$/i.test(String(h || "").trim());
+  function sinClaves(t) {
+    const head = (t.head || []).filter(h => !esColClave(h));
+    const items = (t.items || []).map(o => { const c = {}; Object.keys(o).forEach(k => { if (!esColClave(k)) c[k] = o[k]; }); return c; });
+    return { head, items };
+  }
   async function load() {
     const fetchTab = async (name) => objectify(parseCSV(await (await fetch(csvURL(name))).text()));
     /* Nada en fila (hub ds/velocidad.md, regla 7): las 12 pestañas se piden JUNTAS. Antes las 5 principales iban
@@ -665,8 +662,17 @@
        cada una suma un viaje al lector de hojas. Las «best effort» siguen igual: si una falla, queda vacía. */
     const quizas = (name) => fetchTab(name).then((T) => T, () => null);
     const extras = ["Archivos cargados", "Gastos operativos", "Depositos cargados", "Contabilidad", "Facturas", "Contratos", "Long term"].map(quizas);
+    /* SETUP se pide al Apps Script de Mi (leerSetup), que la devuelve SIN la columna de contraseñas.
+       Respaldo (si el Apps Script no responde): la lectura de siempre, quitando esa columna al llegar. */
+    const fetchSetup = async () => {
+      try {
+        const r = await SpacioWrite.post("leerSetup", {}, { timeout: 45000 });
+        if (r && r.ok && typeof r.csv === "string") return sinClaves(objectify(parseCSV(r.csv)));
+      } catch (e) {}
+      return sinClaves(await fetchTab("SETUP"));
+    };
     const [setup, resumen, dbT, expT, tcT] = await Promise.all([
-      fetchTab("SETUP"), fetchTab("Resumenconsolidado"), fetchTab("DATABASE"), fetchTab("insumos & gastos"), fetchTab("TC"),
+      fetchSetup(), fetchTab("Resumenconsolidado"), fetchTab("DATABASE"), fetchTab("insumos & gastos"), fetchTab("TC"),
     ]);
     const [filesP, opexP, depP, conP, facP, conTP, ltP] = extras;
     const pend = (pr) => pr.then((T) => { if (!T) throw new Error("sin pestaña"); return T; });
