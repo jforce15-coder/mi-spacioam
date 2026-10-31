@@ -415,8 +415,8 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
         <div style={{ textAlign: "center", padding: "48px 24px", border: "1px dashed var(--warm-grey)", borderRadius: 20 }}>
           {liveBusy ? (
             <React.Fragment>
-              <span className="sa-spin" style={{ width: 22, height: 22, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block", margin: "0 auto 14px" }} />
-              <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--fg-muted)", letterSpacing: "0.04em", margin: 0 }}>{tr("Cargando clasificación del mes…", "Loading this month's classification…")}</p>
+              <p style={{ fontFamily: "var(--sans)", fontSize: 13, color: "var(--fg-muted)", letterSpacing: "0.04em", margin: "0 0 18px" }}>{tr("Leyendo la clasificación de " + contaMonthLabel(ym) + "…", "Reading the classification for " + contaMonthLabel(ym) + "…")}</p>
+              <div className="sa-esq" aria-label={tr("Cargando la clasificación", "Loading the classification")} style={{ textAlign: "left" }}><i className="t" /><i /><i /><i className="corta" /><i /><i /><i className="corta" /></div>
             </React.Fragment>
           ) : (
           <React.Fragment>

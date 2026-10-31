@@ -1011,7 +1011,7 @@ function PyaRecurList({ lang, tick }) {
     if (!await window.saConfirm(tr("¿Cancelar este gasto programado? Lo que ya se aplicó se queda; no se cargará en los meses siguientes.", "Cancel this scheduled expense? What's already applied stays; it won't be charged in later months."))) return;
     act("recurCancel", r.id, () => tr("Gasto programado cancelado.", "Scheduled expense cancelled."));
   };
-  if (!data) return <p className="pya-note" style={{ marginTop: 28 }}>{tr("Cargando gastos programados…", "Loading scheduled expenses…")}</p>;
+  if (!data) return <div className="sa-esq" aria-label={tr("Cargando gastos programados", "Loading scheduled expenses")} style={{ marginTop: 28 }}><i className="corta" /><i className="c" /><i className="c" /></div>;
   const rules = (data.rules || []).slice().reverse();
   const active = rules.filter(r => r.estado !== "cancelado" && !(r.hasta && data.now && r.hasta < data.now && r.frecuencia !== "una vez"));
   const old = rules.filter(r => !active.includes(r));
@@ -1723,7 +1723,7 @@ function PyaManagePanel({ lang, propOptions, active }) {
       </div>
 
       {rows === null
-        ? <div className="pya-empty">{tr("Cargando gastos guardados…", "Loading saved expenses…")}</div>
+        ? <div className="sa-esq" aria-label={tr("Cargando gastos guardados", "Loading saved expenses")}><i className="c" /><i className="c" /><i className="c" /><i className="c" /></div>
         : visible.length === 0
         ? <div className="pya-empty">{q ? tr("Sin resultados.", "No results.") : tr("Aún no hay gastos guardados en la hoja.", "No saved expenses in the sheet yet.")}</div>
         : (
