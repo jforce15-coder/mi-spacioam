@@ -430,7 +430,7 @@
   </template>
   <div id="app"></div>
 
-  <script src="sheets.js?v=20261031clave"></script>
+  <script src="sheets.js?v=20261031crclave"></script>
   <script src="sa-auth-client.js?v=20261020"></script>
   <script src="files.js?v=20261013"></script>
   <script src="sa-rows.js?v=20260940"></script>
@@ -478,12 +478,14 @@
   (function () {
     var tags = [].slice.call(document.querySelectorAll('script[type="text/x-mi-jsx"]'));
     var nombres = tags.map(function (t) { return (t.getAttribute("src") || "").split("?")[0]; });
-    var cargar = function (lista, i, fin) {
-      if (i >= lista.length) { fin && fin(); return; }
-      var s = document.createElement("script"); s.src = lista[i]; s.async = false;
-      s.onload = function () { cargar(lista, i + 1, fin); };
-      s.onerror = function () { console.warn("Mi: no cargó " + lista[i]); cargar(lista, i + 1, fin); };
-      document.body.appendChild(s);
+    /* Nada en fila (hub ds/velocidad.md, regla 7): se piden TODOS a la vez. Con async = false el navegador los
+       descarga en paralelo y los ejecuta en el orden de la lista (antes cada uno esperaba a que terminara el anterior). */
+    var cargar = function (lista) {
+      lista.forEach(function (src) {
+        var s = document.createElement("script"); s.src = src; s.async = false;
+        s.onerror = function () { console.warn("Mi: no cargó " + src); };
+        document.body.appendChild(s);
+      });
     };
     var enTelefono = function () {
       var b = document.createElement("script"); b.src = "https://unpkg.com/@babel/standalone@7.29.0/babel.min.js"; b.crossOrigin = "anonymous";
@@ -498,7 +500,7 @@
         var porNombre = {}; (m.files || []).forEach(function (f) { porNombre[f.src] = f; });
         var lista = nombres.map(function (n) { var f = porNombre[n]; return f ? "build/" + f.out + "?v=" + f.h : null; });
         if (lista.some(function (x) { return !x; })) throw 0;   /* falta alguno: mejor compilar aquí */
-        cargar(lista, 0);
+        cargar(lista);
       }).catch(enTelefono);
     };
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", arrancar); else arrancar();

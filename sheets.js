@@ -657,6 +657,11 @@
   }
   async function load() {
     const fetchTab = async (name) => objectify(parseCSV(await (await fetch(csvURL(name))).text()));
+    /* Nada en fila (hub ds/velocidad.md, regla 7): las 12 pestañas se piden JUNTAS. Antes las 5 principales iban
+       juntas, pero las demás esperaban una detrás de otra (Archivos → Gastos → Depósitos → Contabilidad → resto):
+       cada una suma un viaje al lector de hojas. Las «best effort» siguen igual: si una falla, queda vacía. */
+    const quizas = (name) => fetchTab(name).then((T) => T, () => null);
+    const extras = ["Archivos cargados", "Gastos operativos", "Depositos cargados", "Contabilidad", "Facturas", "Contratos", "Long term"].map(quizas);
     /* SETUP se pide al Apps Script de Mi (leerSetup), que la devuelve SIN la columna de contraseñas.
        Respaldo (si el Apps Script no responde): la lectura de siempre, quitando esa columna al llegar. */
     const fetchSetup = async () => {
@@ -669,10 +674,12 @@
     const [setup, resumen, dbT, expT, tcT] = await Promise.all([
       fetchSetup(), fetchTab("Resumenconsolidado"), fetchTab("DATABASE"), fetchTab("insumos & gastos"), fetchTab("TC"),
     ]);
+    const [filesP, opexP, depP, conP, facP, conTP, ltP] = extras;
+    const pend = (pr) => pr.then((T) => { if (!T) throw new Error("sin pestaña"); return T; });
     const data = build(setup, resumen, dbT, expT, tcT);
     // registro de archivos subidos (facturas/depositos a Drive) — best effort
     try {
-      const filesT = await fetchTab("Archivos cargados");
+      const filesT = await pend(filesP);
       const mapFile = r => ({
         tipo: (r["tipo"] || "").trim().toLowerCase(),
         scope: (r["scope"] || "").trim().toLowerCase() || "property",
@@ -691,7 +698,7 @@
     } catch (e) { data.files = []; }
     // gastos operativos globales + otros ingresos (P&L interno) — best effort
     try {
-      const opexT = await fetchTab("Gastos operativos");
+      const opexT = await pend(opexP);
       data.contaOpex = (opexT.items || []).map(r => ({
         id: (r["id"] || "").trim(),
         kind: (r["kind"] || "opex").trim().toLowerCase(),
@@ -707,7 +714,7 @@
     // depósitos registrados en "Depositos cargados" (respaldo visible aunque no
     // haya quedado el archivo en Drive) — best effort
     try {
-      const depT = await fetchTab("Depositos cargados");
+      const depT = await pend(depP);
       data.depositos = (depT.items || []).map(r => ({
         fecha: (r["Fecha"] || "").trim(),
         monto: parseFloat(String(r["monto"] || "").replace(/[^0-9.\-]/g, "")) || 0,
@@ -720,7 +727,7 @@
     } catch (e) { data.depositos = []; }
     // Contabilidad: movimientos clasificados de estados de cuenta (best effort)
     try {
-      const conT = await fetchTab("Contabilidad");
+      const conT = await pend(conP);
       data.conta = (conT.items || []).map(r => ({
         ym: (r["ym"] || "").trim(), account: (r["account"] || "").trim(), currency: (r["currency"] || "").trim(),
         date: (r["date"] || "").trim(), doc: (r["doc"] || "").trim(), desc: (r["desc"] || "").trim(),
@@ -734,8 +741,8 @@
     } catch (e) { data.conta = []; }
     // Facturas · Contratos · Long term (filas genéricas por id) — best effort
     data.rows = {};
-    await Promise.all(["Facturas", "Contratos", "Long term"].map(async (tab) => {
-      try { const T = await fetchTab(tab); data.rows[tab] = (T.items || []).filter(r => (r["id"] || "").trim()); }
+    await Promise.all([["Facturas", facP], ["Contratos", conTP], ["Long term", ltP]].map(async ([tab, pr]) => {
+      try { const T = await pend(pr); data.rows[tab] = (T.items || []).filter(r => (r["id"] || "").trim()); }
       catch (e) { data.rows[tab] = []; }
     }));
     window.SpacioData = data;
