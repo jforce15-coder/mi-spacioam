@@ -7,6 +7,9 @@
 <title>Spacio AM · Portal de propietarios</title>
 <link rel="stylesheet" href="spacio-tokens.css?v=20260821">
 <link rel="stylesheet" href="https://hub.spacioam.com/ds/esqueleto.css">
+<!-- Movimiento con sentido (hub ds/movimiento.md): sacudir, quitar y la píldora. Si no carga, Mi funciona igual, sin animar. -->
+<link rel="stylesheet" href="https://hub.spacioam.com/ds/movimiento.css">
+<script src="https://hub.spacioam.com/ds/movimiento.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -45,6 +48,17 @@
   .sa-tab:hover { color: var(--ink); }
   .sa-tab.active { color: var(--ink); border-bottom-color: var(--peach); }
   .sa-tab svg { width: 19px; height: 19px; }
+  /* La píldora viaja (hub ds/movimiento.md, regla 5): con movimiento.js la raya peach se desliza bajo la pestaña activa. */
+  .sa-tabs-inner { position: relative; }
+  .sa-tabs-inner.mov .sa-tab.active { border-bottom-color: transparent; }
+  .sa-tabs-inner .sa-tab-raya { background: transparent; border-radius: 0; box-sizing: border-box; border-bottom: 2px solid var(--peach); }
+  /* Un resorte, no un deslizar (regla 1): la perilla de los interruptores llega, se pasa un poquito y se asienta;
+     al apretar se estira. Sin movimiento.css, --resorte cae al --ease de siempre. */
+  .sa-sw > span { transition: transform var(--resorte-d, .18s) var(--resorte, var(--ease)), width .18s var(--ease), background-color .18s var(--ease); }
+  .sa-sw[aria-checked="true"] > span { transform: translateX(16px); }
+  .sa-sw:active:not(:disabled) > span { width: 20px !important; }
+  .sa-sw[aria-checked="true"]:active:not(:disabled) > span { transform: translateX(12px); }
+  @media (prefers-reduced-motion: reduce) { .sa-sw > span { transition: none; } }
 
   /* ---------- Reporte financiero · pass-through ---------- */
   .sa-rf-passthrough { margin-top: 18px; padding-top: 4px; border-top: 2px dashed var(--warm-grey); }
@@ -459,18 +473,18 @@
   <script src="conta-export.js?v=20260820"></script>
   <script src="conta-pdfs.js?v=20260820"></script>
   <script src="conta-opex.js?v=20260820"></script>
-  <script type="text/x-mi-jsx" src="ui.jsx?v=20261008b"></script>
+  <script type="text/x-mi-jsx" src="ui.jsx?v=20261031mov"></script>
   <script type="text/x-mi-jsx" src="sa-combo.jsx?v=20260923"></script>
   <script type="text/x-mi-jsx" src="hold-confirm.jsx?v=20261013"></script>
   <script src="noti-data.js?v=20261013"></script>
-  <script type="text/x-mi-jsx" src="noti-center.jsx?v=20260852"></script>
-  <script type="text/x-mi-jsx" src="noti-prefs.jsx?v=20261013"></script>
+  <script type="text/x-mi-jsx" src="noti-center.jsx?v=20261031mov"></script>
+  <script type="text/x-mi-jsx" src="noti-prefs.jsx?v=20261031mov"></script>
   <script type="text/x-mi-jsx" src="charts.jsx?v=20260821"></script>
-  <script type="text/x-mi-jsx" src="login.jsx?v=20261020priv"></script>
+  <script type="text/x-mi-jsx" src="login.jsx?v=20261031mov"></script>
   <script type="text/x-mi-jsx" src="pedidosya-ui.jsx?v=20261008"></script>
   <script type="text/x-mi-jsx" src="pedidosya.jsx?v=20261031rs"></script>
   <script type="text/x-mi-jsx" src="dashboard.jsx?v=20260943"></script>
-  <script type="text/x-mi-jsx" src="sections.jsx?v=20261031clave"></script>
+  <script type="text/x-mi-jsx" src="sections.jsx?v=20261031mov"></script>
   <script type="text/x-mi-jsx" src="retencion-batch.jsx?v=20261014"></script>
   <script type="text/x-mi-jsx" src="conta.jsx?v=20261031rs"></script>
   <script type="text/x-mi-jsx" src="conta-facturas.jsx?v=20261013"></script>
@@ -478,7 +492,7 @@
   <script type="text/x-mi-jsx" src="avanzado.jsx?v=20261013c"></script>
   <script type="text/x-mi-jsx" src="conta-pl.jsx?v=20260938"></script>
 
-  <script type="text/x-mi-jsx" src="main.jsx?v=20261031rs"></script>
+  <script type="text/x-mi-jsx" src="main.jsx?v=20261031mov"></script>
   <!-- Mi abre con el código ya compilado (build/, lo genera GitHub con compilar-jsx.yml): el teléfono ya no descarga
        Babel (~3 MB) ni compila ~1 MB de JSX en cada apertura. Si build/ falta o no coincide, compila aquí como antes. -->
   <script>

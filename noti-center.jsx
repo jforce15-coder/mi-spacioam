@@ -63,10 +63,19 @@
     var n = props.n, onOpen = props.onOpen, onDismiss = props.onDismiss, onSnooze = props.onSnooze;
     var W = "rgba(255,255,255,";
     var cuando = n.cuando != null ? n.cuando : notiHaceTxt(n.ts);
-    var setRef = React.useCallback(function (el) { if (el) { requestAnimationFrame(function () { try { el.scrollLeft = 88; } catch (_) {} }); } }, []);
+    var fila = React.useRef(null);
+    var setRef = React.useCallback(function (el) { fila.current = el; if (el) { requestAnimationFrame(function () { try { el.scrollLeft = 88; } catch (_) {} }); } }, []);
+    /* Nada salta (hub ds/movimiento.md, regla 6): al eliminar o posponer, la fila se cierra suave y las de abajo suben;
+       después se quita de la lista. Es local (no espera al servidor). El -8px de arriba se come el espacio (gap) de la lista. */
+    function irse(fn) {
+      var el = fila.current; if (!fn) return;
+      if (!window.SAMov || !el) { fn(n); return; }
+      SAMov.quitar(el, function () { fn(n); });
+      if (el.classList.contains("sa-se-va")) el.style.marginTop = "-8px";
+    }
     return (
       <div ref={setRef} data-noti-card className="noti-swipe" style={{ display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", scrollbarWidth: "none", msOverflowStyle: "none", borderRadius: 22, gap: 8, willChange: "transform,opacity" }}>
-        <button onClick={function () { onSnooze && onSnooze(n); }} style={{ flex: "0 0 80px", scrollSnapAlign: "start", border: "none", cursor: "pointer", borderRadius: 22, background: "rgba(72,72,74,.55)", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", fontFamily: "Montserrat,sans-serif" }}>Posponer</button>
+        <button onClick={function () { irse(onSnooze); }} style={{ flex: "0 0 80px", scrollSnapAlign: "start", border: "none", cursor: "pointer", borderRadius: 22, background: "rgba(72,72,74,.55)", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", fontFamily: "Montserrat,sans-serif" }}>Posponer</button>
         <div onClick={onOpen} style={{ flex: "0 0 100%", scrollSnapAlign: "center", boxSizing: "border-box", display: "flex", alignItems: "flex-start", gap: 12, borderRadius: 22, padding: "13px 17px", cursor: "pointer", background: "rgba(72,72,74,.42)", backdropFilter: "blur(40px) saturate(180%) brightness(1.08)", WebkitBackdropFilter: "blur(40px) saturate(180%) brightness(1.08)", border: "1px solid " + W + ".14)", boxShadow: "0 8px 24px rgba(0,0,0,.18),inset 0 1px 0 " + W + ".42),inset 0 0 0 1px " + W + ".06)" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 13.5, color: W + ".98)", lineHeight: 1.4, textWrap: "pretty" }}>{n.texto}</div>
@@ -74,7 +83,7 @@
           </div>
           <div style={{ flexShrink: 0, minWidth: 34, textAlign: "right", fontSize: 10.5, color: W + ".6)", fontVariantNumeric: "tabular-nums" }}>{cuando}</div>
         </div>
-        <button onClick={function () { onDismiss && onDismiss(n); }} style={{ flex: "0 0 80px", scrollSnapAlign: "end", border: "none", cursor: "pointer", borderRadius: 22, background: "rgba(192,57,43,.9)", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", fontFamily: "Montserrat,sans-serif" }}>Eliminar</button>
+        <button onClick={function () { irse(onDismiss); }} style={{ flex: "0 0 80px", scrollSnapAlign: "end", border: "none", cursor: "pointer", borderRadius: 22, background: "rgba(192,57,43,.9)", color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: ".08em", textTransform: "uppercase", fontFamily: "Montserrat,sans-serif" }}>Eliminar</button>
       </div>
     );
   }

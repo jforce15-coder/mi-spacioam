@@ -165,6 +165,7 @@
       /* Menú compartido (solo administradores). «Resumen» va al botón central y el resto de pestañas a la barra.
          Cuenta, Configuración y Avanzado siguen en la barra de arriba. Mientras está activo, se oculta la barra de abajo. */
       const [menuOn, setMenuOn] = useState(() => !!(isAdmin && window.SANav));
+      const pdTabs = usePildora(tab);
       useEffect(() => {
         if (!isAdmin) return;
         let vivo = true;
@@ -198,9 +199,11 @@
           {window.NotiPush && <NotiPush notis={notis} storeKey="sam:notiSeen" onOpen={() => setNotiOpen(true)} />}
 
           <div className="sa-tabs-bar">
-            <div className="sa-tabs-inner">
+            {/* la píldora viaja (hub ds/movimiento.md, regla 5): el subrayado se desliza a la pestaña nueva */}
+            <div ref={pdTabs.bar} className={"sa-tabs-inner" + (pdTabs.mov ? " mov" : "")}>
+              {pdTabs.mov && <i ref={pdTabs.pil} className="sa-pildora sa-tab-raya" aria-hidden="true" style={PILDORA_BASE} />}
               {tabs.map(tb => (
-                <button key={tb.id} className={"sa-tab" + (tab === tb.id ? " active" : "")} onClick={() => switchTab(tb.id)}>
+                <button key={tb.id} data-on={tab === tb.id ? "1" : undefined} className={"sa-tab" + (tab === tb.id ? " active" : "")} onClick={() => switchTab(tb.id)}>
                   <Icon name={tb.icon} size={15} stroke="currentColor" />{tb.label}
                 </button>
               ))}

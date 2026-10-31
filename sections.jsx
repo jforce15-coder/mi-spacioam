@@ -2133,9 +2133,9 @@ const MailMultiToggle = ({ lang }) => {
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--ink-08)", flexWrap: "wrap" }}>
-      <button type="button" role="switch" aria-checked={!!on} onClick={flip} disabled={on === null || busy}
+      <button type="button" role="switch" className="sa-sw" aria-checked={!!on} onClick={flip} disabled={on === null || busy}
         style={{ width: 40, height: 24, borderRadius: 999, border: "1px solid " + (on ? "var(--peach)" : "var(--warm-grey)"), background: on ? "var(--peach-12, rgba(233,130,106,.12))" : "var(--alabaster)", position: "relative", cursor: on === null ? "not-allowed" : "pointer", padding: 0, flexShrink: 0, transition: "all .18s var(--ease)" }}>
-        <span style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: 999, background: on ? "var(--ink)" : "var(--warm-grey)", transition: "left .18s var(--ease)" }} />
+        <span style={{ position: "absolute", top: 3, left: 3, width: 16, height: 16, borderRadius: 999, background: on ? "var(--ink)" : "var(--warm-grey)" }} />
       </button>
       <span style={{ flex: 1, minWidth: 220, fontFamily: "var(--sans)", fontSize: 12, lineHeight: 1.6, letterSpacing: "0.03em", color: "var(--ink)" }}>
         {tr("Permitir más de un correo de cierre por socio en el mes", "Allow more than one month-close email per owner in a month")}

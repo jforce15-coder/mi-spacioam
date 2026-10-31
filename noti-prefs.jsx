@@ -13,9 +13,9 @@ const NP_CATS = [
 ];
 
 const NpSwitch = ({ on, onClick, label }) => (
-  <button type="button" role="switch" aria-checked={!!on} aria-label={label} onClick={onClick}
+  <button type="button" role="switch" className="sa-sw" aria-checked={!!on} aria-label={label} onClick={onClick}
     style={{ width: 40, height: 24, borderRadius: 999, border: "1px solid " + (on ? "var(--peach)" : "var(--warm-grey)"), background: on ? "var(--peach-12, rgba(233,130,106,.12))" : "var(--alabaster)", position: "relative", cursor: "pointer", padding: 0, flexShrink: 0, transition: "all .18s var(--ease)" }}>
-    <span style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: 999, background: on ? "var(--ink)" : "var(--warm-grey)", transition: "left .18s var(--ease)" }} />
+    <span style={{ position: "absolute", top: 3, left: 3, width: 16, height: 16, borderRadius: 999, background: on ? "var(--ink)" : "var(--warm-grey)" }} />
   </button>
 );
 
