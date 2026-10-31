@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Spacio AM · Portal de propietarios</title>
 <link rel="stylesheet" href="spacio-tokens.css?v=20260821">
+<link rel="stylesheet" href="https://hub.spacioam.com/ds/esqueleto.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -428,7 +429,13 @@
       <text x="50" y="78" font-family="Georgia, serif" font-size="13" letter-spacing="2" fill="#3E3F3F" text-anchor="middle">SPACIO</text>
     </svg>
   </template>
-  <div id="app"></div>
+  <!-- Rápido de sentir (hub ds/velocidad.md): mientras baja el código, la misma forma que el Splash de main.jsx
+       (React la reemplaza al montar). Nunca una pantalla en blanco. -->
+  <div id="app"><div style="min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--alabaster);padding:24px;text-align:center">
+    <div style="margin-bottom:30px"><img src="logo-wordmark.png" alt="Spacio AM" style="width:172px;max-width:70vw;height:auto;display:block"></div>
+    <p style="font-family:var(--sans);font-size:12px;letter-spacing:0.18em;text-transform:uppercase;color:var(--fg-muted);margin:0">Conectando con tu información…</p>
+    <div class="sa-esq" aria-label="Cargando tu información" style="width:min(560px,100%);margin-top:22px;text-align:left"><i class="t"></i><i class="corta"></i><div class="sa-esq dos"><i class="c"></i><i class="c"></i><i class="c"></i><i class="c"></i></div><i class="g"></i></div>
+  </div></div>
 
   <script src="sheets.js?v=20261022c"></script>
   <script src="sa-auth-client.js?v=20261020"></script>
@@ -461,17 +468,17 @@
   <script type="text/x-mi-jsx" src="charts.jsx?v=20260821"></script>
   <script type="text/x-mi-jsx" src="login.jsx?v=20261020priv"></script>
   <script type="text/x-mi-jsx" src="pedidosya-ui.jsx?v=20261008"></script>
-  <script type="text/x-mi-jsx" src="pedidosya.jsx?v=20261022c"></script>
+  <script type="text/x-mi-jsx" src="pedidosya.jsx?v=20261031rs"></script>
   <script type="text/x-mi-jsx" src="dashboard.jsx?v=20260943"></script>
   <script type="text/x-mi-jsx" src="sections.jsx?v=20261014"></script>
   <script type="text/x-mi-jsx" src="retencion-batch.jsx?v=20261014"></script>
-  <script type="text/x-mi-jsx" src="conta.jsx?v=20261013"></script>
+  <script type="text/x-mi-jsx" src="conta.jsx?v=20261031rs"></script>
   <script type="text/x-mi-jsx" src="conta-facturas.jsx?v=20261013"></script>
   <script type="text/x-mi-jsx" src="contratos.jsx?v=20261013"></script>
   <script type="text/x-mi-jsx" src="avanzado.jsx?v=20261013c"></script>
   <script type="text/x-mi-jsx" src="conta-pl.jsx?v=20260938"></script>
 
-  <script type="text/x-mi-jsx" src="main.jsx?v=20261026"></script>
+  <script type="text/x-mi-jsx" src="main.jsx?v=20261031rs"></script>
   <!-- Mi abre con el código ya compilado (build/, lo genera GitHub con compilar-jsx.yml): el teléfono ya no descarga
        Babel (~3 MB) ni compila ~1 MB de JSX en cada apertura. Si build/ falta o no coincide, compila aquí como antes. -->
   <script>

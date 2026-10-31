@@ -336,10 +336,12 @@
           <div style={{ marginBottom: 30 }}><img src="logo-wordmark.png" alt="Spacio AM" style={{ width: 172, maxWidth: "70vw", height: "auto", display: "block" }} /></div>
           {state === "loading" && (
             <React.Fragment>
-              <div className="sa-spin" style={{ width: 26, height: 26, border: "2px solid var(--warm-grey)", borderTopColor: "var(--peach)", borderRadius: "50%" }} />
-              <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", marginTop: 22 }}>
+              {/* Rápido de sentir (hub ds/velocidad.md, regla 2): la forma del tablero en gris, no una ruedita.
+                  index.html pinta lo mismo dentro de #app mientras baja el código. */}
+              <p style={{ fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--fg-muted)", margin: 0 }}>
                 {es ? "Conectando con tu información…" : "Connecting to your data…"}
               </p>
+              <div className="sa-esq" aria-label={es ? "Cargando tu información" : "Loading your data"} style={{ width: "min(560px, 100%)", marginTop: 22, textAlign: "left" }}><i className="t" /><i className="corta" /><div className="sa-esq dos"><i className="c" /><i className="c" /><i className="c" /><i className="c" /></div><i className="g" /></div>
             </React.Fragment>
           )}
           {state === "error" && (
