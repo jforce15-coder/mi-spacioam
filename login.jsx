@@ -9,6 +9,10 @@ const Login = ({ lang, setLang, onLogin }) => {
   const [err, setErr] = useState(false);
   const [needPass, setNeedPass] = useState(null);
   const [busy, setBusy] = useState(false);
+  /* El no se ve antes de leerlo (hub ds/movimiento.md, regla 4): el campo malo se sacude y queda en rojo hasta que vuelvas
+     a escribir; el texto del error va debajo. Una falla de red no sacude: el campo no está mal. */
+  const rCode = useRef(null), rPass = useRef(null);
+  const sacudir = (...rs) => { if (window.SAMov) rs.forEach(r => SAMov.sacudir(r.current)); };
   /* Sesión única desde el Hub: si hay sesión firmada (hub.spacioam.com/js/sa-sesion.js), se comprueba
      con el login y se entra directo. Mientras tanto se muestra un loader; si no vale, el login normal. */
   const [sso, setSso] = React.useState(() => !!(window.SASesion && window.SASesion.leer()));
@@ -41,8 +45,8 @@ const Login = ({ lang, setLang, onLogin }) => {
     // al login viejo de la app. Así nada se rompe.
     /* Solo el login unificado (Control de usuarios). El login viejo leía las contraseñas de la hoja,
        que ahora es privada; se quitó. */
-    const fallback = () => { setErr(true); setBusy(false); };
-    if (!window.SAAuth) { setTimeout(fallback, 300); return; }
+    const fallback = (red) => { setErr(true); setBusy(false); if (red !== true) sacudir(rCode, rPass); };
+    if (!window.SAAuth) { setTimeout(() => fallback(true), 300); return; }
     window.SAAuth.login(code, pass).then((r) => {
       if (r && r.ok && r.profile && r.profile.apps && r.profile.apps.mi) {
         onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
@@ -52,12 +56,12 @@ const Login = ({ lang, setLang, onLogin }) => {
       } else {
         fallback();                    // respaldo login viejo
       }
-    }).catch(fallback);
+    }).catch(() => fallback(true));
   };
 
   const createPass = (e) => {
     e.preventDefault();
-    if (!pass || pass.length < 6) { setErr(true); return; }
+    if (!pass || pass.length < 6) { setErr(true); sacudir(rPass); return; }
     setBusy(true);
     window.SAAuth.setInitialPassword(code, pass).then((r) => {
       if (r && r.ok) onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
@@ -67,11 +71,11 @@ const Login = ({ lang, setLang, onLogin }) => {
 
   const fill = (o) => { setCode(o.email || o.code); setPass(o.pass); setErr(false); };
 
-  const field = (label, value, onChange, ph, type, extra, autoFocus) => (
+  const field = (label, value, onChange, ph, type, extra, autoFocus, ref) => (
     <label style={{ display: "flex", flexDirection: "column", gap: 9 }}>
       <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.28em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
       <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-        <input value={value} onChange={e => { onChange(e.target.value); setErr(false); }} placeholder={ph} type={type}
+        <input ref={ref} value={value} onChange={e => { onChange(e.target.value); setErr(false); }} placeholder={ph} type={type}
           autoFocus={autoFocus} autoCapitalize="none" autoCorrect="off"
           style={{
             width: "100%", boxSizing: "border-box", fontFamily: "var(--sans)", fontSize: 15, letterSpacing: "0.04em",
@@ -129,12 +133,12 @@ const Login = ({ lang, setLang, onLogin }) => {
             {needPass && (
               <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", background: "var(--beige)", borderRadius: 12, padding: "12px 14px", marginBottom: -2 }}>Es tu primer ingreso. Crea una contraseña (mínimo 6 caracteres).</div>
             )}
-            {field(t("user_label"), code, setCode, t("user_ph"), "text", null, true)}
+            {field(t("user_label"), code, setCode, t("user_ph"), "text", null, true, rCode)}
             {field(needPass ? "NUEVA CONTRASEÑA" : t("pass_label"), pass, setPass, t("pass_ph"), show ? "text" : "password",
               <button type="button" onClick={() => setShow(s => !s)} aria-label="toggle"
                 style={{ position: "absolute", right: 12, border: "none", background: "transparent", cursor: "pointer", color: "var(--fg-muted)", padding: 4, display: "flex" }}>
                 <Icon name={show ? "eyeOff" : "eye"} size={18} />
-              </button>)}
+              </button>, false, rPass)}
 
             {err && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", color: "var(--attention-text)", marginTop: -4 }}>
