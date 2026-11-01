@@ -165,7 +165,7 @@ function hsp_obtenerToken_() {
 function hospitableProbarToken() {
   const t = hsp_obtenerToken_();
   console.log(`Largo: ${t.length} · empieza: ${t.slice(0, 12)} · termina: ${t.slice(-8)} · partes JWT: ${t.split('.').length}`);
-  const resp = UrlFetchApp.fetch(HSP_CONFIG.API_BASE + '/properties', {
+  const resp = uf_(HSP_CONFIG.API_BASE + '/properties', {
     headers: { Authorization: 'Bearer ' + t, Accept: 'application/json' },
     muteHttpExceptions: true,
   });
@@ -212,7 +212,7 @@ function hsp_fetchJson_(url, token) {
   };
   const intentos = 4;
   for (let i = 1; i <= intentos; i++) {
-    const resp = UrlFetchApp.fetch(url, opciones);
+    const resp = uf_(url, opciones);
     const code = resp.getResponseCode();
     if (code >= 200 && code < 300) return JSON.parse(resp.getContentText());
     if ((code === 429 || code >= 500) && i < intentos) {
@@ -417,7 +417,7 @@ function hsp_limpiarYExtenderFormulas_() {
       console.log('limpiarYActualizarDatabase ejecutada');
     } else {
       // Respaldo: el web app que usaba n8n
-      const resp = UrlFetchApp.fetch(HSP_CONFIG.CLEANUP_URL, { muteHttpExceptions: true, followRedirects: true });
+      const resp = uf_(HSP_CONFIG.CLEANUP_URL, { muteHttpExceptions: true, followRedirects: true });
       console.log('Limpiar y extender fórmulas (web app) → HTTP ' + resp.getResponseCode());
     }
   } catch (e) {

@@ -25,7 +25,7 @@ function sesionDe_(body) {
     if (hit) { try { return hit === '-' ? null : JSON.parse(hit); } catch (e) {} }
     var prof = null;
     try {
-      var r = UrlFetchApp.fetch(SES_LOGIN_URL_, { method: 'post', contentType: 'text/plain;charset=utf-8', muteHttpExceptions: true, followRedirects: true,
+      var r = uf_(SES_LOGIN_URL_, { method: 'post', contentType: 'text/plain;charset=utf-8', muteHttpExceptions: true, followRedirects: true,
         payload: JSON.stringify({ action: 'verify', token: PropertiesService.getScriptProperties().getProperty('LOGIN_TOKEN') || 'SpacioAM2026!', session: session }) });
       var j = JSON.parse(r.getContentText() || '{}');
       if (j.ok && j.profile) prof = j.profile;

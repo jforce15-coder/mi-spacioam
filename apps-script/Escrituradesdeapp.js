@@ -59,7 +59,7 @@ function doPost(e) { return doPostReal_(e); }
 function doPostReal_(e) {
   try {
     var body = JSON.parse(e.postData.contents || "{}");
-    var __diag = accesosDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
+    var __diag = accesosDiag_(body) || cupoDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
     marca_("ini"); var __ses = sesionDe_(body); marca_("ses:" + String((__ses && __ses.apps && __ses.apps.mi) || "-")); registrarAcceso_(body.action, __ses ? true : esRobot_(body) ? 'r' : false);
     var __llaveMi = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN"), __bloq = exigirSesion_(body.action, !!__ses || !!(__llaveMi && body.token === __llaveMi), body, ['ping']); if (__bloq) return __bloq;   // fase 1c: solo bloquea con SESION_EXIGIR = 1
     var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
@@ -190,7 +190,7 @@ function sa_ocrFactura(body) {
       ],
     }],
   };
-  var res = UrlFetchApp.fetch("https://api.anthropic.com/v1/messages", {
+  var res = uf_("https://api.anthropic.com/v1/messages", {
     method: "post", contentType: "application/json", muteHttpExceptions: true,
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
     payload: JSON.stringify(payload),
@@ -224,7 +224,7 @@ function doGet() {
 // Ejecuta esta funcion UNA VEZ desde el editor para autorizar el permiso
 // de salida a internet (UrlFetchApp). Necesario para traer la foto del anuncio.
 function sa_authorizeExternal() {
-  var r = UrlFetchApp.fetch("https://example.com", { muteHttpExceptions: true });
+  var r = uf_("https://example.com", { muteHttpExceptions: true });
   Logger.log("Autorizado. Codigo: " + r.getResponseCode());
   return r.getResponseCode();
 }
@@ -1275,7 +1275,7 @@ function sa_fetchImage_impl(body) {
   var url = body.url;
   if (!url) return { ok: false, error: "no url" };
   try {
-    var html = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true, headers: { "User-Agent": "Mozilla/5.0" } }).getContentText();
+    var html = uf_(url, { muteHttpExceptions: true, followRedirects: true, headers: { "User-Agent": "Mozilla/5.0" } }).getContentText();
     var img = sa_meta(html, "og:image") || sa_meta(html, "twitter:image");
     if (!img) { var m = html.match(/<img[^>]+src=["']([^"']+\.(?:jpg|jpeg|png|webp)[^"']*)["']/i); if (m) img = m[1]; }
     if (img && img.indexOf("//") === 0) img = "https:" + img;
