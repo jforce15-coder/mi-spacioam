@@ -7,6 +7,7 @@ const Login = ({ lang, setLang, onLogin }) => {
   const [pass, setPass] = useState("");
   const [show, setShow] = useState(false);
   const [err, setErr] = useState(false);
+  const [aviso, setAviso] = useState("");   // mensaje propio del servidor (p. ej. «te mandamos un correo»)
   const [needPass, setNeedPass] = useState(null);
   const [busy, setBusy] = useState(false);
   /* El no se ve antes de leerlo (hub ds/movimiento.md, regla 4): el campo malo se sacude y queda en rojo hasta que vuelvas
@@ -61,11 +62,16 @@ const Login = ({ lang, setLang, onLogin }) => {
 
   const createPass = (e) => {
     e.preventDefault();
-    if (!pass || pass.length < 6) { setErr(true); sacudir(rPass); return; }
+    if (!pass || pass.length < 8) { setAviso("La contraseña necesita al menos 8 caracteres."); setErr(true); sacudir(rPass); return; }
     setBusy(true);
     window.SAAuth.setInitialPassword(code, pass).then((r) => {
       if (r && r.ok) onLogin(window.SpacioData && SpacioData.fromProfile ? SpacioData.fromProfile(r.profile) : r.profile);
-      else { setErr(true); setBusy(false); }
+      /* Primer ingreso: la contraseña se activa al confirmarla desde el correo (seguridad, fase 1c del login).
+         Antes esto caía en «Usuario o contraseña incorrectos» aunque el correo sí se había mandado. */
+      else if (r && r.error === "check_email") { setAviso(r.message || "Te mandamos un correo. Ábrelo, toca «Confirmar mi contraseña» y después entra con tu nueva contraseña."); setErr(true); setBusy(false); }
+      else if (r && r.error === "weak") { setAviso("Esa contraseña es muy fácil. Usa al menos 8 caracteres, que no sean solo números seguidos."); setErr(true); setBusy(false); }
+      else if (r && r.error === "already_set") { setAviso("Esta cuenta ya tiene contraseña. Entra con ella o toca «¿Olvidaste tu contraseña?»."); setErr(true); setBusy(false); }
+      else { setAviso(""); setErr(true); setBusy(false); }
     }).catch(() => { setErr(true); setBusy(false); });
   };
 
@@ -75,7 +81,7 @@ const Login = ({ lang, setLang, onLogin }) => {
     <label style={{ display: "flex", flexDirection: "column", gap: 9 }}>
       <span style={{ fontFamily: "var(--sans)", fontSize: 10, fontWeight: 500, letterSpacing: "0.28em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{label}</span>
       <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-        <input ref={ref} value={value} onChange={e => { onChange(e.target.value); setErr(false); }} placeholder={ph} type={type}
+        <input ref={ref} value={value} onChange={e => { onChange(e.target.value); setErr(false); setAviso(""); }} placeholder={ph} type={type}
           autoFocus={autoFocus} autoCapitalize="none" autoCorrect="off"
           style={{
             width: "100%", boxSizing: "border-box", fontFamily: "var(--sans)", fontSize: 15, letterSpacing: "0.04em",
@@ -131,7 +137,7 @@ const Login = ({ lang, setLang, onLogin }) => {
 
           <form onSubmit={needPass ? createPass : submit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {needPass && (
-              <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", background: "var(--beige)", borderRadius: 12, padding: "12px 14px", marginBottom: -2 }}>Es tu primer ingreso. Crea una contraseña (mínimo 6 caracteres).</div>
+              <div style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", background: "var(--beige)", borderRadius: 12, padding: "12px 14px", marginBottom: -2 }}>Es tu primer ingreso. Crea una contraseña (mínimo 8 caracteres). Te llegará un correo para confirmarla.</div>
             )}
             {field(t("user_label"), code, setCode, t("user_ph"), "text", null, true, rCode)}
             {field(needPass ? "NUEVA CONTRASEÑA" : t("pass_label"), pass, setPass, t("pass_ph"), show ? "text" : "password",
@@ -142,7 +148,7 @@ const Login = ({ lang, setLang, onLogin }) => {
 
             {err && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 12, letterSpacing: "0.03em", color: "var(--attention-text)", marginTop: -4 }}>
-                <Icon name="info" size={15} /> {t("login_error")}
+                <Icon name="info" size={15} /> {aviso || t("login_error")}
               </div>
             )}
 
