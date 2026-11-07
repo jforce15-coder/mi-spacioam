@@ -1207,9 +1207,20 @@ function sa_resumenAppendCore_(ss, body) {
     // duplicados: se borran de abajo hacia arriba para no mover índices
     dupRows.sort(function (a, b) { return b - a; }).forEach(function (rn) { sh.deleteRow(rn); });
     if (appendRows.length) sh.getRange(sh.getLastRow() + 1, 1, appendRows.length, W).setValues(appendRows);
+    sa_resFormatoPct_(sh, H);
     SpreadsheetApp.flush();
     return { ok: true, added: added, updated: updated, same: same, removed: dupRows.length, forced: force ? idxs.length : 0, writes: writes, changed: changedKeys.slice(0, 12), recur: recur, sheet: sh.getName(), props: only ? Object.keys(only).length : null };
   }
+}
+
+/* Ocupación y Ocupación Ajustada van como porcentaje en toda la columna (como las deja el backfill de
+   Codigo2.js). Las filas agregadas con setValues quedaban como fracción (0.8387) y Mi, que lee la hoja
+   publicada como texto, mostraba 1 % (oct-2026). Se aplica a la columna entera: repara también lo ya escrito. */
+function sa_resFormatoPct_(sh, H) {
+  var n = sh.getLastRow() - 1; if (n < 1) return;
+  ["ocupación", "ocupación ajustada", "ocupacion", "ocupacion ajustada"].forEach(function (h) {
+    var c = H.indexOf(h); if (c >= 0) sh.getRange(2, c + 1, n, 1).setNumberFormat("0.00%");
+  });
 }
 
 // ============================================================
