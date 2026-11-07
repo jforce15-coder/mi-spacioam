@@ -10,6 +10,8 @@ on:
     paths:
       - "apps-script/**"
       - ".clasp.json"
+      - ".github/ids-gastos.js"
+      - ".github/workflows/revisar-apps-script.yml"
 
 jobs:
   revisar:
@@ -73,3 +75,8 @@ jobs:
             if [ -z "$ahora" ]; then echo "✓ $dir sin funciones repetidas"; fi
           done < <(find . -path ./.git -prune -o -path '*/archivo/*' -prune -o -name appsscript.json -print0)
           exit $fallo
+
+      # Ids de «insumos & gastos»: editar o borrar nunca toca la fila de otro gasto, y la reparación de una sola vez
+      # (GASTOS_IDS_V1) devuelve cada id a su fila sin cambiar A..F. Prueba con dobles de la hoja, sin Google.
+      - name: Ids de gastos (editar, borrar y reparar)
+        run: node .github/ids-gastos.js apps-script

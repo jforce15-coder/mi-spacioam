@@ -1648,13 +1648,16 @@ function PyaManagePanel({ lang, propOptions, active }) {
 
   pyUseEffect(() => { if (active && rows === null) load(); }, [active]);
 
+  // Cómo vio la app el gasto: el servidor lo compara con la fila antes de editarla o borrarla.
+  const antesDe = (r) => ({ property_name: r.property_name, valor: P.numQ(r.valor), mes: ymOfRow(r) || r.mes || "" });
   const startEdit = (r) => { setEditId(r.orderId || r.fecha + r.property_name); setDraft(Object.assign({}, r)); };
   const cancelEdit = () => { setEditId(null); setDraft({}); };
   const saveEdit = async () => {
     if (!window.SpacioWrite || !window.SpacioWrite.enabled()) { setMsg(tr("Conecta el backend (Setup → Conexión de escritura) para editar.", "Connect the backend (Setup → Write connection) to edit.")); return; }
     if (!draft.orderId) { setMsg(tr("Esta fila no tiene orderId; no se puede editar de forma segura.", "This row has no orderId; can't edit safely.")); return; }
     setBusy("save");
-    const res = await window.SpacioWrite.post("updateInsumo", { orderId: draft.orderId, property_name: draft.property_name, valor: P.numQ(draft.valor), categoria: draft.categoria, Comentario: draft.comentario, tag: draft.tag, orderUrl: draft.orderUrl });
+    const orig = (rows || []).find(x => x.orderId === draft.orderId) || draft;
+    const res = await window.SpacioWrite.post("updateInsumo", { orderId: draft.orderId, antes: antesDe(orig), property_name: draft.property_name, valor: P.numQ(draft.valor), categoria: draft.categoria, Comentario: draft.comentario, tag: draft.tag, orderUrl: draft.orderUrl });
     setBusy("");
     if (res && res.ok) { setRows(rs => rs.map(x => x.orderId === draft.orderId ? Object.assign({}, x, draft) : x)); cancelEdit(); setMsg(tr("Cambios guardados.", "Changes saved.")); }
     else setMsg(tr("No se pudo guardar: " + ((res && res.error) || "sin conexión"), "Could not save: " + ((res && res.error) || "offline")));
@@ -1664,7 +1667,7 @@ function PyaManagePanel({ lang, propOptions, active }) {
     if (!r.orderId) { setMsg(tr("Esta fila no tiene orderId; elimínala manualmente en la hoja.", "This row has no orderId; delete it manually in the sheet.")); return; }
     if (!await window.saConfirm(tr("¿Eliminar este gasto de la hoja? No se puede deshacer.", "Delete this expense from the sheet? This can't be undone."))) return;
     setBusy("del-" + r.orderId);
-    const res = await window.SpacioWrite.post("deleteInsumo", { orderId: r.orderId });
+    const res = await window.SpacioWrite.post("deleteInsumo", { orderId: r.orderId, antes: antesDe(r) });
     setBusy("");
     if (res && res.ok) { setRows(rs => rs.filter(x => x.orderId !== r.orderId)); setMsg(tr("Gasto eliminado.", "Expense deleted.")); }
     else setMsg(tr("No se pudo eliminar: " + ((res && res.error) || "sin conexión"), "Could not delete: " + ((res && res.error) || "offline")));
@@ -1697,7 +1700,7 @@ function PyaManagePanel({ lang, propOptions, active }) {
     let n = 0;
     for (const r of dirty) {
       const clean = (r.comentario || "").replace(APLICADO_RE, "").trim();
-      const res = await window.SpacioWrite.post("updateInsumo", { orderId: r.orderId, Comentario: clean });
+      const res = await window.SpacioWrite.post("updateInsumo", { orderId: r.orderId, antes: antesDe(r), Comentario: clean });
       if (res && res.ok) { n++; setRows(rs => rs.map(x => x.orderId === r.orderId ? Object.assign({}, x, { comentario: clean }) : x)); }
     }
     setBusy(""); setMsg(tr(n + " comentario(s) limpiado(s) en la hoja.", n + " comment(s) cleaned in the sheet."));
