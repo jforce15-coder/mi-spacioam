@@ -17,7 +17,7 @@ var SA_UPLOAD_ACTIONS = { uploadFile: true, ping: true, ocrFactura: true, linkFa
 // Lecturas que puede pedir cualquier usuario con acceso a Mi (socio, contador o administrador).
 var SA_USER_READ = { leerSetup: true };
 
-var SA_VERSION = "2026-10-08c";
+var SA_VERSION = "2026-11-07a";
 // Acciones de solo lectura: no esperan el candado (una consulta nunca debe fallar
 // porque otra escritura esté en curso) y no invalidan la caché del resumen.
 var SA_READONLY = { ping: 1, leerSetup: 1, resumenPreview: 1, recurList: 1, recurPreview: 1, cierreMesEstado: 1, hospitableStatus: 1, fetchImage: 1 };
@@ -433,6 +433,10 @@ function sa_appendInsumos(ss, body) {
       if (mm) { present[mm[1]] = true; if (rowByOid[mm[1]] == null) rowByOid[mm[1]] = r + 1; }
     }
   }
+  // ids que la reparación de nov 2026 sacó de una fila equivocada sin tener otra segura (IdsGastos.js):
+  // cuentan como ya guardados, para no crear el mismo gasto otra vez en otra fila.
+  var retirados = sa_idsRetirados_();
+  Object.keys(retirados).forEach(function (k) { present[k] = true; });
 
   var width = sh.getLastColumn();
   var toAppend = [];
@@ -525,6 +529,8 @@ function sa_linkFacturas(ss, body) {
   for (var r0 = 1; r0 < data.length; r0++) {
     [apCol, atCol].forEach(function (cc) { var v = cc != null ? String(data[r0][cc] || "").trim() : ""; if (v) authPresent[v] = true; });
   }
+  var retiradas = sa_idsRetirados_();   // facturas que la reparación de nov 2026 dejó sin fila segura
+  Object.keys(retiradas).forEach(function (k) { authPresent[k] = true; authPresent[k.toLowerCase()] = true; });
   var links = body.links || [], linked = 0, rowsTouched = 0, already = 0;
   var B = sa_batch_(sh, data);
   function fill(c, link) {
@@ -563,6 +569,8 @@ function sa_linkFacturas(ss, body) {
 }
 
 // 5b) Editar / eliminar una fila de "insumos & gastos" por su orderId.
+//     Antes de tocarla, sa_insumoVerificado_ (IdsGastos.js) revisa que sea el gasto que la app vio:
+//     body.antes = { property_name, valor, mes }. Si no coincide, no toca nada.
 function sa_findInsumoRow(sh, orderId) {
   var map = sa_headerMap(sh);
   var oidCol = map["orderId"];
@@ -578,8 +586,8 @@ function sa_updateInsumo(ss, body) {
   var sh = ss.getSheetByName(SA_TAB_INSUMOS);
   if (!sh) return { ok: false, error: "No existe la hoja '" + SA_TAB_INSUMOS + "'" };
 
-  var f = sa_findInsumoRow(sh, body.orderId);
-  if (f.row < 0) return { ok: false, error: "No se encontro el gasto (orderId " + body.orderId + ")" };
+  var f = sa_insumoVerificado_(sh, body);
+  if (f.error) return { ok: false, error: f.error, code: f.code || "" };
   var width = sh.getLastColumn();
   var rowVals = sh.getRange(f.row, 1, 1, width).getValues();
   var B = sa_batch_(sh, [rowVals[0]]);                 // índice local: fila 1 = f.row
@@ -602,8 +610,8 @@ function sa_updateInsumo(ss, body) {
 function sa_deleteInsumo(ss, body) {
   var sh = ss.getSheetByName(SA_TAB_INSUMOS);
   if (!sh) return { ok: false, error: "No existe la hoja '" + SA_TAB_INSUMOS + "'" };
-  var f = sa_findInsumoRow(sh, body.orderId);
-  if (f.row < 0) return { ok: false, error: "No se encontro el gasto (orderId " + body.orderId + ")" };
+  var f = sa_insumoVerificado_(sh, body);
+  if (f.error) return { ok: false, error: f.error, code: f.code || "" };
   sh.deleteRow(f.row);
   return { ok: true };
 }
@@ -1420,7 +1428,7 @@ function sa_recurApply_(ss, ym, opts) {
         Mes: mm, "Fecha de pedido": o.tipo === "condicionado" ? last : ym + "-01",
         property_name: a.prop, valor: a.amount, categoria: o.categoria || "insumos & gastos",
         Comentario: (o.comentario || "Gasto programado") + " · " + a.detail + " · [REC:" + o.id + "]",
-        tag: o.tag || "", orderId: "REC-" + o.id + "-" + ym + "-" + sa_pnorm_(a.prop).replace(/[^a-z0-9]+/g, "-"),
+        tag: o.tag || "", orderId: sa_recurOrderId_(o.id, ym, a.prop),
         orderUrl: "", authProductos: "", authTarifa: ""
       });
       used[o.id] = o;
@@ -1496,11 +1504,17 @@ function sa_recurEnsureTrigger_() {
   } catch (e) {}
 }
 // Disparador diario: fijos del mes en curso + condicionados del mes que ya terminó.
+// Antes, una sola vez (GASTOS_IDS_V1): la reparación de ids de «insumos & gastos» (IdsGastos.js). Va aquí y no en
+// doPost: a las 6 a. m. nadie espera respuesta, tiene el candado 60 s y corre antes de aplicar los programados.
 function aplicarRecurrentesAutomatico() {
   var ss = SpreadsheetApp.openById(SA_SHEET_ID);
   var lock = LockService.getScriptLock();
   try { lock.waitLock(60000); } catch (e) { return; }
-  try { var now = sa_ymNow_(); sa_recurApply_(ss, sa_ymAdd_(now, -1), {}); sa_recurApply_(ss, now, {}); }
+  try {
+    try { var rep = sa_repararIdsGastos_(ss, {}); if (!rep.yaHecho) console.log("Reparación de ids de gastos: " + JSON.stringify(rep)); }
+    catch (eRep) { console.error("Reparación de ids de gastos falló: " + eRep); }
+    var now = sa_ymNow_(); sa_recurApply_(ss, sa_ymAdd_(now, -1), {}); sa_recurApply_(ss, now, {});
+  }
   finally { lock.releaseLock(); }
 }
 

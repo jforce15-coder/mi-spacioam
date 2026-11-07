@@ -10,3 +10,12 @@ Después está cerrado; solo el administrador principal puede modificarlo confir
 
 Apps Script: SA_ADMIN_PASS (arriba del archivo) es la contraseña que confirma los cambios.
 Pegar y publicar NUEVA VERSIÓN.
+
+REGLA — «insumos & gastos» (nov 2026)
+=====================================
+No ordenes solo algunas columnas de «insumos & gastos»: usa la hoja entera (Datos → Ordenar hoja, o una vista
+de filtro). Cada gasto tiene en N..R su bloque de ids (tag · orderId · orderUrl · authProductos · authTarifa);
+si ordenas A..F sin N..R, los ids quedan en la fila de otro gasto. En noviembre de 2026 pasó y lo arregló una
+sola vez IdsGastos.js (bitácora en la pestaña «Reparación de ids de gastos»).
+Desde entonces la app, al editar o borrar un gasto, manda cómo lo vio (propiedad, valor y mes) y el Apps Script
+no toca la fila si no coincide. El Apps Script agrega cada gasto con la fila entera (A..R) de una sola vez.

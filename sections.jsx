@@ -272,6 +272,9 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
   const [visBusy, setVisBusy] = useState("");
   // Cobrable ↔ no cobrable: escribe categoría (E) y tag (G) juntas para que la app
   // y el resumen (Codigo.gs) siempre coincidan. "Cobrable" = insumos & gastos sin tag.
+  // Cómo vio la app el gasto: el servidor lo compara con la fila antes de editarla o borrarla
+  // (si la fila ya es de otro gasto, no toca nada).
+  const antesDe = (r) => ({ property_name: r.propRaw || r._prop, valor: r.amountGTQ, mes: r.y != null && r.m != null ? r.y + "-" + String(r.m + 1).padStart(2, "0") : "" });
   const setBillable = async (r, makeBillable) => {
     if (!r.orderId) { setExpMsg(lang === "es" ? "Este gasto no tiene identificador; corrígelo en la hoja (columnas categoria y tag)." : "This expense has no id; fix categoria and tag in the sheet."); return; }
     const patch = makeBillable
@@ -280,10 +283,10 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
     setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: Object.assign({}, lp[r.orderId] && typeof lp[r.orderId] === "object" ? lp[r.orderId] : {}, patch) }));
     if (!SpacioWrite.enabled()) return;
     setVisBusy(r.orderId);
-    const res = await SpacioWrite.post("updateInsumo", { orderId: r.orderId, categoria: patch.category, tag: patch.tag });
+    const res = await SpacioWrite.post("updateInsumo", { orderId: r.orderId, antes: antesDe(r), categoria: patch.category, tag: patch.tag });
     setVisBusy("");
     if (res && res.ok) { setExpMsg(makeBillable ? (lang === "es" ? "Ahora se cobra al socio y entra en el resumen." : "Now billed to owner and included in the summary.") : (lang === "es" ? "Marcado como Gasto Spacio AM: oculto y fuera del resumen." : "Marked as Spacio AM expense: hidden and excluded.")); triggerRecalc(); }
-    else setExpMsg(lang === "es" ? "No se pudo guardar el cambio." : "Could not save.");
+    else { setLocalPatch(lp => { const n = Object.assign({}, lp); delete n[r.orderId]; return n; }); setExpMsg(lang === "es" ? "No se pudo guardar el cambio" + (res && res.error ? ": " + res.error : ".") : "Could not save."); }
   };
   // El propietario ve UN solo movimiento por pedido: las facturas que comparten
   // la misma URL del pedido (productos + tarifa) se suman en un monto unificado,
@@ -329,18 +332,21 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
     // recalcula el monto USD a partir del nuevo valor GTQ y la TC de la fila
     if (patch.amountGTQ != null && r.tc) patch.amount = patch.amountGTQ / r.tc;
     else if (patch.amountGTQ != null) patch.amount = patch.amountGTQ;
+    if (patch.property_name != null) patch.propRaw = patch.property_name;
+    const antes = antesDe(r), prevPatch = localPatch[r.orderId];
     setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: Object.assign({}, lp[r.orderId] && typeof lp[r.orderId] === "object" ? lp[r.orderId] : {}, patch) }));
     setEditExp(null);
     if (SpacioWrite.enabled()) {
-      const body = { orderId: r.orderId };
+      const body = { orderId: r.orderId, antes };
       if (patch.category != null) body.categoria = patch.category;
       if (patch.desc != null) body.Comentario = patch.desc;
       if (patch.tag != null) body.tag = patch.tag;
       if (patch.property_name != null) body.property_name = patch.property_name;
       if (patch.amountGTQ != null) body.valor = patch.amountGTQ;
       const res = await SpacioWrite.post("updateInsumo", body);
-      setExpMsg(res && res.ok ? (lang === "es" ? "Gasto actualizado." : "Expense updated.") : (lang === "es" ? "Error al guardar." : "Save failed."));
-      triggerRecalc();
+      if (!(res && res.ok)) setLocalPatch(lp => { const n = Object.assign({}, lp); if (prevPatch === undefined) delete n[r.orderId]; else n[r.orderId] = prevPatch; return n; });
+      setExpMsg(res && res.ok ? (lang === "es" ? "Gasto actualizado." : "Expense updated.") : (lang === "es" ? "No se guardó" + (res && res.error ? ": " + res.error : ".") : "Save failed."));
+      if (res && res.ok) triggerRecalc();
     } else setExpMsg(lang === "es" ? "Cambio local (conecta el backend para guardarlo)." : "Local change (connect backend to persist).");
   };
   const deleteExp = async (r) => {
@@ -348,9 +354,10 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
     if (!r.orderId) { setExpMsg(lang === "es" ? "Sin identificador; elimínalo en la hoja." : "No id; delete it in the sheet."); return; }
     setLocalPatch(lp => Object.assign({}, lp, { [r.orderId]: "__deleted__" }));
     if (SpacioWrite.enabled()) {
-      const res = await SpacioWrite.post("deleteInsumo", { orderId: r.orderId });
-      setExpMsg(res && res.ok ? (lang === "es" ? "Gasto eliminado." : "Expense deleted.") : (lang === "es" ? "Error al eliminar." : "Delete failed."));
-      triggerRecalc();
+      const res = await SpacioWrite.post("deleteInsumo", { orderId: r.orderId, antes: antesDe(r) });
+      if (!(res && res.ok)) setLocalPatch(lp => { const n = Object.assign({}, lp); delete n[r.orderId]; return n; });
+      setExpMsg(res && res.ok ? (lang === "es" ? "Gasto eliminado." : "Expense deleted.") : (lang === "es" ? "No se eliminó" + (res && res.error ? ": " + res.error : ".") : "Delete failed."));
+      if (res && res.ok) triggerRecalc();
     } else setExpMsg(lang === "es" ? "Eliminado localmente (conecta el backend)." : "Deleted locally (connect backend).");
   };
   // agrupación: por propiedad (si hay varias) y por categoría adentro

@@ -364,6 +364,7 @@
       const descClean = ((r["Comentario"] || catRaw).trim() || catRaw || "—").replace(/\s*[·\-–—]?\s*\(aplicado a \d+\)\s*$/i, "").trim();
       p.expenses.push({
         y: ed.y, m: ed.m, day: ed.day,
+        propRaw: pname,   // la propiedad tal como está en la hoja: el servidor la compara antes de editar/borrar
         catKey: catKey || "otros", category: catRaw || "Otros", billable, tag: tagRaw, adminOnly, nonBillable, catTagConflict,
         desc: descClean || catRaw || "—",
         amount: rate ? valorGTQ / rate : valorGTQ, amountGTQ: valorGTQ, tc: rate,
