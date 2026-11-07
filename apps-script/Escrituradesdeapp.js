@@ -1070,6 +1070,22 @@ function sa_resMes_(v) {
 // Caché del cálculo: el mismo mes se sirve al instante hasta que algo cambie en la
 // hoja (toda escritura vía la app marca SA_RES_STAMP; la Database entra en la clave
 // por su nº de filas, por si Hospitable escribe directo).
+/* Huella de lo que el cálculo lee además de Database: SETUP, TC e «insumos & gastos» (A..F).
+   Si alguien edita esas pestañas a mano en la hoja (no desde la app), el sello SA_RES_STAMP no cambia
+   y la caché devolvía el cálculo viejo hasta 6 h. El 7-nov: el segundo anuncio de Z14 - P14 - 703 se
+   agregó a SETUP y «Generar resumen» seguía con 21 noches. Leer estas pestañas cuesta poco frente al
+   cálculo completo. */
+function sa_resHuella_(ss) {
+  try {
+    ss = ss || SpreadsheetApp.openById(SA_SHEET_ID);
+    var partes = [];
+    ["SETUP", "TC"].forEach(function (n) { var sh = ss.getSheetByName(n); partes.push(sh ? JSON.stringify(sh.getDataRange().getValues()) : "-"); });
+    var g = ss.getSheetByName(SA_TAB_INSUMOS);
+    partes.push(g && g.getLastRow() > 0 ? JSON.stringify(g.getRange(1, 1, g.getLastRow(), 6).getValues()) : "-");
+    var d = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, partes.join("|"), Utilities.Charset.UTF_8);
+    return d.map(function (b) { return ("0" + ((b + 256) % 256).toString(16)).slice(-2); }).join("").slice(0, 12);
+  } catch (e) { return String(Date.now()); }   // si no se puede leer, sin caché
+}
 function sa_resStamp_() { return PropertiesService.getScriptProperties().getProperty("SA_RES_STAMP") || "0"; }
 function sa_resDirty_() { PropertiesService.getScriptProperties().setProperty("SA_RES_STAMP", String(Date.now())); }
 function sa_resCalc_(body, ss) {
@@ -1077,7 +1093,7 @@ function sa_resCalc_(body, ss) {
   var ym = String(body.ym || "");
   if (!/^\d{4}-\d{2}$/.test(ym)) throw new Error("periodo inválido");
   var dbRows = 0; try { var db = (ss || SpreadsheetApp.openById(SA_SHEET_ID)).getSheetByName("Database"); dbRows = db ? db.getLastRow() : 0; } catch (e) {}
-  var key = "res|" + ym + "|" + sa_resStamp_() + "|" + dbRows;
+  var key = "res|" + ym + "|" + sa_resStamp_() + "|" + dbRows + "|" + sa_resHuella_(ss);
   var cache = CacheService.getScriptCache();
   if (!body.nocache) { var hit = cache.get(key); if (hit) { try { var o = JSON.parse(hit); o.cached = true; return o; } catch (e1) {} } }
   var t0 = Date.now();
