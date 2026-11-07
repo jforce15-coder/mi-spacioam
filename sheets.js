@@ -86,10 +86,14 @@
     const n = parseFloat(s);
     return isNaN(n) ? 0 : n;
   }
+  /* "83.87%" → 0.8387. Sin el signo % la celda trae la fracción (0.8387): así quedaron las filas que
+     «Todo al acumulado» agregó sin formato de porcentaje (oct-2026: Mi mostraba 1% en vez de 83.9%).
+     Un número sin % mayor que 1.5 se toma como porcentaje («83.87»). */
   function pctNum(v) {
-    if (!v) return 0;
-    const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
-    return isNaN(n) ? 0 : n / 100;
+    if (v == null || v === "") return 0;
+    const t = String(v), n = parseFloat(t.replace(/[^0-9.\-]/g, ""));
+    if (isNaN(n)) return 0;
+    return t.indexOf("%") >= 0 || Math.abs(n) > 1.5 ? n / 100 : n;
   }
   function norm(s) { return String(s || "").toLowerCase().replace(/\s+/g, "").replace(/[–—]/g, "-").replace(/[^a-z0-9\-]/g, ""); }
   function daysIn(y, m) { return new Date(y, m + 1, 0).getDate(); }
