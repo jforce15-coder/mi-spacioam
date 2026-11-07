@@ -3,7 +3,8 @@
    1. el caso de la fila 1353: un REC que está en la fila de otro gasto vuelve a la fila con su marca [REC:…],
       igual al id que arma sa_recurApply_, y el gasto programado no se duplica después;
    2. una factura (hex) vuelve a su única fila (mismo valor y fecha); si hay dos filas posibles, no se mueve;
-   3. un REC sin fila sale de donde está y queda reservado (el gasto programado no se vuelve a crear);
+   3. un REC sin fila (o con dos) no se toca: se queda donde está y el gasto programado no se vuelve a crear;
+   6. solo se reparan filas de septiembre 2026 en adelante: una fila de antes se queda exactamente igual;
    4. borrar o editar con la fila equivocada → error y no toca nada; sin «antes» tampoco; con la fila buena, sí;
    5. la segunda corrida no hace nada.
    Nunca cambia A..F ni borra filas.
@@ -57,7 +58,7 @@ const REC_NOV = 'REC-Rmuyd7bkz-2026-11-z4-edificioa4-304', REC_OCT = 'REC-Rmuyd7
 const RECUR = [['id', 'estado', 'frecuencia', 'propiedades', 'tipo', 'valor', 'terminos', 'categoria', 'tag', 'comentario', 'desde', 'hasta', 'creado', 'cancelado', 'aplicados'],
   ['Rmuyd7bkz', 'activo', 'mensual', '["Z4 - EdificioA4 - 304"]', 'fijo', 509, '[]', 'insumos & gastos', '', 'EEGSA ZONA 4 (1534646)', '2026-09', '', '', '', '2026-10,2026-11']];
 let C = caja([
-  fila('2026-10-01', 'Z4 - EdificioA4 - 304', 509, 'EEGSA ZONA 4 (1534646) · monto fijo · [REC:Rmuyd7bkz]', 'REC-Rmuyczrwr-2026-10-antigua-casco-64b'), // fila 2 (como la 1335)
+  fila('2026-10-01', 'Z4 - EdificioA4 - 304', 509, 'EEGSA ZONA 4 (1534646) · monto fijo · [REC:Rmuyd7bkz]', 'MAN-2026-10-01-abcde-0'), // fila 2 (como la 1335)
   fila('2026-10-04', 'Z4 - Rue - 301', 165.3, '', REC_NOV),                                                                              // fila 3 (como la 1353)
   fila('2026-11-01', 'Z4 - EdificioA4 - 304', 509, 'EEGSA ZONA 4 (1534646) · monto fijo · [REC:Rmuyd7bkz]', ''),                       // fila 4
   fila('2026-09-30', 'Z10 - Ignacio - 1206', 205.55, 'insumos', REC_OCT),                                                               // fila 5
@@ -73,7 +74,6 @@ const ids = C.ins.data.slice(1).map(x => String(x[14])).filter(Boolean);
 ok(new Set(ids).size === ids.length, 'ningún id repetido');
 const log = C.tabs['Reparación de ids de gastos'];
 ok(log && log.data.length === 5 && log.data.some(x => x[1] === 4 && /REC/.test(x[3]) && /\[REC\]/.test(x[4])), 'la bitácora «Reparación de ids de gastos» tiene fila, antes, después y motivo');
-ok(/REC-Rmuyczrwr-2026-10/.test(C.props.GASTOS_IDS_RETIRADOS || ''), 'el REC sin fila (Rmuyczrwr de octubre) sale y queda reservado');
 ok(!!C.props.GASTOS_IDS_V1, 'queda la marca GASTOS_IDS_V1');
 // el disparador vuelve a aplicar noviembre: no duplica (el id ya está en su fila)
 let ap = C.ctx.sa_recurApply_(C.ss, '2026-11', { unlocked: true });
@@ -92,32 +92,55 @@ C = caja([], { 'Gastos recurrentes': RECUR });
 ap = C.ctx.sa_recurApply_(C.ss, '2026-10', { unlocked: true });
 ok(ap.added === 1 && idDe(C.ins, 2) === REC_OCT, 'control: sa_recurApply_ crea el gasto de octubre con el id ' + REC_OCT);
 
-/* 3 · Un REC sin fila con su marca: sale, y el programado no lo vuelve a crear. */
+/* 3 · Programados que faltan o están dos veces (Juan aún no decide): no se tocan. */
 C = caja([
-  fila('2026-09-28', 'Z1 - Centro Vivo - 1107', 339.1, 'insumos', 'REC-Rmuyd7bkz-2026-10-z4-edificioa4-304'),
+  fila('2026-09-28', 'Z1 - Centro Vivo - 1107', 339.1, 'insumos', 'REC-Rmuyd7bkz-2026-10-z4-edificioa4-304'),        // su fila no existe
+  fila('2026-09-01', 'Antigua - casco - 64A', 310, 'Prime TV · monto fijo · [REC:Rmuyettcd]', ''),                      // dos filas con la misma marca
+  fila('2026-09-01', 'Antigua - casco - 64A', 310, 'Prime TV · monto fijo · [REC:Rmuyettcd]', ''),
+  fila('2026-10-02', 'Z10 - EON - 901', 75.8, 'insumos', 'REC-Rmuyettcd-2026-09-antigua-casco-64a'),
 ], { 'Gastos recurrentes': RECUR });
-C.ctx.sa_repararIdsGastos_(C.ss, {});
-ok(/^GID-/.test(idDe(C.ins, 2)), 'un REC que no tiene fila con su marca sale de la fila equivocada');
+const sin0 = JSON.stringify(C.ins.data);
+r = C.ctx.sa_repararIdsGastos_(C.ss, {});
+ok(r.ok && JSON.stringify(C.ins.data) === sin0 && !C.props.GASTOS_IDS_RETIRADOS, 'un REC sin fila, o con dos filas con su marca, se queda donde está (no se mueve, no sale, no se reserva)');
 ap = C.ctx.sa_recurApply_(C.ss, '2026-10', { unlocked: true });
-ok(ap.added === 0 && C.ins.data.length === 2, 'y el gasto programado de ese mes no se vuelve a crear (id reservado)');
+ok(ap.added === 0 && C.ins.data.length === 5, 'y el gasto programado de ese mes no se crea otra vez (su id sigue en la hoja)');
+
+/* 6 · Antes de septiembre 2026 no se toca nada. */
+const FACT6 = [['id', 'tipo', 'auth', 'fecha', 'total', 'propiedad'],
+  ['R-1', 'recibida', 'DDDDDDDD-0000-0000-0000-000000000001', dia('2026-10-10'), 120.5, ''],
+  ['R-2', 'recibida', 'EEEEEEEE-0000-0000-0000-000000000002', dia('2026-08-10'), 88.2, '']];
+const HD = 'DDDDDDDD-0000-0000-0000-000000000001', HE = 'EEEEEEEE-0000-0000-0000-000000000002';
+C = caja([
+  fila('2026-08-03', 'Z4 - Modra - 311', 5000, 'Renta 311', HD, HD, HD),         // fila 2: agosto, con una factura de octubre
+  fila('2026-10-10', 'Z10 - EON - 901', 120.5, 'insumos', ''),                   // fila 3: la fila de esa factura
+  fila('2026-10-20', 'Z1 - Centro Vivo - 1102', 300, 'insumos', HE, HE, HE),     // fila 4: octubre, con una factura de agosto
+  fila('2026-08-10', 'Z13 - Narama - 725', 88.2, 'insumos', ''),                 // fila 5: su fila es de agosto
+  fila('2026-07-17', 'Z1 - Centro Vivo - 1102', 286.55, 'Insumos', 'REP-1783133056195'),
+  fila('2026-07-04', 'Z1 - Centro Vivo - 1107', 350, 'Mantenimiento · [REP:1783133056195] Ver detalle', ''),
+], { Facturas: FACT6 });
+const ago = JSON.stringify([C.ins.data[1], C.ins.data[4], C.ins.data[5], C.ins.data[6]]);
+r = C.ctx.sa_repararIdsGastos_(C.ss, {});
+ok(r.ok && JSON.stringify([C.ins.data[1], C.ins.data[4], C.ins.data[5], C.ins.data[6]]) === ago, 'las filas de antes de septiembre quedan exactamente igual (no se les quita, no se les pone, no reciben GID)');
+ok(idDe(C.ins, 3) === '' && idDe(C.ins, 4) === HE, 'un id que está en una fila de agosto, o cuya fila es de agosto, no se mueve');
+ok(r.porTipo.HEX.antesDeSept === 1 && r.porTipo.REP.antesDeSept === 1, 'el resumen cuenta aparte los ids de antes de septiembre');
 
 /* 2 · Facturas: una sola fila posible → se mueve; dos → se queda. */
 const FACT = [['id', 'tipo', 'auth', 'fecha', 'mes', 'nit', 'contraparte', 'descripcion', 'total', 'moneda', 'clasificacion', 'propiedad'],
-  ['R-A', 'recibida', 'AAAAAAAA-0000-0000-0000-000000000001', dia('2026-08-05'), '', '', 'Súper', 'productos', 346.15, 'GTQ', '', ''],
-  ['R-B', 'recibida', 'AAAAAAAA-0000-0000-0000-000000000002', dia('2026-08-05'), '', '', 'Reparto', 'tarifa', 4, 'GTQ', '', ''],
-  ['R-C', 'recibida', 'CCCCCCCC-0000-0000-0000-000000000003', dia('2026-08-07'), '', '', 'Súper', 'productos', 61.44, 'GTQ', '', '']];
+  ['R-A', 'recibida', 'AAAAAAAA-0000-0000-0000-000000000001', dia('2026-10-05'), '', '', 'Súper', 'productos', 346.15, 'GTQ', '', ''],
+  ['R-B', 'recibida', 'AAAAAAAA-0000-0000-0000-000000000002', dia('2026-10-05'), '', '', 'Reparto', 'tarifa', 4, 'GTQ', '', ''],
+  ['R-C', 'recibida', 'CCCCCCCC-0000-0000-0000-000000000003', dia('2026-10-07'), '', '', 'Súper', 'productos', 61.44, 'GTQ', '', '']];
 const HA = 'AAAAAAAA-0000-0000-0000-000000000001', HB = 'AAAAAAAA-0000-0000-0000-000000000002', HC = 'CCCCCCCC-0000-0000-0000-000000000003';
 C = caja([
-  fila('2026-07-01', 'Antigua - casco - 64A', 2250, 'Inca & koru', HA, HA, HB),   // fila 2: factura de otro gasto
-  fila('2026-08-05', 'Antigua - Casco - 64B', 350.15, 'insumos', ''),             // fila 3: su gasto (346.15 + 4)
-  fila('2026-08-07', 'Z7 - Monaco - C5', 61.44, 'Software', HC, HC, HC),          // fila 4 y 5: dos filas iguales
-  fila('2026-08-07', 'Z7 - Monaco - C6', 61.44, 'Software', ''),
-  fila('2026-08-20', 'Z1 - Centro Vivo - 1107', 90, 'insumos', 'MAN-2026-08-02-abcde-0'),
+  fila('2026-10-01', 'Antigua - casco - 64A', 2250, 'Inca & koru', HA, HA, HB),   // fila 2: factura de otro gasto
+  fila('2026-10-05', 'Antigua - Casco - 64B', 350.15, 'insumos', ''),             // fila 3: su gasto (346.15 + 4)
+  fila('2026-10-07', 'Z7 - Monaco - C5', 61.44, 'Software', HC, HC, HC),          // fila 4 y 5: dos filas iguales
+  fila('2026-10-07', 'Z7 - Monaco - C6', 61.44, 'Software', ''),
+  fila('2026-10-20', 'Z1 - Centro Vivo - 1107', 90, 'insumos', 'MAN-2026-10-02-abcde-0'),
 ], { Facturas: FACT });
 r = C.ctx.sa_repararIdsGastos_(C.ss, {});
 ok(idDe(C.ins, 3) === HA && C.ins.data[2][16] === HA && C.ins.data[2][17] === HB, 'la factura (orderId + authProductos + authTarifa) vuelve a su única fila: mismo valor y fecha');
 ok(idDe(C.ins, 4) === HC && idDe(C.ins, 5) === '', 'con dos filas posibles la factura se queda donde está');
-ok(idDe(C.ins, 6) === 'MAN-2026-08-02-abcde-0', 'un gasto manual sin una única fila posible se queda donde está');
+ok(idDe(C.ins, 6) === 'MAN-2026-10-02-abcde-0', 'un gasto manual sin una única fila posible se queda donde está');
 
 /* 4 · Editar / borrar: la fila tiene que ser el gasto que la app vio. */
 C = caja([

@@ -9,7 +9,7 @@
 //      (misma propiedad, mismo valor y, si viene, el mismo mes). Si no, no toca nada.
 //   2. sa_repararIdsGastos_: una sola vez (propiedad GASTOS_IDS_V1) devuelve cada bloque a su fila
 //      cuando hay UNA sola fila posible. Nunca cambia A..F, nunca borra filas, nunca repite un id.
-//      Cada cambio queda en la pestaña «Reparación de ids de gastos».
+//      Solo toca filas de SA_GID_DESDE en adelante. Cada cambio queda en la pestaña «Reparación de ids de gastos».
 //   3. Ids retirados (GASTOS_IDS_RETIRADOS): los que salieron de una fila sin tener otra segura.
 //      sa_appendInsumos y sa_linkFacturas los cuentan como ya guardados, para que un gasto programado
 //      o una factura no se vuelva a crear en otra fila.
@@ -19,6 +19,9 @@ var SA_GID_FLAG = "GASTOS_IDS_V1";
 var SA_GID_RETIRADOS = "GASTOS_IDS_RETIRADOS";
 var SA_GID_TAB = "Reparación de ids de gastos";
 var SA_GID_BLOQUE = ["tag", "orderId", "orderUrl", "authProductos", "authTarifa"];
+// Juan (7 nov 2026): solo se reparan los últimos meses. Una fila de antes de este mes (por su Fecha de pedido;
+// sin fecha, tampoco) se queda exactamente como está: no se le quita, no se le pone ni se le cambia nada.
+var SA_GID_DESDE = "2026-09";
 
 // ---------- comparaciones ----------
 // Propiedad sin mayúsculas, tildes, espacios ni guiones: «Z4 - Rue - 301» = «z4-rue-301».
@@ -136,6 +139,11 @@ function sa_repararIdsGastos_(ss, opts) {
   // evidencia de fuera: Facturas (auth → total, fecha, propiedad) y Archivos cargados (orderId → propiedad, mes)
   var fact = sa_gidFacturas_(ss), arch = sa_gidArchivos_(ss);
 
+  // Filas quietas: las de antes de SA_GID_DESDE, y las que tienen un REC/REP que no se toca (abajo).
+  // Nadie entra ni sale de una fila quieta, pero cuentan al buscar la única fila posible de un id.
+  var quieta = {};
+  Object.keys(filas).forEach(function (k) { var fk = filas[k]; if (!fk.ym || fk.ym < SA_GID_DESDE) quieta[fk.r] = true; });
+
   // Paso 1: qué dice la prueba de cada bloque sobre la fila donde está.
   //   bien = es su fila (no se mueve y nadie más la puede tomar) · mal = probadamente NO es su fila
   //   duda = puede ser su fila o no (se queda, salvo que una prueba fuerte de otro bloque reclame esa fila)
@@ -144,6 +152,7 @@ function sa_repararIdsGastos_(ss, opts) {
     var f = filas[b.desde];
     porFila[b.desde] = b;
     b.ev = null;
+    if (quieta[b.desde]) { b.estado = "fuera"; return; }   // fila de antes de septiembre: no se toca
     if (cuantas[b.id] > 1) { b.estado = "bien"; fijo[b.desde] = true; b.motivo = "id repetido en la hoja: no se toca"; return; }
     if (b.tipo === "REC" || b.tipo === "REP") {
       if (f.esperado === b.id) { b.estado = "bien"; fijo[b.desde] = true; } else b.estado = "mal";
@@ -167,13 +176,22 @@ function sa_repararIdsGastos_(ss, opts) {
     return out;
   }
 
-  // Paso 2a: REC / REP → la fila con su marca, si es UNA sola. Si no hay (o hay dos), sale de donde está.
-  bloques.forEach(function (b) {
-    if ((b.tipo !== "REC" && b.tipo !== "REP") || b.estado !== "mal") return;
-    var rs = porEsperado[b.id] || [];
-    if (rs.length === 1 && !fijo[rs[0]]) reclamar(b, rs[0]);
-    else { b.retirar = true; b.motivo = rs.length > 1 ? rs.length + " filas tienen la misma marca" : "ninguna fila tiene su marca"; }
-  });
+  // Paso 2a: REC / REP → la fila con su marca, si es UNA sola, de septiembre en adelante y libre.
+  //   Si no hay fila, hay dos, o es de antes de septiembre, el id se queda donde está y su fila queda quieta
+  //   (gastos programados repetidos o que faltan: Juan aún no decide, así que no se tocan).
+  var recs = bloques.filter(function (b) { return (b.tipo === "REC" || b.tipo === "REP") && b.estado === "mal"; });
+  var otraVez = true;
+  while (otraVez) {
+    otraVez = false;
+    recs.forEach(function (b) {
+      if (b.estado !== "mal") return;
+      var rs = porEsperado[b.id] || [];
+      if (rs.length === 1 && !fijo[rs[0]] && !quieta[rs[0]]) return;
+      b.estado = "quieto"; quieta[b.desde] = true; otraVez = true;
+      b.motivo = rs.length > 1 ? rs.length + " filas tienen la misma marca" : rs.length ? "su fila es de antes de " + SA_GID_DESDE + " o no se puede tocar" : "ninguna fila tiene su marca";
+    });
+  }
+  recs.forEach(function (b) { if (b.estado === "mal") reclamar(b, porEsperado[b.id][0]); });
   // Rondas: cada bloque busca su ÚNICA fila posible. Una fila que ya es de otro gasto deja de ser posible,
   // así que se repite hasta que nada cambie. Si dos bloques quieren la misma fila, ninguno se la lleva.
   var vetada = {};
@@ -186,7 +204,7 @@ function sa_repararIdsGastos_(ss, opts) {
         if (b.hecho) return;
         var c = candidatas(function (fk) { return !vetada[fk.r] && prueba(b, fk); }, b);
         b.cands = c.length;
-        if (c.length === 1 && (c[0] === b.desde || puedeEntrar(c[0]))) (quiere[c[0]] = quiere[c[0]] || []).push(b);
+        if (c.length === 1 && (c[0] === b.desde || (!quieta[c[0]] && puedeEntrar(c[0])))) (quiere[c[0]] = quiere[c[0]] || []).push(b);
       });
       Object.keys(quiere).forEach(function (k) {
         var bs = quiere[k], fila = +k; cambio = true;
@@ -197,13 +215,13 @@ function sa_repararIdsGastos_(ss, opts) {
     }
   }
   // Paso 2b: facturas → la ÚNICA fila con ese valor y esa fecha (y esa propiedad, si la factura la dice).
-  rondas(bloques.filter(function (b) { return b.tipo === "HEX" && b.ev && b.estado !== "bien"; }),
+  rondas(bloques.filter(function (b) { return b.tipo === "HEX" && b.ev && b.estado !== "bien" && b.estado !== "fuera"; }),
     function (b, fk) { return sa_gidCoincideFactura_(fk, b.ev); },
     function () { return true; });
   // Paso 2c: gastos manuales (MAN, por su día) y comprobantes (DEP, por Archivos cargados): prueba débil,
   //   así que solo se mueven si están probadamente mal, a la ÚNICA fila posible, y solo si esa fila está vacía
   //   o lo que tiene está mal o se va.
-  bloques.forEach(function (b) { if ((b.tipo === "MAN" || b.tipo === "DEP") && tomadas[b.desde]) b.estado = "mal"; });   // su fila es de una factura o un REC
+  bloques.forEach(function (b) { if ((b.tipo === "MAN" || b.tipo === "DEP") && b.estado !== "fuera" && tomadas[b.desde]) b.estado = "mal"; });   // su fila es de una factura o un REC
   rondas(bloques.filter(function (b) { return (b.tipo === "MAN" || b.tipo === "DEP") && b.ev && b.estado === "mal"; }),
     function (b, fk) { return b.tipo === "MAN" ? (fk.dia === b.ev.dia && sa_gidCoincideArchivo_(fk, b.ev.archivo)) : sa_gidCoincideArchivo_(fk, b.ev); },
     function (fila) { var ahi = porFila[fila]; return !ahi || ahi.estado === "mal" || ahi.hacia != null; });
@@ -235,6 +253,8 @@ function sa_repararIdsGastos_(ss, opts) {
     var v = cols.map(function () { return ""; }); v[1] = semilla + (+k + 1);
     nuevo[k] = v; idsNuevos++; motivo[k] += " · queda con id nuevo " + v[1];
   });
+  // nunca se toca una fila de antes de septiembre
+  for (var kq in nuevo) { var fq = filas[kq]; if (!fq.ym || fq.ym < SA_GID_DESDE) return { ok: false, error: "La reparación tocaría la fila " + (+kq + 1) + ", de antes de " + SA_GID_DESDE + "; no escribí nada." }; }
   // nunca un id repetido
   var final = {};
   for (var r2 = 1; r2 < data.length; r2++) {
@@ -253,6 +273,8 @@ function sa_repararIdsGastos_(ss, opts) {
     if (b.hacia != null) t.movidos++;
     else if (b.retirar) t.retirados++;
     else if (b.estado === "bien") t.bien++;
+    else if (b.estado === "fuera") t.antesDeSept = (t.antesDeSept || 0) + 1;
+    else if (b.estado === "quieto") { t.quedan++; t.noSeTocan = (t.noSeTocan || 0) + 1; }
     else {
       t.quedan++;
       var por = !b.ev ? "sinPrueba" : b.estado === "duda" ? "puedeSerSuya" : (b.cands > 1 ? "variasFilas" : "ningunaFila");
@@ -261,13 +283,13 @@ function sa_repararIdsGastos_(ss, opts) {
   });
   var conMarca = 0, conMarcaBien = 0;
   Object.keys(filas).forEach(function (k) {
-    var fk = filas[k]; if (!fk.esperado) return; conMarca++;
+    var fk = filas[k]; if (!fk.esperado || !fk.ym || fk.ym < SA_GID_DESDE) return; conMarca++;
     var v3 = Object.prototype.hasOwnProperty.call(nuevo, k) ? nuevo[k] : cols.map(function (c) { return data[k][c]; });
     if (v3 && txt(v3[1]) === fk.esperado) conMarcaBien++;
   });
   var cambios = Object.keys(nuevo).map(Number).sort(function (a, b) { return a - b; });
   var out = { ok: true, simulado: !!opts.simular, porTipo: res, filasCambiadas: cambios.length, idsNuevos: idsNuevos,
-    filasConMarca: conMarca, filasConMarcaConSuId: conMarcaBien, retirados: retirados.length };
+    desde: SA_GID_DESDE, filasConMarca: conMarca, filasConMarcaConSuId: conMarcaBien, retirados: retirados.length };
   if (opts.detalle) out.detalle = cambios.map(function (k) { return { fila: k + 1, antes: sa_gidTexto_(cols.map(function (c) { return data[k][c]; })), despues: sa_gidTexto_(nuevo[k]), motivo: motivo[k] || "" }; });
   if (opts.simular) return out;
 
