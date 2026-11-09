@@ -63,10 +63,11 @@
         moneyEl: (v) => {
           const val = currency === "GTQ" ? (v || 0) * SpacioI18n.GTQ_RATE : (v || 0);
           const sym = currency === "GTQ" ? "Q " : "$";
-          const neg = val < 0 ? "−" : "";
-          const abs = Math.abs(val);
-          const ent = Math.floor(abs).toLocaleString("en-US");
-          const dec = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
+          /* Se redondea a centavos ANTES de separar enteros y decimales: 243.996 → $244.00 (antes salía «$243.100»). */
+          const cts = Math.round(Math.abs(val) * 100);
+          const neg = val < 0 && cts > 0 ? "−" : "";
+          const ent = Math.floor(cts / 100).toLocaleString("en-US");
+          const dec = String(cts % 100).padStart(2, "0");
           return React.createElement("span", null, neg + sym + ent,
             React.createElement("span", { style: { fontSize: "0.72em", opacity: 0.62 } }, "." + dec));
         },
