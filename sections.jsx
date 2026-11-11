@@ -383,8 +383,8 @@ const ExpensesSection = ({ activeProps, pdata, fmt, t, lang, isAdmin }) => {
       {rows.length > 0 && (
         <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "-8px 0 18px", maxWidth: 560 }}>
           {lang === "es"
-            ? "El total consolidado proviene del resumen oficial. Abajo, el detalle de cada movimiento registrado en el período."
-            : "The consolidated total comes from the official summary. Below, every movement recorded in the period."}
+            ? "El total es la suma de los movimientos de abajo, registrados en el período."
+            : "The total is the sum of the movements below, recorded in the period."}
         </p>
       )}
       <Card pad={0}>
@@ -1647,7 +1647,7 @@ const LiquidationBlock = ({ pdata, fmt, t, lang, property, activeProps, owner, i
       <div className="sa-liq-invoice">
         <div className="sa-liq-invoice-amt">
           <span style={{ fontFamily: "var(--sans)", fontSize: 10.5, fontWeight: 600, letterSpacing: "0.2em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{t("liq_invoice_label")}</span>
-          <span style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 30, letterSpacing: "-0.02em", color: "var(--ink)", marginTop: 6 }}>{money(c.ingresoNeto)}</span>
+          <span style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 30, letterSpacing: "-0.02em", color: "var(--ink)", marginTop: 6 }}>{moneyEl(c.ingresoNeto)}</span>
           <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: "var(--fg-muted)", marginTop: 4 }}>{t("liq_invoice_help")}</span>
         </div>
         <div className="sa-liq-invoice-body">
@@ -2332,10 +2332,10 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   const fmtMon = (usd, moneda) => {
     const v = conv(usd, moneda);
     const sym = moneda === "GTQ" ? "Q " : "$";
-    const neg = v < 0 ? "-" : "";
-    const abs = Math.abs(v);
-    const ent = Math.floor(abs).toLocaleString("en-US");
-    const dec = Math.round((abs - Math.floor(abs)) * 100).toString().padStart(2, "0");
+    const cts = Math.round(Math.abs(v) * 100);   // a centavos primero: 86.996 → $87.00, no «$86.100»
+    const neg = v < 0 && cts > 0 ? "-" : "";
+    const ent = Math.floor(cts / 100).toLocaleString("en-US");
+    const dec = String(cts % 100).padStart(2, "0");
     return <span>{neg}{sym}{ent}<span style={{ fontSize: "0.72em", opacity: 0.62 }}>.{dec}</span></span>;
   };
   // liquidación por propiedad del período seleccionado
