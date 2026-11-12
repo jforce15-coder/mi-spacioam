@@ -12,6 +12,9 @@ on:
       - ".clasp.json"
       - ".github/ids-gastos.js"
       - ".github/resumen-cache.js"
+      - ".github/enlaces.js"
+      - "404.html"
+      - "sheets.js"
       - ".github/workflows/revisar-apps-script.yml"
 
 jobs:
@@ -83,3 +86,7 @@ jobs:
         run: node .github/ids-gastos.js apps-script
       - name: "Caché del resumen mensual (se renueva si cambian SETUP, TC o los gastos)"
         run: node .github/resumen-cache.js apps-script
+
+      - name: Enlaces cortos con mi.spacioam.com (dobles, sin internet)
+        # Hub #488 T5: un enlace largo de Mi o de Drive en un correo a un socio sale como mi.spacioam.com/<código>.
+        run: node .github/enlaces.js apps-script

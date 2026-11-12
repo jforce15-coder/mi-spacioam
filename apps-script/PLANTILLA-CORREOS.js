@@ -206,6 +206,9 @@ function emailShell_(o) {
 /** Envío con opciones estándar + registro en la hoja de log. */
 function enviarCorreo_(para, asunto, shell, tipo) {
   if (!para) return false;
+  /* Enlaces cortos (Hub #488 T5, enlaces.js): un enlace largo de mi.spacioam.com o de Drive sale como
+     mi.spacioam.com/<código>, en el botón y en el texto. La dirección sola (mi.spacioam.com) se deja: ya es corta. */
+  shell = { html: acortarEnHtml_(shell.html, "correo " + (tipo || "")), text: acortarEnTexto_(shell.text, "correo " + (tipo || "")) };
   if (EMAIL_DRY_RUN) { Logger.log("[DRY RUN] " + tipo + " → " + para + " · " + asunto); return true; }
   var opts = { htmlBody: shell.html, name: EMAIL_FROM, replyTo: EMAIL_REPLY_TO };
   if (EMAIL_BCC) opts.bcc = EMAIL_BCC;
