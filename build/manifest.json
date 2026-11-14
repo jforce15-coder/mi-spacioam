@@ -43,7 +43,7 @@
   {
    "src": "pedidosya.jsx",
    "out": "pedidosya.js",
-   "h": "e1a84c59e9"
+   "h": "c69330e3cd"
   },
   {
    "src": "dashboard.jsx",
@@ -68,7 +68,7 @@
   {
    "src": "conta-facturas.jsx",
    "out": "conta-facturas.js",
-   "h": "fa2edbc7a4"
+   "h": "1b4a662afb"
   },
   {
    "src": "contratos.jsx",
@@ -93,7 +93,7 @@
   {
    "src": "main.jsx",
    "out": "main.js",
-   "h": "71812e2885"
+   "h": "db7716de83"
   }
  ]
 }
