@@ -13,6 +13,7 @@ on:
       - ".github/ids-gastos.js"
       - ".github/resumen-cache.js"
       - ".github/enlaces.js"
+      - ".github/ficha-socio.js"
       - "404.html"
       - "sheets.js"
       - ".github/workflows/revisar-apps-script.yml"
@@ -90,3 +91,7 @@ jobs:
       - name: Enlaces cortos con mi.spacioam.com (dobles, sin internet)
         # Hub #488 T5: un enlace largo de Mi o de Drive en un correo a un socio sale como mi.spacioam.com/<código>.
         run: node .github/enlaces.js apps-script
+
+      - name: Ficha del socio, libro privado, solo el principal o el robot y nunca salud, religión, política ni banco (dobles)
+        # Hub #522: Alma anota lo que cada socio cuenta y lo retoma una vez; Juan lo ve, corrige y borra en Mi.
+        run: node .github/ficha-socio.js apps-script

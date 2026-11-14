@@ -152,6 +152,7 @@
         { id: "report", icon: "file", label: t("nav_report") },
         { id: "deposits", icon: "coins", label: t("nav_deposits") },
         { id: "conta", icon: "bank", label: t("nav_conta") },
+        { id: "socios", icon: "user", label: t("nav_socios") },
       ] : [
         { id: "dashboard", icon: "home", label: t("nav_dashboard") },
         { id: "expenses", icon: "coins", label: t("nav_expenses") },
@@ -174,7 +175,7 @@
         return () => { vivo = false; };
       }, [isAdmin]);
       const switchTabRef = React.useRef(switchTab); switchTabRef.current = switchTab;
-      const MENU_ICON = { expenses: "coins", report: "doc", deposits: "users", conta: "chart" };
+      const MENU_ICON = { expenses: "coins", report: "doc", deposits: "users", conta: "chart", socios: "user" };
       useEffect(() => {
         if (!menuOn || !window.SANav) return;
         const home = tabs[0];
@@ -215,7 +216,7 @@
             {isAdmin && tab === "dashboard" && typeof MailNudgeCard !== "undefined" && (
               <MailNudgeCard lang={lang} />
             )}
-            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && tab !== "advanced" && (
+            {isAdmin && tab !== "setup" && tab !== "account" && tab !== "deposits" && tab !== "conta" && tab !== "advanced" && tab !== "socios" && (
               <AdminFilters allProps={allOwnerProps} owner={adminOwner} setOwner={setAdminOwner} zona={adminZona} setZona={setAdminZona}
                 edificio={adminEdificio} setEdificio={setAdminEdificio} selProp={adminProps} setSelProp={setAdminProps} t={t} lang={lang} />
             )}
@@ -225,7 +226,7 @@
                 <h1 style={{ fontFamily: "var(--serif)", fontWeight: 400, fontSize: "clamp(28px,4.4vw,46px)", letterSpacing: "-0.015em", lineHeight: 1.04, margin: 0, color: "var(--ink)" }}>
                   {isContador ? "Contabilidad" : isAll ? (isAdmin ? "Spacio AM" : (lang === "es" ? "Tu portafolio" : "Your portfolio")) : property.name}
                 </h1>
-                {tab !== "account" && tab !== "advanced" && !isContador && (
+                {tab !== "account" && tab !== "advanced" && tab !== "socios" && !isContador && (
                   <div className="sa-period-chip">
                     <Icon name="calendar" size={13} stroke="var(--fg-muted)" />
                     <span>{t("period_showing")}</span><strong>{periodText}</strong>
@@ -285,6 +286,10 @@
 
             {tab === "deposits" && isAdmin && (
               <DepositsSection allProps={allOwnerProps} pdata={pdata} period={period} fmt={fmt} t={t} lang={lang} />
+            )}
+
+            {tab === "socios" && isAdmin && typeof FichaSocioSection !== "undefined" && (
+              <FichaSocioSection lang={lang} />
             )}
 
             {tab === "conta" && (isAdmin || isContador) && (
