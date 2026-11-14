@@ -66,6 +66,8 @@ function doPostReal_(e) {
        robot (el Hub). Las dos antes del permiso de administrador y del candado del script. */
     if (body.action === "enlace") return sa_json(abrirEnlace_(body.codigo));
     if (body.action === "acortar") return sa_json(acortarEnlace_(body, __ses));
+    /* Ficha del socio (Hub #522, fichasocio.js): solo el administrador principal (su sesión) o el robot (el Hub). */
+    if (body.action === "fichaSocio") return sa_json(fichaSocioOp_(body, __ses));
     var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
     var llaveRobot = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN");
     var esAdmin  = rolMi === "admin_principal" || !!(llaveRobot && body.token === llaveRobot);
