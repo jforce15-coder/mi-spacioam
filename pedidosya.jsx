@@ -332,9 +332,9 @@ function PyaDteBox({ inv, lang, onClose, headerExtra }) {
 // ============================================================
 // "insumos & gastos" de la hoja → gastos con fecha/valor/autorizaciones (lo usa también Contabilidad)
 window.pyaFetchSheetExpenses = function () {
-  const sid = window.SPACIO_SHEET_ID; if (!sid) return Promise.resolve({ rows: [], ids: new Set() });
-  const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos");
-  return fetch(url).then(r => r.text()).then(txt => {
+  if (!window.SpacioHoja) return Promise.resolve({ rows: [], ids: new Set() });
+  // La hoja es privada: se lee con la sesión por el Apps Script de Mi (sheets.js · SpacioHoja).
+  return window.SpacioHoja.texto("insumos & gastos").then(txt => {
     const parsed = pyaParseCSV(txt); const ids = new Set(), rows = [];
     if (!parsed.length) return { rows, ids };
     const head = parsed[0].map(h => h.trim().toLowerCase());
@@ -1626,10 +1626,9 @@ function PyaManagePanel({ lang, propOptions, active }) {
   ];
 
   const load = pyUseCallback(() => {
-    const sid = window.SPACIO_SHEET_ID; if (!sid) { setRows([]); return; }
+    if (!window.SpacioHoja) { setRows([]); return; }
     setBusy("load"); setMsg("");
-    const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos") + "&_=" + Date.now();
-    fetch(url).then(r => r.text()).then(txt => {
+    window.SpacioHoja.texto("insumos & gastos", { fresco: true }).then(txt => {
       const parsed = pyaParseCSV(txt);
       if (!parsed.length) { setRows([]); setBusy(""); return; }
       const head = parsed[0].map(h => h.trim().toLowerCase());
@@ -1861,14 +1860,13 @@ function ReporteDetalleBox({ rep, lang, onClose }) {
 
 // Pide la clave de administrador cuando el servidor responde "unauthorized"
 // (el dispositivo quedó con la conexión pública o Safari borró la clave).
-// ¿ya están estos orderId en "insumos & gastos"? Lee la hoja publicada (gviz),
-// independiente de Apps Script: si la escritura sí entró pero la respuesta se
-// perdió (pasa en Safari/iPad tras el redirect), lo confirmamos aquí.
+// ¿ya están estos orderId en "insumos & gastos"? Lee la hoja recién leída (sin caché)
+// con la sesión: si la escritura sí entró pero la respuesta se perdió (pasa en
+// Safari/iPad tras el redirect), lo confirmamos aquí.
 async function pyaSheetHasOids(oids) {
-  const sid = window.SPACIO_SHEET_ID; if (!sid || !oids.length) return false;
+  if (!window.SpacioHoja || !oids.length) return false;
   try {
-    const url = "https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos") + "&_=" + Date.now();
-    const txt = await (await fetch(url, { cache: "no-store" })).text();
+    const txt = await window.SpacioHoja.texto("insumos & gastos", { fresco: true });
     return oids.every(o => txt.indexOf(o) >= 0);
   } catch (e) { return false; }
 }

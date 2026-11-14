@@ -360,7 +360,7 @@
                 {es ? "No pudimos leer la hoja en este momento." : "We couldn't read the sheet right now."}
               </p>
               <p style={{ fontFamily: "var(--sans)", fontSize: 12.5, letterSpacing: "0.04em", lineHeight: 1.6, color: "var(--fg-muted)", maxWidth: 420, margin: "0 0 22px" }}>
-                {es ? "Verifica que el documento esté publicado o compartido como “cualquiera con el enlace”, y vuelve a intentar." : "Make sure the document is published or shared as “anyone with the link”, then try again."}
+                {es ? "Espera unos segundos y vuelve a intentar. Si sigue igual, avísale a Spacio AM." : "Wait a few seconds and try again. If it keeps happening, let Spacio AM know."}
               </p>
               {window.__miErr ? <p style={{ fontFamily: "var(--sans)", fontSize: 10.5, color: "var(--fg-muted)", opacity: 0.7, margin: "-12px 0 18px", maxWidth: 420 }}>{(es ? "Detalle: " : "Detail: ") + window.__miErr}</p> : null}
               <button onClick={onRetry} style={{ border: "none", cursor: "pointer", background: "var(--ink)", color: "var(--alabaster)", borderRadius: 12, padding: "13px 26px", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 500, letterSpacing: "0.2em", textTransform: "uppercase" }}>
@@ -397,7 +397,7 @@
         setOwnerState(o);
       };
 
-      /* Las hojas de Mi son privadas: solo se leen con la sesión firmada (lector seguro del login).
+      /* La hoja de Mi es privada: solo se lee con la sesión firmada, por el Apps Script de Mi (leerHojas, sheets.js).
          Sin sesión → primero el login; al entrar, se recarga y los datos se leen ya con la sesión.
          El inicio de sesión recordado lo hace el propio login con la sesión firmada (SASesion).
          Editado en GitHub, no en Claude Design. */
