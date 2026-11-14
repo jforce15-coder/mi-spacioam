@@ -86,9 +86,14 @@
    "h": "b20a83d194"
   },
   {
+   "src": "fichasocio.jsx",
+   "out": "fichasocio.js",
+   "h": "08ffba59e4"
+  },
+  {
    "src": "main.jsx",
    "out": "main.js",
-   "h": "f2ad39a94b"
+   "h": "71812e2885"
   }
  ]
 }
