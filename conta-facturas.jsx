@@ -594,8 +594,8 @@ function ContaFacturasSection({ lang }) {
 
   // gastos de "insumos & gastos" que ya traen factura (authProductos / authTarifa)
   cfUseEffect(() => {
-    const sid = window.SPACIO_SHEET_ID; if (!sid) return;
-    fetch("https://docs.google.com/spreadsheets/d/" + sid + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent("insumos & gastos")).then(r => r.text()).then(txt => {
+    if (!window.SpacioHoja) return;
+    window.SpacioHoja.texto("insumos & gastos").then(txt => {
       const rows = cfCSV(txt); if (!rows.length) return;
       const h = rows[0].map(x => x.trim().toLowerCase());
       const ap = h.indexOf("authproductos"), at = h.indexOf("authtarifa"), pn = h.indexOf("property_name"), ca = h.indexOf("categoria"), oi = h.indexOf("orderid");

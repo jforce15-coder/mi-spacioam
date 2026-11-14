@@ -19,3 +19,14 @@ si ordenas A..F sin N..R, los ids quedan en la fila de otro gasto. En noviembre 
 sola vez IdsGastos.js (bitácora en la pestaña «Reparación de ids de gastos»).
 Desde entonces la app, al editar o borrar un gasto, manda cómo lo vio (propiedad, valor y mes) y el Apps Script
 no toca la fila si no coincide. El Apps Script agrega cada gasto con la fila entera (A..R) de una sola vez.
+
+REGLA — La hoja de Mi es privada (14-nov-2026)
+=============================================
+La hoja de Mi ya no se comparte con «cualquiera con el enlace». La app la lee con la sesión firmada por el Apps Script
+de Mi (acción leerHojas, apps-script/leerhojas.js): el administrador y el contador reciben todo; un socio (o su
+ayudante) solo lo de sus propiedades. Nada en el navegador lee la hoja por gviz ni por un CSV público, y el front ni
+siquiera nombra su id: lo revisa .github/hoja-mi-privada.js (también en Epi y en el Hub).
+Para leer una pestaña desde una pantalla nueva: window.SpacioHoja.filas(pestaña) o SpacioHoja.texto(pestaña) (CSV).
+Una pestaña nueva que la app necesite se agrega a LH_PESTANAS_ (servidor), a PESTANAS (sheets.js) y a cómo se filtra
+para el socio (lhFiltrar_).
+

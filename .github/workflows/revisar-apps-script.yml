@@ -14,6 +14,9 @@ on:
       - ".github/resumen-cache.js"
       - ".github/enlaces.js"
       - ".github/ficha-socio.js"
+      - ".github/leer-hojas.js"
+      - "pedidosya.jsx"
+      - "conta-facturas.jsx"
       - "404.html"
       - "sheets.js"
       - ".github/workflows/revisar-apps-script.yml"
@@ -95,3 +98,7 @@ jobs:
       - name: Ficha del socio, libro privado, solo el principal o el robot y nunca salud, religión, política ni banco (dobles)
         # Hub #522: Alma anota lo que cada socio cuenta y lo retoma una vez; Juan lo ve, corrige y borra en Mi.
         run: node .github/ficha-socio.js apps-script
+
+      - name: Leer la hoja con sesión, cada quien lo suyo y la app igual que antes (dobles)
+        # 14-nov-2026: la hoja de Mi deja de ser pública; la app la lee por leerHojas y el socio solo recibe lo suyo.
+        run: node .github/leer-hojas.js apps-script

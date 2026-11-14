@@ -1,13 +1,13 @@
 /* ============================================================
    Spacio AM — Owner Dashboard · LIVE Google Sheets loader
-   Reads the published sheet directly from the browser (gviz CSV).
+   La hoja de Mi es privada (14-nov-2026): se lee con la sesión firmada por el Apps Script de Mi (acción
+   leerHojas), que le da a cada quien solo lo suyo (el socio, sus propiedades). Ya no se lee desde el navegador.
    Canonical key = property_id (UUID) from SETUP / DATABASE.
    Tabs: SETUP · Resumenconsolidado · DATABASE · insumos & gastos
    ============================================================ */
 (function () {
   "use strict";
 
-  const SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
   const GTQ_RATE = 7.46;            // USD → GTQ (alineado al Reporte Financiero oficial)
   const ADMIN_EMAIL = "jovalle@spacioam.com";
   // Usuario Contador: inicia sesión con cualquiera de estos correos (solo ve la pestaña Contabilidad).
@@ -46,27 +46,6 @@
   const EN_MONTH = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11 };
 
   // ---------- low-level ----------
-  function csvURL(sheet) {
-    // "&_=" evita que Safari/iPad sirva una copia vieja de la pestaña (los cambios
-    // hechos a mano en la hoja tardaban en verse, o no se veían, hasta borrar caché)
-    return "https://docs.google.com/spreadsheets/d/" + SHEET_ID + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheet) + "&_=" + Date.now();
-  }
-  function parseCSV(text) {
-    const rows = []; let row = [], cur = "", q = false;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
-      else {
-        if (c === '"') q = true;
-        else if (c === ",") { row.push(cur); cur = ""; }
-        else if (c === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
-        else if (c === "\r") { }
-        else cur += c;
-      }
-    }
-    if (cur.length || row.length) { row.push(cur); rows.push(row); }
-    return rows;
-  }
   function objectify(rows) {
     if (!rows.length) return { items: [], head: [] };
     const head = rows[0].map(h => h.trim());
@@ -148,10 +127,12 @@
   }
 
   // ---------- build model ----------
-  function build(setup, resumen, db, exp, tc) {
+  function build(setup, resumen, db, exp, tc, extra) {
     // month axis from Resumen (ascending)
     const mkSet = {};
     resumen.items.forEach(r => { const d = parseMesES(r["Mes"]); if (d) mkSet[d.y + "-" + d.m] = d; });
+    // Al socio le llegan solo sus filas: los meses del reporte vienen aparte (extra.meses), para que su eje sea el mismo.
+    ((extra && extra.meses) || []).forEach(s => { const d = parseMesES(s); if (d) mkSet[d.y + "-" + d.m] = d; });
     const monthKeys = Object.values(mkSet).sort((a, b) => (a.y - b.y) || (a.m - b.m));
     const mkIndex = {}; monthKeys.forEach((k, i) => mkIndex[k.y + "-" + k.m] = i);
 
@@ -164,6 +145,8 @@
       (tcByProp[nm] = tcByProp[nm] || {})[d.y + "-" + d.m] = v;
       (tcByMonth[d.y + "-" + d.m] = tcByMonth[d.y + "-" + d.m] || []).push(v);
     });
+    // Socio: el promedio del mes se calculó en el servidor con todas las propiedades (extra.tcMes, «año-mes»).
+    if (extra && extra.tcMes) { Object.keys(tcByMonth).forEach(k => delete tcByMonth[k]); Object.keys(extra.tcMes).forEach(k => { tcByMonth[k] = [extra.tcMes[k]]; }); }
     function rateFor(nm, y, m) {
       const p = tcByProp[nm]; if (p && p[y + "-" + m]) return p[y + "-" + m];
       const arr = tcByMonth[y + "-" + m]; if (arr && arr.length) return arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -448,7 +431,8 @@
           const e = eff(o);
           return (e.email || "").toLowerCase() === email || emailList(e.secondaryEmail).some(s => s.toLowerCase() === email);
         });
-        const found = byUid || byCode || byEmail;
+        /* Socio: el servidor ya mandó solo sus cuentas (leerHojas las encontró con su sesión). */
+        const found = byUid || byCode || byEmail || (extra && extra.filtrado && owners[0]) || null;
         return found ? Object.assign({}, found, { user_id: uid || found.user_id || "", avatar: p.foto || found.avatar || "" }) : Object.assign({ code: "__u__", user_id: uid, name: p.nombre || p.email, email: p.email, props: [], avatar: p.foto || "" });
       },
       /* auth(login, pass) se quitó: comparaba contraseñas en el navegador. Todos entran con el login unificado. */
@@ -660,28 +644,40 @@
     const items = (t.items || []).map(o => { const c = {}; Object.keys(o).forEach(k => { if (!esColClave(k)) c[k] = o[k]; }); return c; });
     return { head, items };
   }
+  /* ---------- lectura con sesión ----------
+     La hoja de Mi es privada: las pestañas se piden al Apps Script de Mi (leerHojas) con la sesión firmada (sa-sesion.js
+     la agrega sola). Una sola llamada trae todas las pestañas (el servidor las lee en paralelo y las guarda 60 s).
+     Si falla una vez (arranque en frío, hoja ocupada), se reintenta una vez. */
+  const PESTANAS = ["SETUP", "Resumenconsolidado", "DATABASE", "insumos & gastos", "TC",
+    "Archivos cargados", "Gastos operativos", "Depositos cargados", "Contabilidad", "Facturas", "Contratos", "Long term"];
+  async function leerHojas(tabs, opts) {
+    let r = null;
+    for (let i = 0; i < 2; i++) {
+      if (i) await new Promise((ok) => setTimeout(ok, 1500));
+      r = await SpacioWrite.post("leerHojas", { tabs: tabs, fresco: !!(opts && opts.fresco) }, { timeout: 60000 });
+      if (r && r.ok && r.tabs) return r;
+      if (r && (r.error === "session" || r.unauthorized)) break;
+    }
+    throw new Error((r && r.error) || "no se pudo leer la hoja");
+  }
+  const aCSV = (filas) => (filas || []).map(f => f.map(c => '"' + String(c == null ? "" : c).replace(/"/g, '""') + '"').join(",")).join("\n");
+  /* Para las pantallas que leen una pestaña sola (Pedidos Ya, Facturas): mismas filas, como texto CSV. */
+  window.SpacioHoja = {
+    filas: async (tab, opts) => ((await leerHojas([tab], opts)).tabs[tab] || []),
+    texto: async (tab, opts) => aCSV((await leerHojas([tab], opts)).tabs[tab] || []),
+  };
   async function load() {
-    const fetchTab = async (name) => objectify(parseCSV(await (await fetch(csvURL(name))).text()));
-    /* Nada en fila (hub ds/velocidad.md, regla 7): las 12 pestañas se piden JUNTAS. Antes las 5 principales iban
-       juntas, pero las demás esperaban una detrás de otra (Archivos → Gastos → Depósitos → Contabilidad → resto):
-       cada una suma un viaje al lector de hojas. Las «best effort» siguen igual: si una falla, queda vacía. */
-    const quizas = (name) => fetchTab(name).then((T) => T, () => null);
+    const r = await leerHojas(PESTANAS);
+    const tabla = (name) => objectify((r.tabs[name] || []).map(f => f.map(c => String(c == null ? "" : c))));
+    /* Nada en fila (hub ds/velocidad.md, regla 7): las 12 pestañas llegan juntas en una sola llamada.
+       Las «best effort» siguen igual: si una falta, queda vacía. */
+    const quizas = (name) => Promise.resolve(r.tabs[name] ? tabla(name) : null);
     const extras = ["Archivos cargados", "Gastos operativos", "Depositos cargados", "Contabilidad", "Facturas", "Contratos", "Long term"].map(quizas);
-    /* SETUP se pide al Apps Script de Mi (leerSetup), que la devuelve SIN la columna de contraseñas.
-       Respaldo (si el Apps Script no responde): la lectura de siempre, quitando esa columna al llegar. */
-    const fetchSetup = async () => {
-      try {
-        const r = await SpacioWrite.post("leerSetup", {}, { timeout: 45000 });
-        if (r && r.ok && typeof r.csv === "string") return sinClaves(objectify(parseCSV(r.csv)));
-      } catch (e) {}
-      return sinClaves(await fetchTab("SETUP"));
-    };
-    const [setup, resumen, dbT, expT, tcT] = await Promise.all([
-      fetchSetup(), fetchTab("Resumenconsolidado"), fetchTab("DATABASE"), fetchTab("insumos & gastos"), fetchTab("TC"),
-    ]);
+    /* SETUP llega sin la columna de contraseñas (el servidor la quita); se vuelve a quitar por si acaso. */
+    const setup = sinClaves(tabla("SETUP")), resumen = tabla("Resumenconsolidado"), dbT = tabla("DATABASE"), expT = tabla("insumos & gastos"), tcT = tabla("TC");
     const [filesP, opexP, depP, conP, facP, conTP, ltP] = extras;
     const pend = (pr) => pr.then((T) => { if (!T) throw new Error("sin pestaña"); return T; });
-    const data = build(setup, resumen, dbT, expT, tcT);
+    const data = build(setup, resumen, dbT, expT, tcT, Object.assign({ filtrado: !!r.filtrado }, r.extra || {}));
     // registro de archivos subidos (facturas/depositos a Drive) — best effort
     try {
       const filesT = await pend(filesP);
@@ -757,5 +753,4 @@
 
   window.SpacioLoad = load;
   window.SPACIO_RATE = GTQ_RATE;
-  window.SPACIO_SHEET_ID = SHEET_ID;
 })();

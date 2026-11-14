@@ -1,0 +1,45 @@
+# La hoja de Mi es privada (14-nov-2026): nadie la lee por gviz ni por un CSV público (.github/hoja-mi-privada.js).
+# · En cada PR de Mi: Mi no la lee así, y su front ni siquiera la nombra (falla).
+# · Los demás repos de Spacio AM (son públicos): en un PR solo avisa (el arreglo de otro repo va en su propio PR);
+#   cada lunes y a mano, falla si en alguno aparece una lectura pública.
+
+name: Hoja de Mi privada
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "41 15 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  revisar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Mi no lee su hoja por gviz/CSV público (y el front no la nombra)
+        run: node .github/hoja-mi-privada.js . --estricto
+
+      - name: Los demás repos tampoco (Hub, Epi, Grow, Hola, Docs, Spacio-am)
+        continue-on-error: ${{ github.event_name == 'pull_request' }}
+        run: |
+          fallo=0
+          # El Hub nombra la hoja en su diagnóstico del lector (con sesión): ahí solo se revisa que no la lea directo.
+          for par in Hub-Spacioam:normal Epi-spacioam:estricto Grow-spacioam:estricto Hola-spacioam:estricto Docs-spacioam:estricto Spacio-am:estricto; do
+            repo="${par%%:*}"; modo="${par##*:}"
+            if ! git clone -q --depth 1 "https://github.com/jforce15-coder/$repo.git" "$RUNNER_TEMP/$repo"; then
+              echo "::warning::No pude bajar $repo."; continue
+            fi
+            echo "── $repo"
+            if [ "$modo" = estricto ]; then node .github/hoja-mi-privada.js "$RUNNER_TEMP/$repo" --estricto || fallo=1
+            else node .github/hoja-mi-privada.js "$RUNNER_TEMP/$repo" || fallo=1; fi
+          done
+          exit $fallo

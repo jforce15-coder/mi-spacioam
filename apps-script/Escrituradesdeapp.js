@@ -68,6 +68,9 @@ function doPostReal_(e) {
     if (body.action === "acortar") return sa_json(acortarEnlace_(body, __ses));
     /* Ficha del socio (Hub #522, fichasocio.js): solo el administrador principal (su sesión) o el robot (el Hub). */
     if (body.action === "fichaSocio") return sa_json(fichaSocioOp_(body, __ses));
+    /* Leer la hoja (leerhojas.js, 14-nov-2026): la hoja ya no es pública; la app la lee aquí con su sesión y cada
+       quien recibe solo lo suyo (el socio, sus propiedades; el administrador y el contador, todo). */
+    if (body.action === "leerHojas") return sa_json(leerHojasOp_(body, __ses));
     var rolMi = String((__ses && __ses.apps && __ses.apps.mi) || "");
     var llaveRobot = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN");
     var esAdmin  = rolMi === "admin_principal" || !!(llaveRobot && body.token === llaveRobot);
@@ -138,6 +141,7 @@ function doPostReal_(e) {
       }
     } finally { if (!readonly) lock.releaseLock(); }
     if (!readonly && !SA_NO_RES_IMPACT[action]) sa_resDirty_();
+    if (!readonly) sa_hojasDirty_();   // la caché de leerHojas se renueva con cualquier escritura
     if (out && typeof out === "object") { out.ms = Date.now() - t0; out.v = SA_VERSION; }
     return sa_json(out);
   } catch (err) {
