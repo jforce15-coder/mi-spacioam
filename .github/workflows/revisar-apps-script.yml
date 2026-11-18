@@ -9,6 +9,7 @@ on:
     branches: [main]
     paths:
       - "apps-script/**"
+      - ".github/entrar-sin-cupo.js"
       - ".clasp.json"
       - ".github/ids-gastos.js"
       - ".github/resumen-cache.js"
@@ -40,6 +41,10 @@ jobs:
             if node --check "$f"; then echo "✓ $f"; else echo "::error file=$f::Error de sintaxis"; fallo=1; fi
           done < <(find . -path ./.git -prune -o -path '*/archivo/*' -prune -o -path '*/apps-script/*.js' -print0)
           exit $fallo
+
+      - name: Entrar nunca depende del cupo, la sesión firmada se revisa aquí si el login no contesta y lo que no tiene firma válida no entra (dobles)
+        # 18-nov-2026, Juan: «El cupo nunca nos debería evitar que hagamos login».
+        run: node .github/entrar-sin-cupo.js apps-script
 
       - name: JSON y .clasp.json
         run: |
