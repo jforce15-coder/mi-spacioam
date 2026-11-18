@@ -22,7 +22,7 @@ const CONFIG = {
 };
 
 function backfill() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = miLibro_();
   const hojaResumen = ss.getSheetByName(CONFIG.HOJA_RESUMEN);
   const hojaConsolidado = ss.getSheetByName(CONFIG.HOJA_CONSOLIDADO);
 

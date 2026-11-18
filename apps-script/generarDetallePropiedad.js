@@ -1,5 +1,5 @@
 function generarDetallePropiedad() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = miLibro_();
   const hojaDB = ss.getSheetByName("DATABASE");
   const hojaResumen = ss.getSheetByName("Resumenconsolidado");
   const hojaDetalle = ss.getSheetByName("detallepropiedad");

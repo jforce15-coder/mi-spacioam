@@ -1,5 +1,5 @@
 function limpiarYActualizarDatabase() { 
-  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("DATABASE");
+  const hoja = miLibro_().getSheetByName("DATABASE");
   const datos = hoja.getDataRange().getValues();
 
   // 1. Eliminar filas completamente vacías
