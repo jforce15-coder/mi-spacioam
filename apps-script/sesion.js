@@ -12,7 +12,7 @@
      robot, acción «__loginSecreto»). Firma inválida, vencida o sin LOGIN_SECRETO → null (no se abre nada).
    Nada de esto bloquea todavía: las apps siguen funcionando igual con o sin sesión.
    ═══════════════════════════════════════════════════════════════════════════════════ */
-var SES_LOGIN_URL_ = 'https://script.google.com/macros/s/AKfycbxfdwLzsA8bwgOxUTOtf3Hw1ptIm8Cy34tspmFndu3WtRrkVSSnGyBP7obRrm73mcUd/exec';
+var SES_LOGIN_URL_ = 'https://script.google.com/macros/s/AKfycbyX_ON7wF0Logs2EfL-K13MJXPDAGADWizVxJt_DP2ZAvSscS1qirYeZYOP5n-zfhnO/exec';
 var SES_ROBOT_HASH_ = 'b0d3ca9d3adb76025e4b4289181cb6300d7769a1d53a2a0c91636df9e0c65ed5';
 
 function sesionDe_(body) {
