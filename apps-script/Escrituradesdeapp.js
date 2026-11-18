@@ -43,7 +43,7 @@ var SA_RECALC_DATAROW = 6;   // Resumen: encabezados en fila 5, datos desde la 6
 // Carpeta raiz en Drive donde se guardan facturas y depositos de socios.
 // Deja "" para que el script cree/use una carpeta llamada SA_DRIVE_ROOT_NAME
 // en tu Drive; o pega el ID de una carpeta existente.
-var SA_DRIVE_ROOT_ID = "";
+var SA_DRIVE_ROOT_ID = "13eqwlvUiyP_wdJqtmV8tHYd-KSjM1UNa";   // «Spacio AM - Archivos de socios» (traslado: alma@ la abre por id, no por nombre)
 var SA_DRIVE_ROOT_NAME = "Spacio AM - Archivos de socios";
 var SA_DRIVE_INVOICES = "Facturas de socios";
 var SA_DRIVE_DEPOSITS = "Depositos a socios";
@@ -59,7 +59,8 @@ function doPost(e) { return doPostReal_(e); }
 function doPostReal_(e) {
   try {
     var body = JSON.parse(e.postData.contents || "{}");
-    var __diag = accesosDiag_(body) || cupoDiag_(body) || loginSecretoDiag_(body); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
+    var __mud = typeof trasladoEntregar_ === 'function' && trasladoEntregar_(body); if (__mud) return __mud;   // traslado a Workspace: Propiedades solo a alma@ (traslado.js)
+    var __diag = accesosDiag_(body) || cupoDiag_(body) || loginSecretoDiag_(body) || (typeof miTrasladoDiag_ === 'function' && miTrasladoDiag_(body)); if (__diag) return __diag;   // fase 1b: resumen de accesos (robot)
     marca_("ini"); var __ses = sesionDe_(body); marca_("ses:" + String((__ses && __ses.apps && __ses.apps.mi) || "-")); registrarAcceso_(body.action, __ses ? true : esRobot_(body) ? 'r' : false);
     var __llaveMi = PropertiesService.getScriptProperties().getProperty("MI_ADMIN_TOKEN"), __bloq = exigirSesion_(body.action, !!__ses || !!(__llaveMi && body.token === __llaveMi), body, ['ping', 'enlace']); if (__bloq) return __bloq;   // fase 1c: solo bloquea con SESION_EXIGIR = 1
     /* Enlaces cortos (#488 T5, enlaces.js): «enlace» es pública (la usa 404.html) y «acortar» pide sesión o la llave del
@@ -859,7 +860,8 @@ function sa_deleteFile(ss, body) {
 }
 
 function sa_rootFolder() {
-  if (SA_DRIVE_ROOT_ID) { try { return DriveApp.getFolderById(SA_DRIVE_ROOT_ID); } catch (e) {} }
+  /* Con id y sin acceso: error claro, nunca una carpeta nueva vacía (los archivos quedarían partidos en dos). */
+  if (SA_DRIVE_ROOT_ID) { try { return DriveApp.getFolderById(SA_DRIVE_ROOT_ID); } catch (e) { throw new Error("Sin acceso a la carpeta de archivos de socios: compártela como editor con la cuenta del Apps Script."); } }
   var it = DriveApp.getFoldersByName(SA_DRIVE_ROOT_NAME);
   return it.hasNext() ? it.next() : DriveApp.createFolder(SA_DRIVE_ROOT_NAME);
 }
@@ -1532,7 +1534,8 @@ function sa_recurEnsureTrigger_() {
 // Disparador diario: fijos del mes en curso + condicionados del mes que ya terminó.
 // Antes, una sola vez (GASTOS_IDS_V1): la reparación de ids de «insumos & gastos» (IdsGastos.js). Va aquí y no en
 // doPost: a las 6 a. m. nadie espera respuesta, tiene el candado 60 s y corre antes de aplicar los programados.
-function aplicarRecurrentesAutomatico() {
+function aplicarRecurrentesAutomatico(e) {
+  if (typeof miSaltarActivador_ === 'function' && miSaltarActivador_(e)) return;   // traslado: otro proyecto atiende lo de fondo (trasladocorte.js)
   var ss = SpreadsheetApp.openById(SA_SHEET_ID);
   var lock = LockService.getScriptLock();
   try { lock.waitLock(60000); } catch (e) { return; }
