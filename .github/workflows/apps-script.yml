@@ -1,7 +1,8 @@
 # El Apps Script de Mi vive en alma@spacioam.com desde el traslado a Workspace (Hub-Spacioam
 # docs/specs/traslado-workspace.md). Ya no se publica con clasp ni con la cuenta vieja: el workflow «Traslado a Workspace»
-# de Hub-Spacioam lo publica desde main cada 10 minutos por el Mudador (sin secretos en este repo). Este flujo solo revisa
-# que el código sea JavaScript válido y lo deja dicho en el resumen.
+# de Hub-Spacioam lo publica por el Mudador (sin secretos en este repo). Este flujo revisa que el código sea JavaScript
+# válido y le avisa al Hub que main cambió: el Hub mira la carpeta apps-script en GitHub y, si cambió, pide el Traslado
+# (unir = publicar, 18-nov-2026; Hub-Spacioam apps-script/publicarsolo.js). El aviso no lleva llave: solo hace mirar.
 
 name: Publicar Apps Script
 
@@ -21,10 +22,17 @@ jobs:
       - name: Revisar el código
         run: for f in apps-script/*.js; do cp "$f" /tmp/x.js; node --check /tmp/x.js; done
 
+      - name: Avisar al Hub para publicar
+        if: github.ref == 'refs/heads/main'
+        run: |
+          R=$(curl -sSL -m 120 -H 'Content-Type: text/plain' --data '{"publicarAviso":1}' "https://script.google.com/macros/s/AKfycbycTV0MsPWym02-ZcbpBBtwg9-WLw8dK9SAEDBslPd_9mgmizPQJS4-B_Q4uEkTWFqQ/exec" || true)
+          echo "Respuesta del Hub: $(printf '%s' "$R" | head -c 300)"
+          printf '%s' "$R" | grep -q '"ok":true' || echo "::warning::El Hub no tomó el aviso; lo publica en su revisión de cada 5 min."
+
       - name: Dónde se publica
         run: |
           {
             echo "### Mi se publica en alma@spacioam.com"
-            echo "Lo sube el workflow «Traslado a Workspace» de Hub-Spacioam (cada 10 min desde main, commit ${GITHUB_SHA::7})."
+            echo "Lo sube el workflow «Traslado a Workspace» de Hub-Spacioam (al unir, en 1 a 2 min; commit ${GITHUB_SHA::7})."
             echo "El proyecto viejo (cuenta Gmail) queda de respaldo sin cambios hasta apagarlo."
           } >> "$GITHUB_STEP_SUMMARY"
