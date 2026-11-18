@@ -84,7 +84,10 @@
       const activeProps = isAll ? props : props.filter(p => selPropArr.indexOf(p.id) >= 0);
       const property = (!isAll && activeProps.length === 1) ? activeProps[0] : null;
       const scopeKey = isAdmin ? adminOwner + "|" + adminZona.join(",") + "|" + adminEdificio.join(",") + "|" + selPropArr.join(",") : owner.code + "|" + effSelProp;
-      const months = useMemo(() => property ? property.months : SpacioAgg.combineMonths(activeProps.length ? activeProps : (props.length ? props : allOwnerProps)), [scopeKey, owner.code]);
+      // «spacio-datos»: una pantalla releyó la hoja (p. ej. fee exonerado en Depósitos a socios) → recalcular con los datos nuevos.
+      const [datosV, setDatosV] = useState(0);
+      useEffect(() => { const h = () => setDatosV(v => v + 1); window.addEventListener("spacio-datos", h); return () => window.removeEventListener("spacio-datos", h); }, []);
+      const months = useMemo(() => property ? property.months : SpacioAgg.combineMonths(activeProps.length ? activeProps : (props.length ? props : allOwnerProps)), [scopeKey, owner.code, datosV]);
       const pdata = useMemo(() => SpacioAgg.periodData(months, period), [months, period]);
 
       const propOptions = (single ? [] : [{ value: "all", label: t("all_props"), sub: props.length + " " + (lang === "es" ? "propiedades" : "properties") }])

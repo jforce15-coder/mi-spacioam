@@ -23,7 +23,7 @@ var SA_USER_READ = { leerSetup: true };
 var SA_VERSION = "2026-11-07a";
 // Acciones de solo lectura: no esperan el candado (una consulta nunca debe fallar
 // porque otra escritura esté en curso) y no invalidan la caché del resumen.
-var SA_READONLY = { ping: 1, leerSetup: 1, resumenPreview: 1, recurList: 1, recurPreview: 1, cierreMesEstado: 1, hospitableStatus: 1, fetchImage: 1 };
+var SA_READONLY = { ping: 1, leerSetup: 1, resumenPreview: 1, recurList: 1, recurPreview: 1, cierreMesEstado: 1, hospitableStatus: 1, fetchImage: 1, resumenFeeLista: 1 };
 // Acciones que no tocan Database / SETUP / insumos & gastos / TC → no invalidan la caché.
 var SA_NO_RES_IMPACT = { leerSetup: 1, uploadFile: 1, deleteFile: 1, writeRows: 1, deleteRows: 1, writeConta: 1, writeContaOpex: 1, deleteContaOpex: 1, registerUnlockDevice: 1, sendCierreMes: 1, cierreMesMulti: 1, sendRecordatoriosFactura: 1, resumenAppend: 1, recurSave: 1, recurCancel: 1, saveProfile: 1 };   // la app lo compara con el que espera (SpacioWrite.expectVersion)
 var SA_TAB_SETUP   = "SETUP";
@@ -127,6 +127,8 @@ function doPostReal_(e) {
         case "resumenPreview": out = sa_resumenPreview(ss, body); break;
         case "resumenAppend":  out = sa_resumenAppend(ss, body);  break;
         case "resumenAjuste":  out = sa_resumenAjuste(ss, body);  break;
+        case "resumenFee":     out = sa_resumenFee(ss, body, __ses); break;      // fee de Spacio AM exonerado un mes (feeexonerado.js)
+        case "resumenFeeLista": out = sa_resumenFeeLista(ss, body); break;
         case "registerUnlockDevice": out = sa_registerUnlockDevice(body); break;
         case "deleteRows":    out = sa_deleteRows(ss, body);     break;
         case "recurList":     out = sa_recurList(ss, body);      break;
@@ -1097,6 +1099,8 @@ function sa_resHuella_(ss) {
     ["SETUP", "TC"].forEach(function (n) { var sh = ss.getSheetByName(n); partes.push(sh ? JSON.stringify(sh.getDataRange().getValues()) : "-"); });
     var g = ss.getSheetByName(SA_TAB_INSUMOS);
     partes.push(g && g.getLastRow() > 0 ? JSON.stringify(g.getRange(1, 1, g.getLastRow(), 6).getValues()) : "-");
+    var fx = ss.getSheetByName("Fee exonerado");   // exoneraciones del fee de un mes (feeexonerado.js)
+    partes.push(fx && fx.getLastRow() > 0 ? JSON.stringify(fx.getDataRange().getValues()) : "-");
     var d = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, partes.join("|"), Utilities.Charset.UTF_8);
     return d.map(function (b) { return ("0" + ((b + 256) % 256).toString(16)).slice(-2); }).join("").slice(0, 12);
   } catch (e) { return String(Date.now()); }   // si no se puede leer, sin caché

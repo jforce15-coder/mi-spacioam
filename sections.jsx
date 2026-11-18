@@ -2328,6 +2328,34 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     if (!SF || !ym) return null;
     return SF.coverage(kind, { scope: scopeNow, owner: ownerLabelOf(g), property_name: scopeNow === "property" ? g.label : "", ym });
   };
+  // Fee de Spacio AM exonerado un mes (Juan, 18-nov-2026 · Hub #825; servidor: apps-script/feeexonerado.js).
+  // Solo el mes visto (el último del período); el mes siguiente se cobra normal. Todo queda en la bitácora.
+  const fxNorm = (s) => String(s || "").replace(/\s*-\s*/g, "-").trim().toLowerCase();
+  const [fx, setFx] = useState(null);          // { activos: {prop → fila}, bitacora: [] }
+  const [fxModal, setFxModal] = useState(null); // { prop, fee, moneda, quitar, motivo }
+  const [fxBusy, setFxBusy] = useState("");
+  const [fxMsg, setFxMsg] = useState("");
+  const fxLoad = async () => {
+    if (!ym || !window.SpacioWrite) return;
+    let r; try { r = await window.SpacioWrite.post("resumenFeeLista", { ym }); } catch (e) { r = null; }
+    if (r && r.ok) { const a = {}; (r.activos || []).forEach(x => { a[fxNorm(x.propiedad)] = x; }); setFx({ activos: a, bitacora: r.bitacora || [] }); }
+    else setFx({ activos: {}, bitacora: [], error: true });
+  };
+  useEffect(() => { setFx(null); setFxMsg(""); fxLoad(); }, [ym]);
+  const ymLabel = ym ? longMonth(lang, +ym.slice(0, 4), +ym.slice(5) - 1) : "";
+  const fxAplicar = async () => {
+    const m = fxModal; if (!m) return;
+    setFxModal(null); setFxBusy(m.prop); setFxMsg("");
+    let r; try { r = await window.SpacioWrite.post("resumenFee", { ym, property: m.prop, quitar: m.quitar, motivo: m.motivo, unlock: { hold: true, t: Date.now() } }, { timeout: 170000 }); } catch (e) { r = { error: (e && e.message) || "error" }; }
+    if (r && r.ok) {
+      const dep = r.depositoAntes != null && r.depositoDespues != null ? tr(" Depósito: $" + r.depositoAntes.toFixed(2) + " → $" + r.depositoDespues.toFixed(2) + ".", " Deposit: $" + r.depositoAntes.toFixed(2) + " → $" + r.depositoDespues.toFixed(2) + ".") : "";
+      const acu = r.acumulado === "actualizado" ? tr(" Resumen y acumulado recalculados.", " Summary and consolidated recalculated.") : tr(" El mes aún no está en el acumulado: entra así al generar el resumen.", " The month isn't in the consolidated sheet yet: it goes in like this when you generate it.");
+      setFxMsg(r.igual ? tr("Ya estaba así: no cambió nada.", "Already like that: nothing changed.")
+        : (m.quitar ? tr("Fee de Spacio AM devuelto en " + m.prop + " · " + ymLabel + ".", "Spacio AM fee restored for " + m.prop + " · " + ymLabel + ".") : tr("Fee de Spacio AM exonerado en " + m.prop + " · " + ymLabel + ".", "Spacio AM fee waived for " + m.prop + " · " + ymLabel + ".")) + dep + acu);
+      if (r.acumulado === "actualizado" && window.SpacioLoad) { try { await window.SpacioLoad(); window.dispatchEvent(new Event("spacio-datos")); } catch (e) {} }
+    } else setFxMsg(tr("No se pudo: ", "Could not: ") + ((r && r.error) || tr("sin conexión", "offline")));
+    await fxLoad(); setFxBusy("");
+  };
   const conv = (usd, moneda) => moneda === "GTQ" ? usd * SpacioI18n.GTQ_RATE : usd;
   const fmtMon = (usd, moneda) => {
     const v = conv(usd, moneda);
@@ -2346,7 +2374,9 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
     // "Ingreso", que repetía exactamente el mismo valor que "Total".
     const montoDeposito = c.montoDeposito != null ? c.montoDeposito : (c.ingresoNeto || 0);
     const acc = SpacioData.owners.find(o => o.props.indexOf(p.id) >= 0);
+    const moYm = (p.months || []).find(m => ymOf(m) === ym);
     return {
+      fee: moYm ? (moYm.fee || 0) : 0,
       moneda: p.moneda || "USD", owner: p.code, ownerEmail: acc ? acc.email : "", prop: p.name,
       cuenta: p.cuenta || "", retencion: c.retencion || 0, iva: c.ivaSocios || 0, total: montoDeposito,
       needsRet: !!p.flagRetencion,
@@ -2356,7 +2386,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
   const hasAccounts = rows.some(r => r.cuenta);
 
   const buildGroups = (rs) => {
-    if (view === "prop") return rs.map(r => ({ key: r.prop, owner: r.owner, email: r.ownerEmail, label: r.prop, cuenta: r.cuenta, retencion: r.retencion, iva: r.iva, total: r.total, moneda: r.moneda, needsRet: r.needsRet }));
+    if (view === "prop") return rs.map(r => ({ fee: r.fee, key: r.prop, owner: r.owner, email: r.ownerEmail, label: r.prop, cuenta: r.cuenta, retencion: r.retencion, iva: r.iva, total: r.total, moneda: r.moneda, needsRet: r.needsRet }));
     const g = {};
     rs.forEach(r => {
       const k = r.owner;
@@ -2366,6 +2396,26 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
       if (!g[k].cuenta && r.cuenta) g[k].cuenta = r.cuenta;
     });
     return Object.values(g);
+  };
+
+  const FeeExoneradoCell = ({ g, mon }) => {
+    const act = fx && fx.activos[fxNorm(g.label)];
+    const busyNow = fxBusy === g.label;
+    const btn = { padding: "6px 10px", fontSize: 10.5, marginLeft: 8 };
+    if (busyNow) return <span className="sa-spin" style={{ width: 12, height: 12, border: "2px solid var(--warm-grey)", borderTopColor: "var(--ink)", borderRadius: "50%", display: "inline-block" }} />;
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 6, whiteSpace: "nowrap" }}>
+        {act
+          ? <span className="sa-dep-chip" style={{ borderColor: "var(--peach)", background: "var(--peach-12, rgba(233,130,106,0.16))" }} title={tr("Exonerado: ", "Waived: ") + (act.motivo || "") + (act.quien ? " · " + act.quien : "")}>{tr("Exonerado", "Waived")}</span>
+          : <span style={{ fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{fmtMon(g.fee || 0, mon)}</span>}
+        {fx && !fx.error && (act || g.fee > 0.005) && (
+          <button type="button" className="sa-file-btn ghost" style={btn} disabled={!!fxBusy}
+            onClick={() => setFxModal({ prop: g.label, fee: act ? act.fee : g.fee, moneda: mon, quitar: !!act, motivo: "" })}
+            aria-label={act ? tr("Volver a cobrar el fee de " + g.label, "Charge the fee again for " + g.label) : tr("Exonerar el fee de " + g.label + " en " + ymLabel, "Waive the fee for " + g.label)}>
+            {act ? tr("Devolver", "Undo") : tr("Exonerar", "Waive")}
+          </button>)}
+      </span>
+    );
   };
 
   const FLT = [
@@ -2397,6 +2447,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
           {mailMsg || (mail && mail.error ? tr("Correo del mes: ", "Monthly email: ") + mail.error : tr("Correo del mes · excepción activa: se permite reenviar a quien ya lo recibió; se apaga después del próximo envío.", "Monthly email · exception on: re-sending to someone who already got it is allowed; turns off after the next send."))}
         </p>
       )}
+      {fxMsg && <p role="status" style={{ margin: "-6px 0 14px", fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", color: /^(No se pudo|Could not)/.test(fxMsg) ? "var(--attention-text, #B54D36)" : "var(--fg-muted)" }}>{fxMsg}</p>}
       {monedas.map(mon => {
         const rs = rows.filter(r => r.moneda === mon);
         let groups = buildGroups(rs).filter(x => x.total !== 0).sort((a, b) => b.total - a.total);
@@ -2423,6 +2474,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     {view === "prop" && <th style={{ minWidth: 110 }}>{t("dep_col_owner")}</th>}
                     <th style={{ minWidth: 110, textAlign: "right" }}>{tr("Retención", "Withholding")}</th>
                     <th style={{ minWidth: 100, textAlign: "right" }}>{t("dep_col_iva")}</th>
+                    {view === "prop" && <th style={{ minWidth: 150, textAlign: "right" }}>{tr("Fee Spacio AM", "Spacio AM fee")}</th>}
                     <th style={{ minWidth: 110, textAlign: "right" }}>{t("dep_col_total")}</th>
                     <th style={{ minWidth: 130 }}>{t("dep_col_account")}</th>
                     <th style={{ minWidth: 170 }}>{t("dep_col_email")}</th>
@@ -2442,6 +2494,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                         {view === "prop" && <td style={{ color: "var(--fg-muted)" }}>{g.owner}</td>}
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{g.retencion > 0.005 ? fmtMon(g.retencion, mon) : "—"}</td>
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: "var(--fg-muted)" }}>{fmtMon(g.iva, mon)}</td>
+                        {view === "prop" && <td style={{ textAlign: "right" }}><FeeExoneradoCell g={g} mon={mon} /></td>}
                         <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{fmtMon(g.total, mon)}</td>
                         <td style={{ color: g.cuenta ? "var(--ink)" : "var(--fg-muted)" }}>{g.cuenta || t("dep_no_account")}</td>
                         <td style={{ color: "var(--fg-muted)" }}>{g.email}</td>
@@ -2469,6 +2522,7 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
                     {view === "prop" && <td></td>}
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.retencion, mon)}</td>
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.iva, mon)}</td>
+                    {view === "prop" && <td></td>}
                     <td style={{ textAlign: "right", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{fmtMon(tot.total, mon)}</td>
                     <td></td><td></td><td></td><td></td><td></td>
                   </tr>
@@ -2482,6 +2536,49 @@ const DepositsSection = ({ allProps, pdata, period, fmt, t, lang }) => {
         <p style={{ fontFamily: "var(--sans)", fontSize: 11.5, letterSpacing: "0.03em", lineHeight: 1.6, color: "var(--fg-muted)", margin: "4px 0 0", display: "flex", gap: 8 }}>
           <Icon name="info" size={14} stroke="var(--fg-muted)" style={{ flexShrink: 0, marginTop: 2 }} /> {t("dep_account_note")}
         </p>
+      )}
+      {fx && fx.bitacora && fx.bitacora.length > 0 && (
+        <details style={{ marginTop: 18 }}>
+          <summary style={{ cursor: "pointer", fontFamily: "var(--sans)", fontSize: 11, fontWeight: 600, letterSpacing: "0.16em", textTransform: "uppercase", color: "var(--fg-muted)" }}>{tr("Bitácora del fee exonerado", "Waived fee log")} ({fx.bitacora.length})</summary>
+          <div className="sa-setup-scroll" style={{ marginTop: 10 }}>
+            <table className="sa-setup-table">
+              <thead><tr>
+                <th>{tr("Fecha", "Date")}</th><th>{tr("Mes", "Month")}</th><th>{t("dep_col_prop")}</th><th>{tr("Acción", "Action")}</th>
+                <th style={{ textAlign: "right" }}>{tr("Fee", "Fee")}</th><th style={{ textAlign: "right" }}>{tr("Depósito antes → después", "Deposit before → after")}</th><th>{tr("Motivo", "Reason")}</th><th>{tr("Quién", "Who")}</th>
+              </tr></thead>
+              <tbody>{fx.bitacora.map(x => (
+                <tr key={x.fila}>
+                  <td style={{ whiteSpace: "nowrap", color: "var(--fg-muted)" }}>{x.fecha ? new Date(x.fecha).toLocaleString(es ? "es-GT" : "en-US", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : ""}</td>
+                  <td style={{ whiteSpace: "nowrap" }}>{longMonth(lang, +x.ym.slice(0, 4), +x.ym.slice(5) - 1)}</td>
+                  <td>{x.propiedad}</td>
+                  <td>{x.accion === "exonerar" ? tr("Exonerado", "Waived") : tr("Devuelto", "Restored")}</td>
+                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{x.fee ? "$" + x.fee.toFixed(2) : "—"}</td>
+                  <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{x.antes != null ? "$" + x.antes.toFixed(2) : "—"} → {x.despues != null ? "$" + x.despues.toFixed(2) : "—"}</td>
+                  <td style={{ color: "var(--fg-muted)" }}>{x.motivo}</td>
+                  <td style={{ color: "var(--fg-muted)" }}>{x.quien}</td>
+                </tr>))}</tbody>
+            </table>
+          </div>
+        </details>
+      )}
+      {fxModal && (
+        <div className="hc-ov" onMouseDown={e => { if (e.target === e.currentTarget) setFxModal(null); }}>
+          <div className="hc-modal" role="alertdialog" aria-modal="true" aria-label={tr("Fee de Spacio AM", "Spacio AM fee")}>
+            <div className="hc-eyebrow">{tr("Fee de Spacio AM · ", "Spacio AM fee · ") + ymLabel}</div>
+            <div className="hc-title">{fxModal.quitar ? tr("¿Volver a cobrar el fee en " + fxModal.prop + "?", "Charge the fee again for " + fxModal.prop + "?") : tr("¿Exonerar el fee de " + fxModal.prop + "?", "Waive the fee for " + fxModal.prop + "?")}</div>
+            <p className="hc-body">{fxModal.quitar
+              ? tr("El fee vuelve a descontarse en " + ymLabel + ". Se recalculan el resumen y el acumulado, y queda en la bitácora.", "The fee is deducted again in " + ymLabel + ". Summary and consolidated are recalculated; it goes to the log.")
+              : tr("No se descuenta el fee" + (fxModal.fee ? " ($" + Number(fxModal.fee).toFixed(2) + ")" : "") + " solo en " + ymLabel + ": el depósito sube y se recalculan el resumen y el acumulado. El mes siguiente se cobra normal. Queda en la bitácora.", "The fee isn't deducted only in " + ymLabel + ": the deposit goes up and the summary and consolidated are recalculated. Next month it's charged as usual. It goes to the log.")}</p>
+            <textarea value={fxModal.motivo} onChange={e => setFxModal(Object.assign({}, fxModal, { motivo: e.target.value }))} rows={2} maxLength={300}
+              placeholder={fxModal.quitar ? tr("Motivo (opcional)", "Reason (optional)") : tr("Motivo: problema operativo, cortesía…", "Reason: operational issue, courtesy…")}
+              aria-label={tr("Motivo", "Reason")}
+              style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", border: "1px solid var(--warm-grey)", borderRadius: 14, fontFamily: "var(--sans)", fontSize: 16, resize: "vertical", background: "var(--alabaster)", color: "var(--ink)" }} />
+            <HoldButton label={fxModal.quitar ? tr("Mantén para devolver", "Hold to restore") : tr("Mantén para exonerar", "Hold to waive")} icon="check" es={es}
+              disabled={!fxModal.quitar && !fxModal.motivo.trim()} hint={!fxModal.quitar && !fxModal.motivo.trim() ? tr("Escribe el motivo primero", "Write the reason first") : undefined}
+              onConfirm={() => setTimeout(fxAplicar, 220)} />
+            <button type="button" className="hc-cancel" onClick={() => setFxModal(null)}>{tr("Cancelar", "Cancel")}</button>
+          </div>
+        </div>
       )}
       <div style={{ marginTop: 40 }}>
         <DepositBatchUpload allProps={allProps} ym={ym} lang={lang} t={t} />

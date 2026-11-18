@@ -141,6 +141,9 @@ function calcularResumenMensual(mesRaw) {
   const idxGastos = {};
   headersGastos.forEach((h, i) => idxGastos[h.toLowerCase().trim()] = i);
 
+  // Propiedades con el fee de Spacio AM exonerado en este mes (pestaña «Fee exonerado», feeexonerado.js).
+  const feeExonerado = typeof fxExoneradosDelMes_ === 'function' ? fxExoneradosDelMes_(ss, año + '-' + mes) : {};
+
   const propiedadesUnicas = [...new Set(datosSetup.map(r => normalize(r[idxSetup['property_name']])))].filter(p => p !== "");
   const resultados = [];
 
@@ -219,8 +222,10 @@ function calcularResumenMensual(mesRaw) {
       }
     }
 
+    // ✅ Fee exonerado (feeexonerado.js): si el administrador lo exoneró para ESTE mes, no se descuenta.
+    //    Solo este mes; el siguiente vuelve a cobrarse solo.
     let feeSpacio = 0;
-    if (filaPropSetup) {
+    if (filaPropSetup && !feeExonerado[propiedad.toLowerCase()]) {
       const feeRaw = (filaPropSetup[idxSetup['spacioamfee']] || '').toString().replace('%', '').trim();
       const fee = Number(feeRaw);
       feeSpacio = ingresoBruto * (fee / 100);
