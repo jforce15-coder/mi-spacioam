@@ -49,6 +49,16 @@ function miActivadoresVivos_() {
   ScriptApp.getProjectTriggers().forEach(function (t) { var f = t.getHandlerFunction(); n[f] = (n[f] || 0) + 1; });
   return n;
 }
+/* Cómo es cada activador vivo (para copiarlo igual): función → [tipo · origen · id de la hoja si es de hoja]. */
+function miActivadoresTipos_() {
+  var out = {};
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    var d = String(t.getEventType()) + ' · ' + String(t.getTriggerSource());
+    try { if (String(t.getTriggerSource()) === 'SPREADSHEETS') d += ' · ' + String(t.getTriggerSourceId()).slice(-6); } catch (e) {}
+    (out[t.getHandlerFunction()] = out[t.getHandlerFunction()] || []).push(d);
+  });
+  return out;
+}
 
 function miTomarActivadores() {
   var nombres = MI_ACTIVADORES_.map(function (x) { return x[0]; });
@@ -86,7 +96,7 @@ function miTrasladoDiag_(body) {
         var d = miDueno_(), abre = {};
         try { abre.hoja = !!SpreadsheetApp.openById(SA_SHEET_ID).getName(); } catch (e) { abre.hoja = false; }
         try { abre.carpeta = !!DriveApp.getFolderById(SA_DRIVE_ROOT_ID).getName(); } catch (e) { abre.carpeta = false; }
-        out = { ok: true, proyecto: yo, dueno: d, soy_dueno: !d || d === yo, activadores: n, faltan: faltan, abre: abre };
+        out = { ok: true, proyecto: yo, dueno: d, soy_dueno: !d || d === yo, activadores: n, tipos: miActivadoresTipos_(), faltan: faltan, abre: abre, pegado: !!SpreadsheetApp.getActiveSpreadsheet() };
       }
     }
   } catch (e) { out = { ok: false, error: String(e.message || e).slice(0, 120) }; }

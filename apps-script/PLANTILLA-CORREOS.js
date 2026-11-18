@@ -233,7 +233,7 @@ function em_aliasDisponible_(dir) {
 
 function registrarEnvio_(tipo, para, asunto) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = miLibro_();
     var sh = ss.getSheetByName(EM_TAB_LOG);
     if (!sh) { sh = ss.insertSheet(EM_TAB_LOG); sh.appendRow(["Fecha", "Tipo", "Para", "Asunto"]); }
     sh.appendRow([new Date(), tipo, para, asunto]);
@@ -329,7 +329,7 @@ function em_headerMap_(sh) {
 
 /** SETUP → [{code, email, secondary, props:[nombre]}] agrupado por socio. */
 function em_socios_() {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EM_TAB_SETUP);
+  var sh = miLibro_().getSheetByName(EM_TAB_SETUP);
   if (!sh) throw new Error("No existe la hoja " + EM_TAB_SETUP);
   var data = sh.getDataRange().getValues();
   var head = data.shift().map(function (h) { return String(h).trim().toLowerCase(); });
@@ -361,7 +361,7 @@ function em_mergeEmails_(a, b) {
 
 /** Resumenconsolidado del mes → { property_name: {ingreso, deposito} } */
 function em_resumenDelMes_(mesTexto) {
-  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EM_TAB_RESUMEN);
+  var sh = miLibro_().getSheetByName(EM_TAB_RESUMEN);
   var out = {};
   if (!sh) return out;
   var data = sh.getDataRange().getValues();
@@ -479,7 +479,7 @@ function enviarCierreMesATodos(mesISO, socio) {
  * hasta: "2026-07" — último mes que se exige. Por defecto, el mes anterior.
  */
 function enviarRecordatoriosFactura(hasta, soloSocio) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = miLibro_();
   if (!hasta) {
     var n = new Date(); n.setMonth(n.getMonth() - 1);
     hasta = n.getFullYear() + "-" + String(n.getMonth() + 1).padStart(2, "0");

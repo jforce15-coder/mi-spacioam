@@ -7,6 +7,9 @@
 
 // 1) ID de TU hoja (en la URL, entre /d/ y /edit).
 var SA_SHEET_ID = "1l9wLH8880NlN9ac2jvne2U6cqej6gycqAD77Z25cLF4";
+/* La hoja de Mi. El proyecto viejo está pegado a la hoja (getActiveSpreadsheet); el de alma@ es suelto y la abre por id
+   (traslado a Workspace, Hub-Spacioam docs/specs/traslado-workspace.md). */
+function miLibro_() { return SpreadsheetApp.getActiveSpreadsheet() || SpreadsheetApp.openById(SA_SHEET_ID); }
 
 // 2) AUTORIZACIÓN (fase 3, oct 2026): ya no hay llaves ni contraseñas en el código.
 //    · Administrador = sesión firmada del login unificado con rol admin_principal en Mi.

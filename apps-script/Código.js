@@ -1,5 +1,5 @@
 function normalizarMonedaUSD() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = miLibro_();
   const sh = ss.getSheetByName('Database');
   const shTC = ss.getSheetByName('TC');
   if (!sh) throw new Error("❌ No existe la hoja 'Database'");
@@ -80,7 +80,7 @@ function normalizarMonedaUSD() {
 
 // Botón del menú / editor: calcula el mes de Resumen!C1 y lo escribe en Resumen.
 function generarResumenMensual() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = miLibro_();
   // ✅ PASO 0 — normaliza a USD toda reserva que haya entrado en GTQ (idempotente).
   normalizarMonedaUSD();
   const hojaResumen = ss.getSheetByName('Resumen');
@@ -96,7 +96,7 @@ function generarResumenMensual() {
 // Cálculo puro (no escribe): lo usan generarResumenMensual y el dashboard
 // (Opciones avanzadas). mesRaw = "AAAA-MM" (o Date).
 function calcularResumenMensual(mesRaw) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ss = miLibro_();
 
   const hojaDB = ss.getSheetByName('Database');
   const hojaResumen = ss.getSheetByName('Resumen');
