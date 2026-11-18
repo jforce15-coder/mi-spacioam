@@ -30,3 +30,13 @@ Para leer una pestaña desde una pantalla nueva: window.SpacioHoja.filas(pestañ
 Una pestaña nueva que la app necesite se agrega a LH_PESTANAS_ (servidor), a PESTANAS (sheets.js) y a cómo se filtra
 para el socio (lhFiltrar_).
 
+
+REGLA — Fee de Spacio AM exonerado un mes (18-nov-2026, Hub #825)
+=================================================================
+En Depósitos a socios (vista «Por propiedad») cada fila tiene «Fee Spacio AM» con el botón «Exonerar»: no se descuenta
+el fee de esa propiedad SOLO en el mes visto (el último del período). Pide un motivo y se confirma manteniendo
+presionado. El servidor (apps-script/feeexonerado.js) lo anota en la pestaña «Fee exonerado» (bitácora: fecha, mes,
+propiedad, acción, fee, motivo, quién, depósito antes y después) y, si el mes ya está en el acumulado, recalcula y
+actualiza solo esa fila de Resumenconsolidado. El cálculo (calcularResumenMensual) lo busca en ese mes exacto: el mes
+siguiente el fee se cobra normal. «Devolver» lo deshace (también queda en la bitácora). Ya no hace falta agregar un
+«otro ingreso» para netear el fee. La bitácora se ve abajo de la tabla. Prueba: node .github/fee-exonerado.js

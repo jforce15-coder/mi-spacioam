@@ -13,6 +13,7 @@ on:
       - ".clasp.json"
       - ".github/ids-gastos.js"
       - ".github/resumen-cache.js"
+      - ".github/fee-exonerado.js"
       - ".github/enlaces.js"
       - ".github/ficha-socio.js"
       - ".github/leer-hojas.js"
@@ -95,6 +96,10 @@ jobs:
         run: node .github/ids-gastos.js apps-script
       - name: "Caché del resumen mensual (se renueva si cambian SETUP, TC o los gastos)"
         run: node .github/resumen-cache.js apps-script
+
+      - name: "Fee de Spacio AM exonerado un mes: solo ese mes, recalcula el acumulado y queda en la bitácora (dobles)"
+        # Hub #825 (Juan, 18-nov-2026): exonerar el fee de una propiedad en un mes desde Depósitos a socios.
+        run: node .github/fee-exonerado.js apps-script
 
       - name: Enlaces cortos con mi.spacioam.com (dobles, sin internet)
         # Hub #488 T5: un enlace largo de Mi o de Drive en un correo a un socio sale como mi.spacioam.com/<código>.
