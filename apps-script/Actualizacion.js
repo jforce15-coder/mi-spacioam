@@ -34,7 +34,8 @@ const HSP_CONFIG = {
 /* ═════════════════════════ PUNTOS DE ENTRADA ═════════════════════════ */
 
 /** Automático: últimos 90 días hasta hoy (igual que el nodo "Fechas"). */
-function hospitableAutomatico() {
+function hospitableAutomatico(e) {
+  if (typeof miSaltarActivador_ === 'function' && miSaltarActivador_(e)) return;   // traslado: otro proyecto atiende lo de fondo (trasladocorte.js)
   const hoy = new Date();
   const inicio = new Date(hoy.getTime());
   inicio.setUTCDate(inicio.getUTCDate() - HSP_CONFIG.DIAS_ATRAS);
