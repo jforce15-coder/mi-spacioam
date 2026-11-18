@@ -2,6 +2,7 @@
    Mientras dura el traslado a alma@ hay dos proyectos de Mi (el viejo en la cuenta Gmail y el nuevo en alma@) que leen
    la misma hoja (Spacio AM 2025). Si los dos corrieran sus activadores de las 6:00, los gastos fijos del mes se
    cargarían dos veces y Hospitable se sincronizaría dos veces.
+   Los vivos del viejo el 18-nov-2026 (robot __traslado): los tres de MI_ACTIVADORES_, todos por reloj.
    · La pestaña TRASLADO de Spacio AM 2025 dice qué proyecto es el dueño (B1 = su id). Un activador diario de cualquier
      otro proyecto sale sin hacer nada (miSaltarActivador_). Sin la pestaña o con B1 vacío, todos corren como siempre.
    · Solo se saltan las corridas que lanza un ACTIVADOR (traen triggerUid) de las funciones de MI_ACTIVADORES_. Lo que
@@ -16,7 +17,8 @@ var MI_TRASLADO_HOJA_ = 'TRASLADO';
 /* Los activadores diarios de Mi: [función, cómo]. Los que tiene vivos el viejo (robot __traslado). */
 var MI_ACTIVADORES_ = [
   ['aplicarRecurrentesAutomatico', function (b) { return b.atHour(6).everyDays(1); }],   // gastos fijos y condicionados del mes
-  ['hospitableAutomatico', function (b) { return b.atHour(6).everyDays(1); }]            // reservas de Hospitable → DATABASE
+  ['hospitableAutomatico', function (b) { return b.atHour(6).everyDays(1); }],           // reservas de Hospitable → DATABASE
+  ['generarResumenMensual', function (b) { return b.atHour(7).everyDays(1); }]           // resumen del mes de Resumen!C1 (el viejo lo tiene por reloj; Google no dice la hora: 7:00, después de Hospitable)
 ];
 
 function miTrasladoHoja_(crear) {
@@ -31,7 +33,7 @@ function miDueno_() {
 function miPonerDueno_(id) {
   var sh = miTrasladoHoja_(true);
   sh.getRange('A1:C1').setValues([['dueño', id, new Date().toISOString()]]);
-  sh.getRange('A2').setValue('El proyecto con este id atiende lo de fondo de Mi (gastos fijos y Hospitable a las 6:00). Para volver al viejo, pon su id en B1.');
+  sh.getRange('A2').setValue('El proyecto con este id atiende lo de fondo de Mi (gastos fijos y Hospitable a las 6:00, resumen del mes). Para volver al viejo, pon su id en B1.');
 }
 
 /* true = este proyecto NO es el dueño y la corrida viene de un activador: salir sin hacer nada. */

@@ -79,7 +79,8 @@ function normalizarMonedaUSD() {
 }
 
 // Botón del menú / editor: calcula el mes de Resumen!C1 y lo escribe en Resumen.
-function generarResumenMensual() {
+function generarResumenMensual(e) {
+  if (typeof miSaltarActivador_ === 'function' && miSaltarActivador_(e)) return;   // traslado: otro proyecto atiende lo de fondo (trasladocorte.js)
   const ss = miLibro_();
   // ✅ PASO 0 — normaliza a USD toda reserva que haya entrado en GTQ (idempotente).
   normalizarMonedaUSD();
