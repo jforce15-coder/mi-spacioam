@@ -263,6 +263,38 @@ function ContaLedger({ statements, isAdmin, q, status, lang, onEditTag, onDelete
 }
 
 // ---------- sección principal ----------
+// ---- Calendario contable (lo acordado con la contadora): la próxima fecha de cada entrega ----
+function ContaCalendario({ lang }) {
+  const tr = (es, en) => (lang === "es" ? es : en);
+  const C = window.SpacioContaCalendario; if (!C) return null;
+  const fechas = C.proximas(new Date());
+  const meses = lang === "es" ? ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"] : ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const dias = lang === "es" ? ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const falta = (n) => n === 0 ? tr("Hoy", "Today") : n === 1 ? tr("Mañana", "Tomorrow") : tr("En " + n + " días", "In " + n + " days");
+  return (
+    <Card pad={20} soft style={{ marginBottom: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+        <Icon name="calendar" size={16} stroke="var(--fg-muted)" />
+        <Eyebrow style={{ margin: 0 }}>{tr("Calendario contable · Patricia Ruano", "Accounting calendar · Patricia Ruano")}</Eyebrow>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
+        {fechas.map(f => (
+          <div key={f.id} style={{ background: "var(--alabaster)", border: "1px solid var(--ink-08)", borderRadius: 16, padding: "14px 16px" }}>
+            <div style={{ fontFamily: "var(--serif)", fontSize: 18, color: "var(--ink)", lineHeight: 1.2 }}>{lang === "es" ? f.titulo : (f.id === "retenciones" ? "Withholdings" : "Bank movements")}</div>
+            <div style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--fg-muted)", marginTop: 4 }}>{lang === "es" ? f.regla : f.en}</div>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 13.5, color: "var(--ink)", fontWeight: 500 }}>
+                {tr("Próxima: ", "Next: ")}{dias[f.proxima.getDay()]} {f.proxima.getDate()} {meses[f.proxima.getMonth()]}
+              </span>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: f.dias <= 2 ? "var(--peach)" : "var(--fg-muted)" }}>{falta(f.dias)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fmt, allProps }) {
   const tr = (es, en) => (lang === "es" ? es : en);
   const [tick, setTick] = useState(0);
@@ -337,6 +369,7 @@ function ContabilidadSection({ owner, isAdmin, isContador, lang, t, currency, fm
 
   return (
     <div className="sa-section" style={{ marginTop: 28 }}>
+      <ContaCalendario lang={lang} />
       {isAdmin && (
         <div style={{ display: "flex", gap: 8, marginBottom: 20, flexWrap: "wrap" }}>
           {[{ id: "estados", label: tr("Estados de cuenta", "Bank statements") }, { id: "pl", label: tr("Resumen contable", "Accounting summary") }, { id: "facturas", label: tr("Facturas", "Invoices") }, { id: "longterm", label: "Long term" }].map(s => (
