@@ -460,3 +460,5 @@ function hsp_resumen_(r) {
   if (r.errores.length) txt += `\n\nFallaron: ${r.errores.join(', ')}`;
   return txt;
 }
+
+// Unir = publicar: lo que se une a main en apps-script/ llega solo a alma@ (Traslado a Workspace, 18-nov-2026).
