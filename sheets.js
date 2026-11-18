@@ -501,7 +501,10 @@
   // Drive (su navegador no tiene la conexión del admin) y el archivo se pierde
   // al recargar. El token de subida solo autoriza "uploadFile" en el Apps
   // Script (SA_UPLOAD_TOKEN), por eso puede ir dentro del código publicado.
-  const SA_PUBLIC_URL = "https://script.google.com/macros/s/AKfycbzqUTv_0NuNBVRXhlfHGaS5RdWKjBAmfA-dIsdDnMLbl2aE2PriEXNWw3qCi8yPF28qaQ/exec"; // ej. "https://script.google.com/macros/s/AKfyc…/exec"
+  const SA_PUBLIC_URL = "https://script.google.com/macros/s/AKfycbwJs7uCsJAzWu3artVCXrU4g7Nu6GoqU7iaLXpPYu9UilQpFl4CeQ9b1z9NgQ_31YTFlw/exec"; // Mi en alma@ (traslado a Workspace, 18-nov-2026)
+  // La dirección del Mi viejo (cuenta Gmail): si un navegador la guardó, se ignora y se usa la de arriba.
+  const SA_URL_VIEJA = "AKfycbzqUTv_0NuNBVRX";
+  const saUrlBuena = (u) => (u && u.indexOf(SA_URL_VIEJA) < 0 ? u : "");
   const SA_PUBLIC_TOKEN = ""; // fase 3: ya no hay token público; el Apps Script autoriza con la sesión firmada
   // ---------------------------------------------------------------
   function saCookieGet(k) {
@@ -540,7 +543,7 @@
     urlKey: SA_WK, tokenKey: SA_TK,
     // lee de localStorage; si está vacío, cae a la cookie y luego a la conexión
     // pública de subida (para que TODO dispositivo pueda guardar archivos).
-    url() { return (saLocalGet(SA_WK) || saCookieGet(SA_WK) || SA_PUBLIC_URL || "").trim(); },
+    url() { return (saUrlBuena(saLocalGet(SA_WK)) || saUrlBuena(saCookieGet(SA_WK)) || SA_PUBLIC_URL || "").trim(); },
     token() { return (saLocalGet(SA_TK) || saCookieGet(SA_TK) || SA_PUBLIC_TOKEN || "").trim(); },
     // ¿este dispositivo tiene la conexión completa del admin (no la pública)?
     // Fase 3: el admin se reconoce por su sesión firmada (rol admin_principal en Mi), no por una llave guardada.
@@ -557,8 +560,8 @@
     },
     // al cargar: restaura desde el almacén que sobreviva y re-sella todo
     async hydrate() {
-      let url = saLocalGet(SA_WK) || saCookieGet(SA_WK), token = saLocalGet(SA_TK) || saCookieGet(SA_TK);
-      if (!url) { const o = await saIdb("get"); if (o && o.url) { url = o.url; token = o.token || token; } }
+      let url = saUrlBuena(saLocalGet(SA_WK)) || saUrlBuena(saCookieGet(SA_WK)), token = saLocalGet(SA_TK) || saCookieGet(SA_TK);
+      if (!url) { const o = await saIdb("get"); if (o && saUrlBuena(o.url)) { url = o.url; token = o.token || token; } }
       if (url) this.setConfig(url, token); // re-sella (refresca el temporizador de Safari)
       return !!this.url();
     },

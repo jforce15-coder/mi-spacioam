@@ -28,7 +28,7 @@ const HSP_CONFIG = {
   API_BASE: 'https://public.api.hospitable.com/v2',
   INCLUDE: ['financials', 'guest', 'property', 'review'],
   DIAS_ATRAS: 90,
-  CLEANUP_URL: 'https://script.google.com/macros/s/AKfycbzqUTv_0NuNBVRXhlfHGaS5RdWKjBAmfA-dIsdDnMLbl2aE2PriEXNWw3qCi8yPF28qaQ/exec',
+  CLEANUP_URL: 'https://script.google.com/macros/s/AKfycbwJs7uCsJAzWu3artVCXrU4g7Nu6GoqU7iaLXpPYu9UilQpFl4CeQ9b1z9NgQ_31YTFlw/exec',
 };
 
 /* ═════════════════════════ PUNTOS DE ENTRADA ═════════════════════════ */
