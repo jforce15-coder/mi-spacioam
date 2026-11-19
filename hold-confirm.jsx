@@ -17,7 +17,10 @@ const HC_CSS = `
 .hc-btn.holding .hc-fill { transform: scaleX(1); transition: transform ${HC_MS}ms linear; }
 .hc-btn.done .hc-fill { transform: scaleX(1); transition: none; }
 .hc-ring { position: relative; flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%; background: var(--bg-alt); display: flex; align-items: center; justify-content: center; }
-.hc-ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+/* Solo el anillo de progreso (no el ícono del centro, que también es un <svg>): antes «.hc-ring svg» giraba el ícono
+   -90° y lo mandaba a la esquina de arriba (Juan, 19-nov-2026). */
+.hc-ring .hc-ring-svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+.hc-ring .hc-ico { position: relative; display: flex; }
 .hc-ring circle { fill: none; stroke-width: 2.5; }
 .hc-ring .hc-track { stroke: var(--divider); }
 .hc-ring .hc-arc { stroke: var(--peach); stroke-linecap: round; stroke-dasharray: 113.1; stroke-dashoffset: 113.1; transition: stroke-dashoffset .18s cubic-bezier(0.22, 0.61, 0.36, 1); }
@@ -68,8 +71,8 @@ function HoldButton({ label, hint, icon, danger, disabled, onConfirm, es = true,
       aria-label={label + ". " + (es ? "Mantén presionado para confirmar" : "Press and hold to confirm")}>
       <span className="hc-fill" aria-hidden="true"></span>
       <span className="hc-ring" aria-hidden="true">
-        <svg viewBox="0 0 40 40"><circle className="hc-track" cx="20" cy="20" r="18"></circle><circle className="hc-arc" cx="20" cy="20" r="18"></circle></svg>
-        <Icon name={st === "done" ? "check" : (icon || (danger ? "trash" : "check"))} size={16} stroke={danger ? "var(--color-error, #C0392B)" : "var(--ink)"} />
+        <svg className="hc-ring-svg" viewBox="0 0 40 40"><circle className="hc-track" cx="20" cy="20" r="18"></circle><circle className="hc-arc" cx="20" cy="20" r="18"></circle></svg>
+        <span className="hc-ico"><Icon name={st === "done" ? "check" : (icon || (danger ? "trash" : "check"))} size={16} stroke={danger ? "var(--color-error, #C0392B)" : "var(--ink)"} /></span>
       </span>
       <span className="hc-txt"><b>{label}</b><small aria-live="polite">{sub}</small></span>
     </button>

@@ -194,6 +194,13 @@ function AvUnlockModal({ ym, label, onUnlock, onClose, tr }) {
   );
 }
 
+// Relee la hoja (leerHojas ya renovó su caché con la escritura) y avisa a las pantallas abiertas.
+async function avRecargarDatos() {
+  if (!window.SpacioLoad) return false;
+  try { await window.SpacioLoad(); window.dispatchEvent(new Event("spacio-datos")); return true; }
+  catch (e) { console.warn("avRecargarDatos: " + ((e && e.message) || e)); return false; }
+}
+
 function avPeriods() {
   const out = [], now = new Date();
   for (let i = 0; i < 24; i++) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); out.push(d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0")); }
@@ -489,6 +496,10 @@ function AdvancedSection({ lang, owner }) {
       if (again && again.ok) setData(d => Object.assign({}, d, { [k]: Object.assign({ ym: k }, again) }));
     }
     setProg(null); setBusy(""); setRowBusy(""); setUnlockOpen(false); setPendingAct(null);
+    // El resto de Mi (Depósitos a socios, Liquidación, gráficas) lee SpacioData, que se cargó al abrir la app.
+    // Si el acumulado cambió, se relee la hoja y se avisa con «spacio-datos» para que todo recalcule sin recargar.
+    // Antes no se releía: Narama 1012 · septiembre se agregó y no salía en Depósitos a socios (Juan, 19-nov-2026).
+    if (tot.added + tot.updated + tot.removed + tot.forced > 0) avRecargarDatos();
     if (locked) { setMsg(tr("Mes cerrado: la clave no fue aceptada.", "Closed month: unlock not accepted.")); return false; }
     const scope = act.props ? (act.props.length === 1 ? (act.props[0] || tr("1 propiedad", "1 property")) : act.props.length + tr(" propiedades", " properties")) : tr("todas", "all");
     const okTxt = tr("Resumenconsolidado · " + scope + " · " + tot.added + " nuevas, " + tot.updated + " actualizadas, " + tot.same + " sin cambios" + (tot.removed ? ", " + tot.removed + " duplicadas eliminadas" : "") + (tot.forced ? ", " + tot.forced + " sobrescritas" : "") + ".", "Consolidated · " + scope + " · added " + tot.added + ", updated " + tot.updated + ", same " + tot.same + ".");
